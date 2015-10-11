@@ -2,7 +2,7 @@
 The lexer processes text flagging any sass extended commands
 sprite* as commands
 */
-package lexer
+package main
 
 import (
 	"container/list"
@@ -12,8 +12,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	. "github.com/wellington/wellington/token"
 )
 
 const EOF rune = 0x04
@@ -285,6 +283,10 @@ func (i Item) String() string {
 	return i.Value
 }
 
+func (l *Lexer) Error(s string) {
+	panic(s)
+}
+
 func (l *Lexer) Action() StateFn {
 	for {
 		switch r, _ := l.Advance(); {
@@ -338,6 +340,27 @@ func IsSpace(r rune) bool {
 
 func IsPrintable(r rune) bool {
 	return true
+}
+
+func (l *Lexer) Lex(lval *yySymType) int {
+	var c *Item
+	for {
+		c = l.Next()
+		switch c.Type {
+		case ItemEOF:
+			fmt.Println("EOF")
+			lval.x = c
+			return 0
+		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+		default:
+			lval.x = c
+			fmt.Println("missing", c.Type)
+			return int(c.Type)
+		}
+		lval.x = c
+		return int(c.Type)
+	}
+	return 0
 }
 
 func (l *Lexer) Math() StateFn {
