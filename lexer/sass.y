@@ -29,7 +29,7 @@ import (
     itype ItemType
 }
 
-%type	<x>	expr expr1
+%type	<x>	selector property nested
 %token  <x> LBRACKET RBRACKET COLON SEMIC TEXT
 
 %token  <x>           STR
@@ -37,23 +37,25 @@ import (
 
 %%
 top:
-                expr {
+                property {
                     fmt.Fprint(out, $1.Value)
                 }
         ;
-expr:
-                expr1
-        |       expr LBRACKET { $$.Value += $2.Value }
-        |       expr RBRACKET { $$.Value += $2.Value }
-        |       SEMIC { $$.Value = $1.Value }
-        |       TEXT { $$.Value = $1.Value }
-        |       COLON { }
+property:
+                selector
+        |       TEXT COLON TEXT SEMIC { $$.Value = $1.Value + $2.Value + $3.Value + $4.Value }
         ;
-expr1:
+selector:
+                nested
+        |       TEXT LBRACKET property RBRACKET {
+                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
+                        }
+        ;
+nested:
                 STR
-        |       expr TEXT { $$.Value = $1.Value+$2.Value }
-        |       expr COLON { $$.Value = $1.Value+$2.Value }
-        |       expr SEMIC { $$.Value = $1.Value+$2.Value }
+        |       TEXT LBRACKET selector RBRACKET {
+                    $$.Value = $1.Value + " " + $3.Value
+                }
         ;
 %%
 

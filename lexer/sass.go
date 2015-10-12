@@ -44,7 +44,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line sass.y:58
+//line sass.y:60
 
 var out io.Writer
 
@@ -100,47 +100,45 @@ var yyExca = [...]int{
 	-2, 0,
 }
 
-const yyNprod = 12
+const yyNprod = 8
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 12
+const yyLast = 14
 
 var yyAct = [...]int{
 
-	8, 9, 11, 12, 10, 6, 4, 5, 7, 1,
-	3, 2,
+	4, 6, 2, 3, 9, 12, 8, 1, 7, 14,
+	13, 10, 11, 5,
 }
 var yyPact = [...]int{
 
-	-1, -1000, -4, -1000, -1000, -1000, -1000, -1000, -1000, -1000,
-	-1000, -1000, -1000,
+	-8, -1000, -1000, -1000, 2, -1000, -1000, -4, -8, -2,
+	5, 4, -1000, -1000, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 11, 10, 9,
+	0, 3, 2, 13, 7,
 }
 var yyR1 = [...]int{
 
-	0, 3, 1, 1, 1, 1, 1, 1, 2, 2,
-	2, 2,
+	0, 4, 2, 2, 1, 1, 3, 3,
 }
 var yyR2 = [...]int{
 
-	0, 1, 1, 2, 2, 1, 1, 1, 1, 2,
-	2, 2,
+	0, 1, 1, 4, 1, 4, 1, 4,
 }
 var yyChk = [...]int{
 
-	-1000, -3, -1, -2, 7, 8, 6, 9, 4, 5,
-	8, 6, 7,
+	-1000, -4, -2, -1, 8, -3, 9, 6, 4, 8,
+	-2, -1, 7, 5, 5,
 }
 var yyDef = [...]int{
 
-	0, -2, 1, 2, 5, 6, 7, 8, 3, 4,
-	9, 10, 11,
+	0, -2, 1, 2, 0, 4, 6, 0, 0, 0,
+	0, 0, 3, 5, 7,
 }
 var yyTok1 = [...]int{
 
@@ -501,51 +499,22 @@ yydefault:
 			fmt.Fprint(out, yyDollar[1].x.Value)
 		}
 	case 3:
-		yyDollar = yyS[yypt-2 : yypt+1]
+		yyDollar = yyS[yypt-4 : yypt+1]
 		//line sass.y:46
 		{
-			yyVAL.x.Value += yyDollar[2].x.Value
-		}
-	case 4:
-		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:47
-		{
-			yyVAL.x.Value += yyDollar[2].x.Value
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value
 		}
 	case 5:
-		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:48
-		{
-			yyVAL.x.Value = yyDollar[1].x.Value
-		}
-	case 6:
-		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:49
-		{
-			yyVAL.x.Value = yyDollar[1].x.Value
-		}
-	case 7:
-		yyDollar = yyS[yypt-1 : yypt+1]
+		yyDollar = yyS[yypt-4 : yypt+1]
 		//line sass.y:50
 		{
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value
 		}
-	case 9:
-		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:54
-		{
-			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
-		}
-	case 10:
-		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:55
-		{
-			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
-		}
-	case 11:
-		yyDollar = yyS[yypt-2 : yypt+1]
+	case 7:
+		yyDollar = yyS[yypt-4 : yypt+1]
 		//line sass.y:56
 		{
-			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
+			yyVAL.x.Value = yyDollar[1].x.Value + " " + yyDollar[3].x.Value
 		}
 	}
 	goto yystack /* stack new state and value */
