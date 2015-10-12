@@ -38,4 +38,12 @@ func TestParserNested(t *testing.T) {
 	if e := `div p{color:red;}`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
+
+	in = bytes.NewBufferString(`div { div {p { color: red; } } }`)
+	buf = setupParser(t, in)
+
+	if e := `div div p{color:red;}`; e != buf.String() {
+		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
+	}
+
 }
