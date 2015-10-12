@@ -297,7 +297,7 @@ func (i Item) String() string {
 }
 
 func (l *Lexer) Error(s string) {
-	panic(s)
+	fmt.Println(s)
 }
 
 func (l *Lexer) Action() StateFn {
