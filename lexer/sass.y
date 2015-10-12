@@ -18,12 +18,14 @@ import (
 	"log"
 	"bufio"
 	"io"
+    "fmt"
 )
 
 %}
 
 %union {
     x *Item
+    val string
     itype ItemType
 }
 
@@ -35,26 +37,33 @@ import (
 
 %%
 top:
-                expr { }
+                expr {
+                    fmt.Fprint(out, $1.Value)
+                }
         ;
 expr:
                 expr1
-        |       expr LBRACKET { $$ = $2 }
-        |       expr RBRACKET { $$ = $1 }
-        |       SEMIC { $$ = $1 }
-        |       TEXT { $$ = $1 }
+        |       expr LBRACKET { $$.Value += $2.Value }
+        |       expr RBRACKET { $$.Value += $2.Value }
+        |       SEMIC { $$.Value = $1.Value }
+        |       TEXT { $$.Value = $1.Value }
         |       COLON { }
         ;
 expr1:
                 STR
-        |       expr TEXT { $$ = $2 }
-        |       expr COLON { $$ = $2 }
-        |       expr SEMIC { $$ = $2 }
+        |       expr TEXT { $$.Value = $1.Value+$2.Value }
+        |       expr COLON { $$.Value = $1.Value+$2.Value }
+        |       expr SEMIC { $$.Value = $1.Value+$2.Value }
         ;
 %%
 
+var out io.Writer
+
+func init() {
+    out = os.Stdout
+}
+
 func main() {
-    yyDebug = 10
         yyErrorVerbose = true
         in := bufio.NewReader(os.Stdin)
         _ = in
@@ -89,9 +98,8 @@ func main() {
             log.Fatalf("ReadBytes: %s", err)
         }
 
-        p := yyParse(New(func(l *Lexer) StateFn {
+        yyParse(New(func(l *Lexer) StateFn {
             return l.Action()
         }, string(line)))
-        _ = p
      }
 }

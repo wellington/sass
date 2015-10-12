@@ -6,15 +6,17 @@ import __yyfmt__ "fmt"
 //line sass.y:14
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"log"
 	"os"
 )
 
-//line sass.y:25
+//line sass.y:26
 type yySymType struct {
 	yys   int
 	x     *Item
+	val   string
 	itype ItemType
 }
 
@@ -42,10 +44,15 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line sass.y:54
+//line sass.y:58
+
+var out io.Writer
+
+func init() {
+	out = os.Stdout
+}
 
 func main() {
-	yyDebug = 10
 	yyErrorVerbose = true
 	in := bufio.NewReader(os.Stdin)
 	_ = in
@@ -80,10 +87,9 @@ func main() {
 			log.Fatalf("ReadBytes: %s", err)
 		}
 
-		p := yyParse(New(func(l *Lexer) StateFn {
+		yyParse(New(func(l *Lexer) StateFn {
 			return l.Action()
 		}, string(line)))
-		_ = p
 	}
 }
 
@@ -490,55 +496,56 @@ yydefault:
 
 	case 1:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:38
+		//line sass.y:40
 		{
+			fmt.Fprint(out, yyDollar[1].x.Value)
 		}
 	case 3:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:42
+		//line sass.y:46
 		{
-			yyVAL.x = yyDollar[2].x
+			yyVAL.x.Value += yyDollar[2].x.Value
 		}
 	case 4:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:43
+		//line sass.y:47
 		{
-			yyVAL.x = yyDollar[1].x
+			yyVAL.x.Value += yyDollar[2].x.Value
 		}
 	case 5:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:44
+		//line sass.y:48
 		{
-			yyVAL.x = yyDollar[1].x
+			yyVAL.x.Value = yyDollar[1].x.Value
 		}
 	case 6:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:45
+		//line sass.y:49
 		{
-			yyVAL.x = yyDollar[1].x
+			yyVAL.x.Value = yyDollar[1].x.Value
 		}
 	case 7:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:46
+		//line sass.y:50
 		{
 		}
 	case 9:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:50
+		//line sass.y:54
 		{
-			yyVAL.x = yyDollar[2].x
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
 		}
 	case 10:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:51
+		//line sass.y:55
 		{
-			yyVAL.x = yyDollar[2].x
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
 		}
 	case 11:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:52
+		//line sass.y:56
 		{
-			yyVAL.x = yyDollar[2].x
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
 		}
 	}
 	goto yystack /* stack new state and value */
