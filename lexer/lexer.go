@@ -352,7 +352,6 @@ func (l *Lexer) Lex(lval *yySymType) int {
 		c = l.Next()
 		switch c.Type {
 		case ItemEOF:
-			fmt.Printf("EOF %d\n", ItemEOF)
 			return int(ItemEOF)
 		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
 		default:
@@ -360,7 +359,6 @@ func (l *Lexer) Lex(lval *yySymType) int {
 			fmt.Println("missing", c.Type)
 			return int(c.Type)
 		}
-		fmt.Println("returning", c.Type)
 		lval.x = c
 		return int(c.Type)
 	}
