@@ -24,10 +24,10 @@ import (
 
 %union {
     x *Item
+    itype ItemType
 }
 
 %type	<x>	expr expr1
-//                       %type   <x> line
 %token  <x> LBRACKET RBRACKET COLON SEMIC TEXT
 
 %token  <x>           STR

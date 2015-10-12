@@ -2,10 +2,7 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"testing"
-
-	. "github.com/wellington/wellington/token"
 )
 
 func printItems(items []Item) {
@@ -130,8 +127,9 @@ div {
 }
 
 func TestLexerImport(t *testing.T) {
-	fvar, _ := ioutil.ReadFile("../test/sass/import.scss")
-	items, _ := testParse(string(fvar))
+	fvar := `@import "var";
+`
+	items, _ := testParse(fvar)
 	vals := map[int]string{
 		0: "@import",
 		1: "var",
@@ -188,7 +186,7 @@ div {
 			e, items[23].Type)
 	}
 
-	if e := TEXT; items[37].Type != e {
+	if e := TEXT; int(items[37].Type) != e {
 		t.Errorf("Failed to parse TEXT expected: %s, was: %s",
 			e, items[37].Type)
 	}
@@ -232,7 +230,7 @@ div {
 		panic(err)
 	}
 
-	if e := TEXT; items[9].Type != e {
+	if e := TEXT; int(items[9].Type) != e {
 		t.Errorf("Type parsed improperly expected: %s, was: %s",
 			e, items[9].Type)
 	}

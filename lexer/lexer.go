@@ -8,15 +8,13 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
-
-func init() {
-	fmt.Printf("EOF %d\n", ItemEOF)
-}
 
 const EOF rune = 0x04
 
@@ -52,6 +50,17 @@ type Lexer struct {
 	last  rune       // the last rune read
 	state StateFn    // the current state
 	items *list.List // Buffer of lexed items
+}
+
+// NewDefault creates a Lexer with the default StateFn
+func NewDefault(r io.Reader) *Lexer {
+	// Need to add support for reader internally
+	bs, _ := ioutil.ReadAll(r)
+	return &Lexer{
+		state: func(l *Lexer) StateFn { return l.Action() },
+		input: string(bs),
+		items: list.New(),
+	}
 }
 
 // Create a new lexer. Must be given a non-nil state.
