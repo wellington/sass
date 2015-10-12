@@ -25,71 +25,76 @@ import (
     x *Item
 }
 
-%type	<x>	expr last
-
-%token '+' '-' '*' '/' '(' ')'
-%token LBRACKET RBRACKET COLON SEMIC
-
-%token TEXT
-%token ItemEOF
+%type	<x>	expr
+//                       %type   <x> line
+%token  <x> LBRACKET RBRACKET COLON SEMIC TEXT
 
 %token  <x>           STR
 
 
 %%
-expr:
-                ctrl
-        | LBRACKET expr
+top:
+                expr
                 {
-                    log.Println("hello")
-                    $$ = $2
-                }
-        |       RBRACKET expr
-                {
-                    log.Println("hello")
-                        $$ = $2
-                }
-        |       COLON expr
-                {
-                    log.Println("hello")
-                        $$ = $2
-                }
-        |       SEMIC expr
-                {
-                    log.Println("hello")
-                        $$ = $2
-                        }
-        |       TEXT expr
-                {
-                    $$ = $2
+                    log.Println("EXPR", yytoken)
+                        log.Printf("DUMP % #v\n", $1)
                 }
         ;
-ctrl:
-                last
-        |       COLON expr
+expr:
+                LBRACKET
                 {
+                    log.Println("hello")
+                        // $$ = $1
+                }
+        |       RBRACKET
+                {
+                    log.Println("hello")
+                        // $$ = $1
+                }
+        |       SEMIC
+                {
+                    log.Println("hello")
                     $$ = $1
                 }
-        ;
-last:
-                STR
-        |       '(' expr ')'
+        |       TEXT COLON TEXT
                 {
-                    $$ = $2
+                    $$.Value = $1.Value + $3.Value
                 }
+|       TEXT { log.Println("WOOP"); $$ = $1 }
+        ;
+        |       COLON { }
         ;
 %%
 
 func main() {
     yyDebug = 10
+        yyErrorVerbose = true
         in := bufio.NewReader(os.Stdin)
         _ = in
-        sin := `{ p { color: red; } }
-    `
-        p := yyParse(New(func(l *Lexer) StateFn {
-                    return l.Action()
-                        }, sin))
-        log.Printf("HI % #v\n", p)
+        sin := `hello`
+
+     lex := New(func(l *Lexer) StateFn {
+         return l.Action()
+     }, sin)
+
+     if false {
+        lval := new(yySymType)
+        for {
+            tok := lex.Lex(lval)
+            log.Printf("tok - %d\n", tok)
+
+            if tok == 0 {
+                log.Println("break")
+                return
+            }
+        }
+        return
+     }
+
+    _ = sin
+    p := yyParse(lex)
+    log.Printf("HI % #v\n", p)
+
         /*for {
         if _, err := os.Stdout.WriteString("> "); err != nil {
             log.Fatalf("WriteString: %s", err)

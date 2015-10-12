@@ -7,11 +7,13 @@ package main
 // These only parser SASS specific language elements and not CSS.
 type ItemType int
 
+// const ItemEOF = 0
+const NotFound = -1
+
 // Special item types.
 const (
-	NotFound = -1
-	// ItemEOF  ItemType = iota
-	ItemError ItemType = iota
+	ItemEOF ItemType = iota
+	ItemError
 	IF
 	ELSE
 	EACH

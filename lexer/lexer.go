@@ -14,6 +14,10 @@ import (
 	"unicode/utf8"
 )
 
+func init() {
+	fmt.Printf("EOF %d\n", ItemEOF)
+}
+
 const EOF rune = 0x04
 
 // IsEOF returns true if n is zero.
@@ -348,19 +352,18 @@ func (l *Lexer) Lex(lval *yySymType) int {
 		c = l.Next()
 		switch c.Type {
 		case ItemEOF:
-			fmt.Println("EOF")
-			lval.x = c
-			return 0
+			fmt.Printf("EOF %d\n", ItemEOF)
+			return int(ItemEOF)
 		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
 		default:
 			lval.x = c
 			fmt.Println("missing", c.Type)
 			return int(c.Type)
 		}
+		fmt.Println("returning", c.Type)
 		lval.x = c
 		return int(c.Type)
 	}
-	return 0
 }
 
 func (l *Lexer) Math() StateFn {
