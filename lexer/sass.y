@@ -14,9 +14,10 @@
 package main
 
 import (
-"os"
-"log"
-"bufio"
+	"os"
+	"log"
+	"bufio"
+	"io"
 )
 
 %}
@@ -25,7 +26,7 @@ import (
     x *Item
 }
 
-%type	<x>	expr
+%type	<x>	expr expr1
 //                       %type   <x> line
 %token  <x> LBRACKET RBRACKET COLON SEMIC TEXT
 
@@ -34,36 +35,25 @@ import (
 
 %%
 top:
-                expr
-                {
-                    log.Println("EXPR", yytoken)
-                        log.Printf("DUMP % #v\n", $1)
-                }
+                expr { }
         ;
 expr:
-                LBRACKET
-                {
-                    log.Println("hello")
-                        // $$ = $1
-                }
-        |       RBRACKET
-                {
-                    log.Println("hello")
-                        // $$ = $1
-                }
+                STR
+        |       LBRACKET expr { $$ = $2 }
+        |       expr RBRACKET { $$ = $1 }
         |       SEMIC
                 {
                     log.Println("hello")
                     $$ = $1
                 }
-        |       TEXT COLON TEXT
-                {
-                    $$.Value = $1.Value + $3.Value
-                }
-|       TEXT { log.Println("WOOP"); $$ = $1 }
+        |       TEXT expr { $$ = $1 }
+        |       TEXT { $$ = $1 }
         ;
         |       COLON { }
         ;
+expr1:
+                STR
+        |       LBRACKET TEXT { $$ = $2 }
 %%
 
 func main() {
@@ -91,11 +81,7 @@ func main() {
         return
      }
 
-    _ = sin
-    p := yyParse(lex)
-    log.Printf("HI % #v\n", p)
-
-        /*for {
+     for {
         if _, err := os.Stdout.WriteString("> "); err != nil {
             log.Fatalf("WriteString: %s", err)
         }
@@ -112,5 +98,5 @@ func main() {
             return l.Action()
         }, string(line)))
         log.Printf("HI % #v\n", p)
-        }*/
+     }
 }
