@@ -38,22 +38,19 @@ top:
                 expr { }
         ;
 expr:
-                STR
-        |       LBRACKET expr { $$ = $2 }
+                expr1
+        |       expr LBRACKET { $$ = $2 }
         |       expr RBRACKET { $$ = $1 }
-        |       SEMIC
-                {
-                    log.Println("hello")
-                    $$ = $1
-                }
-        |       TEXT expr { $$ = $1 }
+        |       SEMIC { $$ = $1 }
         |       TEXT { $$ = $1 }
-        ;
         |       COLON { }
         ;
 expr1:
                 STR
-        |       LBRACKET TEXT { $$ = $2 }
+        |       expr TEXT { $$ = $2 }
+        |       expr COLON { $$ = $2 }
+        |       expr SEMIC { $$ = $2 }
+        ;
 %%
 
 func main() {
@@ -87,16 +84,14 @@ func main() {
         }
         line, err := in.ReadBytes('\n')
         if err == io.EOF {
-                log.Println("err", err, string(line))
             return
-        }
-        if err != nil {
+        } else if err != nil {
             log.Fatalf("ReadBytes: %s", err)
         }
 
         p := yyParse(New(func(l *Lexer) StateFn {
             return l.Action()
         }, string(line)))
-        log.Printf("HI % #v\n", p)
+        _ = p
      }
 }
