@@ -48,9 +48,10 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line sass.y:79
+//line sass.y:91
 
 var out io.Writer
+var debug bool
 
 func init() {
 	out = os.Stdout
@@ -104,48 +105,51 @@ var yyExca = [...]int{
 	-2, 0,
 }
 
-const yyNprod = 13
+const yyNprod = 14
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 23
+const yyLast = 27
 
 var yyAct = [...]int{
 
-	7, 9, 17, 9, 6, 12, 11, 12, 11, 12,
-	11, 18, 10, 15, 14, 16, 3, 5, 1, 8,
-	4, 13, 2,
+	6, 7, 9, 5, 9, 19, 12, 11, 12, 11,
+	15, 12, 11, 4, 21, 17, 10, 16, 20, 18,
+	3, 5, 1, 14, 8, 13, 2,
 }
 var yyPact = [...]int{
 
-	12, -1000, -1000, -1000, -5, -1000, -1000, -1000, -1, -3,
-	-1000, -1000, 5, -1000, 8, -8, -1000, 2, -1000,
+	16, -1000, -1000, -1000, -4, -1000, -1000, -1000, 1, -2,
+	-1000, -1000, 9, -1000, -4, 12, -5, 11, -1000, 5,
+	-1000, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 22, 20, 19, 12, 4, 18,
+	0, 26, 13, 24, 16, 0, 22,
 }
 var yyR1 = [...]int{
 
-	0, 6, 6, 1, 1, 2, 2, 5, 5, 3,
-	3, 4, 4,
+	0, 6, 6, 1, 1, 2, 2, 5, 5, 5,
+	3, 3, 4, 4,
 }
 var yyR2 = [...]int{
 
-	0, 0, 1, 1, 2, 1, 2, 1, 3, 1,
-	2, 1, 4,
+	0, 0, 1, 1, 2, 1, 2, 1, 4, 3,
+	1, 2, 1, 4,
 }
 var yyChk = [...]int{
 
 	-1000, -6, -1, 4, -2, 5, -5, 5, -3, 6,
-	-4, 11, 10, -4, -5, 8, 7, 10, 9,
+	-4, 11, 10, -4, -2, -5, 8, -5, 7, 10,
+	7, 9,
 }
 var yyDef = [...]int{
 
 	1, -2, 2, 3, 0, 5, 4, 6, 7, 0,
-	9, 11, 0, 10, 0, 0, 8, 0, 12,
+	10, 12, 0, 11, 0, 0, 0, 0, 9, 0,
+	8, 13,
 }
 var yyTok1 = [...]int{
 
@@ -509,27 +513,56 @@ yydefault:
 		yyDollar = yyS[yypt-2 : yypt+1]
 		//line sass.y:50
 		{
+			if debug {
+				fmt.Println("stmt", yyDollar[1].r, yyDollar[2].x)
+			}
 			yyVAL.s = yyDollar[1].r.Value + yyDollar[2].x.Value
 		}
 	case 6:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:56
+		//line sass.y:57
 		{
+			if debug {
+				fmt.Println("sel2", yyDollar[1].r, yyDollar[2].r)
+			}
 			yyVAL.r.Value = yyDollar[1].r.Value + " " + yyDollar[2].r.Value
 		}
 	case 8:
-		yyDollar = yyS[yypt-3 : yypt+1]
-		//line sass.y:62
+		yyDollar = yyS[yypt-4 : yypt+1]
+		//line sass.y:64
 		{
-			fmt.Println("nested:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x)
+			if debug {
+				fmt.Println("nested sel:", yyDollar[1].x, yyDollar[2].r, yyDollar[3].x)
+			}
+			yyVAL.x.Value = " " + yyDollar[2].r.Value + yyDollar[3].x.Value
+		}
+	case 9:
+		yyDollar = yyS[yypt-3 : yypt+1]
+		//line sass.y:68
+		{
+			if debug {
+				fmt.Println("nested:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x)
+			}
 			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value
 		}
-	case 12:
-		yyDollar = yyS[yypt-4 : yypt+1]
-		//line sass.y:73
+	case 11:
+		yyDollar = yyS[yypt-2 : yypt+1]
+		//line sass.y:75
 		{
-			fmt.Printf("prop: %s %s %s %s\n",
-				yyDollar[1].x.Value, yyDollar[2].x.Value, yyDollar[3].x.Value, yyDollar[4].x.Value)
+			if debug {
+				fmt.Println("props", yyDollar[1].x, yyDollar[2].x)
+			}
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value
+		}
+	case 13:
+		yyDollar = yyS[yypt-4 : yypt+1]
+		//line sass.y:82
+		{
+			if debug {
+				fmt.Printf("prop: %s %s %s %s\n",
+					yyDollar[1].x.Value, yyDollar[2].x.Value,
+					yyDollar[3].x.Value, yyDollar[4].x.Value)
+			}
 			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value
 		}
 	}

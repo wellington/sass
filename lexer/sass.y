@@ -48,37 +48,50 @@ top: /*         empty */
                 ;
 stmt:           STMT
                 | selectors nested {
+    if debug{fmt.Println("stmt", $1, $2)}
                     $$ = $1.Value + $2.Value
                 }
                 ;
 selectors:
                 RULE
         |       selectors RULE {
+            if debug {fmt.Println("sel2", $1, $2)}
                     $$.Value = $1.Value + " " + $2.Value
                         }
                 ;
 nested:
                 props
+        |       LBRACKET selectors nested RBRACKET {
+                    if debug{fmt.Println("nested sel:", $1, $2, $3)}
+                    $$.Value = " " + $2.Value + $3.Value
+                }
         |       LBRACKET nested RBRACKET {
-                    fmt.Println("nested:", $1, $2, $3)
-                    $$.Value = $1.Value + $2.Value + $3.Value
+            if debug {fmt.Println("nested:", $1, $2, $3)}
+                $$.Value = $1.Value + $2.Value + $3.Value
                 }
                 ;
 props:
                 prop
-        |       props prop
+        |       props prop {
+                    if debug {fmt.Println("props", $1, $2)}
+                    $$.Value = $1.Value + $2.Value
+                        }
                 ;
 prop:
                 ITEM
         |       TEXT COLON TEXT SEMIC {
-                    fmt.Printf("prop: %s %s %s %s\n",
-                               $1.Value, $2.Value, $3.Value, $4.Value)
+                    if debug {
+                            fmt.Printf("prop: %s %s %s %s\n",
+                                       $1.Value, $2.Value,
+                                       $3.Value, $4.Value)
+                    }
                     $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
                 }
                 ;
 %%
 
 var out io.Writer
+var debug bool
 
 func init() {
     out = os.Stdout
