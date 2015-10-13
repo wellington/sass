@@ -24,9 +24,6 @@ func TestLexerRule(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e := "div"; e != items[0].Value {
-		t.Errorf("got: %s wanted: %s", items[0].Value, e)
-	}
 	if e := RULE; e != int(items[0].Type) {
 		t.Errorf("got: %s wanted: %s", items[0].Type, e)
 	}
@@ -51,6 +48,15 @@ func TestLexerRule(t *testing.T) {
 		t.Errorf("got: %s wanted: %s", items[5].Type, e)
 	}
 
+	if e := 7; e != len(items) {
+		t.Fatal("wrong number of lexems returned")
+	}
+
+	s := items[0].Value + items[1].Value + items[2].Value + items[3].Value +
+		items[4].Value + items[5].Value + items[6].Value
+	if e := `div{color:blue;}`; e != s {
+		t.Errorf("got: %s wanted: %s", s, e)
+	}
 }
 
 func TestLexerComment(t *testing.T) {

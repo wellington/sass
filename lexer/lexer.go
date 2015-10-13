@@ -559,12 +559,12 @@ func (l *Lexer) Text() StateFn {
 		l.Emit(RULE)
 		return l.Action()
 	}
+	// If rule failed, probably text. We should more stricly lex this.
+	// l.Ignore()
 
-	l.Ignore()
 	// For unknown directives
-	// Give up on searching for commands guess it is text
-	l.AcceptRunFunc(IsAllowedRune)
-
+	// Give up on searching for RULE guess it is text
+	// l.AcceptRunFunc(IsAllowedRune)
 	l.Emit(TEXT)
 
 	return l.Action()
