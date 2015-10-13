@@ -29,33 +29,43 @@ import (
     itype ItemType
 }
 
-%type	<x>	selector property nested
+%type	<x>	props prop selectors selector nested
 %token  <x> LBRACKET RBRACKET COLON SEMIC TEXT
 
 %token  <x>           STR
 
 
 %%
-top:
-                property {
+top: /* empty */
+                nested {
                     fmt.Fprint(out, $1.Value)
                 }
         ;
-property:
-                selector
-        |       TEXT COLON TEXT SEMIC { $$.Value = $1.Value + $2.Value + $3.Value + $4.Value }
-        ;
-selector:
-                nested
-        |       TEXT LBRACKET property RBRACKET {
-                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
-                        }
-        ;
 nested:
-                STR
+                selectors
         |       TEXT LBRACKET selector RBRACKET {
                     $$.Value = $1.Value + " " + $3.Value
                 }
+        ;
+selectors:
+                selector
+        |       selectors selector
+        ;
+selector:
+                props
+        |       TEXT LBRACKET prop RBRACKET {
+                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
+                        }
+        ;
+prop:
+                STR
+        |       TEXT COLON TEXT SEMIC {
+                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
+                }
+        ;
+props:
+                prop
+        |       props prop
         ;
 %%
 
