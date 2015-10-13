@@ -24,49 +24,58 @@ import (
 %}
 
 %union {
+    s string
     x *Item
-    val string
-    itype ItemType
+    r *Item
 }
 
-%type	<x>	props prop selectors selector nested
-%token  <x> LBRACKET RBRACKET COLON SEMIC TEXT
+%token  <s>             STMT
+%type   <s>             stmt
 
-%token  <x>           STR
+%token  <r>             RULE
+%type   <r>             selectors
+
+%type	<x>             props prop nested
+%token  <x>             LBRACKET RBRACKET COLON SEMIC TEXT
+%token  <x>             ITEM
 
 
 %%
-top: /* empty */
-                nested {
-                    fmt.Fprint(out, $1.Value)
+top: /*         empty */
+        |       stmt {
+            fmt.Fprint(out, $1)
                 }
-        ;
-nested:
-                selectors
-        |       TEXT LBRACKET nested RBRACKET {
-                    $$.Value = $1.Value + " " + $3.Value
+                ;
+stmt:           STMT
+                | selectors nested {
+                    $$ = $1.Value + $2.Value
                 }
-        ;
+                ;
 selectors:
-                selector
-        |       selectors selector
-        ;
-selector:
-                prop
-        |       TEXT LBRACKET props RBRACKET {
-                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
+                RULE
+        |       selectors RULE {
+                    $$.Value = $1.Value + " " + $2.Value
+                        }
+                ;
+nested:
+                props
+        |       LBRACKET nested RBRACKET {
+                    fmt.Println("nested:", $1, $2, $3)
+                    $$.Value = $1.Value + $2.Value + $3.Value
                 }
-        ;
+                ;
 props:
                 prop
         |       props prop
-        ;
+                ;
 prop:
-                STR
+                ITEM
         |       TEXT COLON TEXT SEMIC {
+                    fmt.Printf("prop: %s %s %s %s\n",
+                               $1.Value, $2.Value, $3.Value, $4.Value)
                     $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
                 }
-        ;
+                ;
 %%
 
 var out io.Writer

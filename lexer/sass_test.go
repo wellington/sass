@@ -23,6 +23,7 @@ func setupParser(t *testing.T, in io.Reader) (bytes.Buffer, error) {
 }
 
 func TestParserSimple(t *testing.T) {
+	// yyDebug = 10
 	in := bytes.NewBufferString(`div { color: red; }`)
 	buf, err := setupParser(t, in)
 	if err != nil {

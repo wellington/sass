@@ -14,29 +14,33 @@ import (
 
 //line sass.y:26
 type yySymType struct {
-	yys   int
-	x     *Item
-	val   string
-	itype ItemType
+	yys int
+	s   string
+	x   *Item
+	r   *Item
 }
 
-const LBRACKET = 57346
-const RBRACKET = 57347
-const COLON = 57348
-const SEMIC = 57349
-const TEXT = 57350
-const STR = 57351
+const STMT = 57346
+const RULE = 57347
+const LBRACKET = 57348
+const RBRACKET = 57349
+const COLON = 57350
+const SEMIC = 57351
+const TEXT = 57352
+const ITEM = 57353
 
 var yyToknames = [...]string{
 	"$end",
 	"error",
 	"$unk",
+	"STMT",
+	"RULE",
 	"LBRACKET",
 	"RBRACKET",
 	"COLON",
 	"SEMIC",
 	"TEXT",
-	"STR",
+	"ITEM",
 }
 var yyStatenames = [...]string{}
 
@@ -44,7 +48,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line sass.y:60
+//line sass.y:79
 
 var out io.Writer
 
@@ -100,45 +104,48 @@ var yyExca = [...]int{
 	-2, 0,
 }
 
-const yyNprod = 8
+const yyNprod = 13
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 14
+const yyLast = 23
 
 var yyAct = [...]int{
 
-	4, 6, 2, 3, 9, 12, 8, 1, 7, 14,
-	13, 10, 11, 5,
+	7, 9, 17, 9, 6, 12, 11, 12, 11, 12,
+	11, 18, 10, 15, 14, 16, 3, 5, 1, 8,
+	4, 13, 2,
 }
 var yyPact = [...]int{
 
-	-8, -1000, -1000, -1000, 2, -1000, -1000, -4, -8, -2,
-	5, 4, -1000, -1000, -1000,
+	12, -1000, -1000, -1000, -5, -1000, -1000, -1000, -1, -3,
+	-1000, -1000, 5, -1000, 8, -8, -1000, 2, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 3, 2, 13, 7,
+	0, 22, 20, 19, 12, 4, 18,
 }
 var yyR1 = [...]int{
 
-	0, 4, 2, 2, 1, 1, 3, 3,
+	0, 6, 6, 1, 1, 2, 2, 5, 5, 3,
+	3, 4, 4,
 }
 var yyR2 = [...]int{
 
-	0, 1, 1, 4, 1, 4, 1, 4,
+	0, 0, 1, 1, 2, 1, 2, 1, 3, 1,
+	2, 1, 4,
 }
 var yyChk = [...]int{
 
-	-1000, -4, -2, -1, 8, -3, 9, 6, 4, 8,
-	-2, -1, 7, 5, 5,
+	-1000, -6, -1, 4, -2, 5, -5, 5, -3, 6,
+	-4, 11, 10, -4, -5, 8, 7, 10, 9,
 }
 var yyDef = [...]int{
 
-	0, -2, 1, 2, 0, 4, 6, 0, 0, 0,
-	0, 0, 3, 5, 7,
+	1, -2, 2, 3, 0, 5, 4, 6, 7, 0,
+	9, 11, 0, 10, 0, 0, 8, 0, 12,
 }
 var yyTok1 = [...]int{
 
@@ -146,7 +153,7 @@ var yyTok1 = [...]int{
 }
 var yyTok2 = [...]int{
 
-	2, 3, 4, 5, 6, 7, 8, 9,
+	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
 }
 var yyTok3 = [...]int{
 	0,
@@ -492,29 +499,38 @@ yydefault:
 	// dummy call; replaced with literal code
 	switch yynt {
 
-	case 1:
+	case 2:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:40
+		//line sass.y:45
 		{
-			fmt.Fprint(out, yyDollar[1].x.Value)
+			fmt.Fprint(out, yyDollar[1].s)
 		}
-	case 3:
-		yyDollar = yyS[yypt-4 : yypt+1]
-		//line sass.y:46
-		{
-			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value
-		}
-	case 5:
-		yyDollar = yyS[yypt-4 : yypt+1]
+	case 4:
+		yyDollar = yyS[yypt-2 : yypt+1]
 		//line sass.y:50
 		{
-			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value
+			yyVAL.s = yyDollar[1].r.Value + yyDollar[2].x.Value
 		}
-	case 7:
-		yyDollar = yyS[yypt-4 : yypt+1]
+	case 6:
+		yyDollar = yyS[yypt-2 : yypt+1]
 		//line sass.y:56
 		{
-			yyVAL.x.Value = yyDollar[1].x.Value + " " + yyDollar[3].x.Value
+			yyVAL.r.Value = yyDollar[1].r.Value + " " + yyDollar[2].r.Value
+		}
+	case 8:
+		yyDollar = yyS[yypt-3 : yypt+1]
+		//line sass.y:62
+		{
+			fmt.Println("nested:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x)
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value
+		}
+	case 12:
+		yyDollar = yyS[yypt-4 : yypt+1]
+		//line sass.y:73
+		{
+			fmt.Printf("prop: %s %s %s %s\n",
+				yyDollar[1].x.Value, yyDollar[2].x.Value, yyDollar[3].x.Value, yyDollar[4].x.Value)
+			yyVAL.x.Value = yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value
 		}
 	}
 	goto yystack /* stack new state and value */

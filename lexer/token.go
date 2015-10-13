@@ -38,7 +38,7 @@ const (
 	cmd_end
 	NUMBER
 	// TEXT
-	RULE
+	// RULE
 	DOLLAR
 	math_beg
 	PLUS

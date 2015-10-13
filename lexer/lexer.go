@@ -383,19 +383,27 @@ func IsPrintable(r rune) bool {
 }
 
 func (l *Lexer) Lex(lval *yySymType) int {
+	var s string
 	var c *Item
 	for {
 		c = l.Next()
 		switch c.Type {
 		case ItemEOF:
 			return int(ItemEOF)
-		case RULE, TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+		case RULE:
+			lval.r = c
+			s = fmt.Sprintf("sending: % #v\n", lval.r)
+		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+			lval.x = c
+			s = fmt.Sprintf("sending: % #v\n", lval.x)
 		default:
 			lval.x = c
 			fmt.Println("missing", c.Type)
 			return int(c.Type)
 		}
-		lval.x = c
+		if yyDebug >= 3 {
+			fmt.Println(s)
+		}
 		return int(c.Type)
 	}
 }
