@@ -38,6 +38,19 @@ func TestLexerRule(t *testing.T) {
 	if e := TEXT; e != int(items[2].Type) {
 		t.Errorf("got: %s wanted: %s", items[2].Type, e)
 	}
+
+	if e := COLON; e != int(items[3].Type) {
+		t.Errorf("got: %s wanted: %s", items[3].Type, e)
+	}
+
+	if e := TEXT; e != int(items[4].Type) {
+		t.Errorf("got: %s wanted: %s", items[4].Type, e)
+	}
+
+	if e := SEMIC; e != int(items[5].Type) {
+		t.Errorf("got: %s wanted: %s", items[5].Type, e)
+	}
+
 }
 
 func TestLexerComment(t *testing.T) {
