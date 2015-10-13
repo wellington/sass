@@ -35,13 +35,13 @@ func TestParserSimple(t *testing.T) {
 }
 
 func TestParserProps(t *testing.T) {
-	in := bytes.NewBufferString(`color: blue; color: red;`)
+	in := bytes.NewBufferString(`p{color: blue; background-color: red;}`)
 	buf, err := setupParser(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if e := `div p{color:red;}`; e != buf.String() {
+	if e := `p{color:blue; background-color:red;}`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 }
