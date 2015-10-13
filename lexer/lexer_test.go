@@ -18,13 +18,16 @@ func TestLexerBools(t *testing.T) {
 }
 
 func TestLexerRule(t *testing.T) {
-	in := `div { color: blue; }`
+	in := `div  { color: blue; }`
 	items, err := testParse(in)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if e := RULE; e != items[0].Type {
+	if e := "div"; e != items[0].Value {
+		t.Errorf("got: %s wanted: %s", items[0].Value, e)
+	}
+	if e := RULE; e != int(items[0].Type) {
 		t.Errorf("got: %s wanted: %s", items[0].Type, e)
 	}
 

@@ -549,6 +549,13 @@ func (l *Lexer) Text() StateFn {
 	l.AcceptRunFunc(IsRuleRune)
 	p, _ := l.Peek()
 	if p == '{' {
+		// Remove trailing whitespace
+		for {
+			if !strings.HasSuffix(l.Current(), " ") {
+				break
+			}
+			l.Backup()
+		}
 		l.Emit(RULE)
 		return l.Action()
 	}
