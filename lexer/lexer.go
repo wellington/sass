@@ -129,6 +129,21 @@ func (l *Lexer) Backup() {
 	l.pos -= l.width
 }
 
+// Backup removes the entire current lexem, as if advance had never been
+// called
+func (l *Lexer) BackupLexem() int {
+	str := l.Current()
+	var size int
+	for len(str) > 0 {
+		_, w := utf8.DecodeRuneInString(str)
+		size = size + w
+		str = str[w:]
+	}
+	l.pos -= size
+	l.start = l.pos
+	return size
+}
+
 // Peek returns the next rune in the input stream without adding it to the
 // current lexeme.
 func (l *Lexer) Peek() (rune, int) {
@@ -260,8 +275,7 @@ func (l *Lexer) enqueue(i *Item) {
 
 func IsRuleRune(r rune) bool {
 	return unicode.IsLetter(r) ||
-		strings.ContainsRune(`#.*[]=`, r) ||
-		unicode.IsSpace(r)
+		strings.ContainsRune(`#.*[]=`, r)
 }
 
 const (
@@ -339,9 +353,12 @@ func (l *Lexer) Action() StateFn {
 			return l.File()
 		case r == '$':
 			return l.Var()
+		case IsRuleRune(r):
+			l.Backup()
+			return l.Rule()
 		case IsAllowedRune(r):
 			l.Backup()
-			return l.Text()
+			return l.Rule()
 		default:
 			//l.Advance()
 			//l.Emit(EXTRA)
@@ -504,6 +521,20 @@ func (l *Lexer) Var() StateFn {
 	return l.Action()
 }
 
+func (l *Lexer) Rule() StateFn {
+	// Look for rule
+	i := l.AcceptRunFunc(IsRuleRune)
+	p, _ := l.Peek()
+	if i > 0 && !strings.ContainsRune("-;:()", p) {
+		l.Emit(RULE)
+		return l.Action()
+	}
+	l.Current()
+	s := l.BackupLexem()
+	_ = s
+	return l.Text()
+}
+
 func (l *Lexer) Text() StateFn {
 	// Edge case when background:sprite();
 	switch l.Current() {
@@ -545,26 +576,9 @@ func (l *Lexer) Text() StateFn {
 		return l.Text()
 	}
 
-	// Look for rule
-	l.AcceptRunFunc(IsRuleRune)
-	p, _ := l.Peek()
-	if p == '{' {
-		// Remove trailing whitespace
-		for {
-			if !strings.HasSuffix(l.Current(), " ") {
-				break
-			}
-			l.Backup()
-		}
-		l.Emit(RULE)
-		return l.Action()
-	}
-	// If rule failed, probably text. We should more stricly lex this.
-	// l.Ignore()
-
 	// For unknown directives
 	// Give up on searching for RULE guess it is text
-	// l.AcceptRunFunc(IsAllowedRune)
+	l.AcceptRunFunc(IsAllowedRune)
 	l.Emit(TEXT)
 
 	return l.Action()
