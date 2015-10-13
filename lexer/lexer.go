@@ -260,8 +260,7 @@ func (l *Lexer) enqueue(i *Item) {
 
 func IsRuleRune(r rune) bool {
 	return unicode.IsLetter(r) ||
-		strings.ContainsRune(`#.*[]`, r) ||
-		!strings.ContainsRune(`{}`, r) ||
+		strings.ContainsRune(`#.*[]=`, r) ||
 		unicode.IsSpace(r)
 }
 
