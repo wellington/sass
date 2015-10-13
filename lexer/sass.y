@@ -43,7 +43,7 @@ top: /* empty */
         ;
 nested:
                 selectors
-        |       TEXT LBRACKET selector RBRACKET {
+        |       TEXT LBRACKET nested RBRACKET {
                     $$.Value = $1.Value + " " + $3.Value
                 }
         ;
@@ -52,20 +52,20 @@ selectors:
         |       selectors selector
         ;
 selector:
-                props
-        |       TEXT LBRACKET prop RBRACKET {
-                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
-                        }
-        ;
-prop:
-                STR
-        |       TEXT COLON TEXT SEMIC {
+                prop
+        |       TEXT LBRACKET props RBRACKET {
                     $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
                 }
         ;
 props:
                 prop
         |       props prop
+        ;
+prop:
+                STR
+        |       TEXT COLON TEXT SEMIC {
+                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
+                }
         ;
 %%
 
