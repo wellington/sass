@@ -38,6 +38,7 @@ const (
 	cmd_end
 	NUMBER
 	// TEXT
+	RULE
 	DOLLAR
 	math_beg
 	PLUS
@@ -85,6 +86,7 @@ var Tokens = [...]string{
 	SPRITEW:   "sprite-width",
 	NUMBER:    "number",
 	TEXT:      "text",
+	RULE:      "rule",
 	DOLLAR:    "$",
 	PLUS:      "+",
 	MINUS:     "-",

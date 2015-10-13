@@ -17,6 +17,26 @@ func TestLexerBools(t *testing.T) {
 	}
 }
 
+func TestLexerRule(t *testing.T) {
+	in := `div { color: blue; }`
+	items, err := testParse(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if e := RULE; e != items[0].Type {
+		t.Errorf("got: %s wanted: %s", items[0].Type, e)
+	}
+
+	if e := LBRACKET; e != int(items[1].Type) {
+		t.Errorf("got: %s wanted: %s", items[1].Type, e)
+	}
+
+	if e := TEXT; e != int(items[2].Type) {
+		t.Errorf("got: %s wanted: %s", items[2].Type, e)
+	}
+}
+
 func TestLexerComment(t *testing.T) {
 	in := `/* some;
 multiline comments +*-0
@@ -26,7 +46,7 @@ div {}
 /* Invalid multiline comment`
 	items, err := testParse(in)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	if e := `/* some;

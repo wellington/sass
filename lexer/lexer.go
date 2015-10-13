@@ -258,6 +258,13 @@ func (l *Lexer) enqueue(i *Item) {
 	l.items.PushBack(i)
 }
 
+func IsRuleRune(r rune) bool {
+	return unicode.IsLetter(r) ||
+		strings.ContainsRune(`#.*[]`, r) ||
+		!strings.ContainsRune(`{}`, r) ||
+		unicode.IsSpace(r)
+}
+
 const (
 	Symbols = `/\.*-_`
 )
@@ -343,6 +350,10 @@ func (l *Lexer) Action() StateFn {
 	}
 }
 
+func IsRuleBoundary(r rune) bool {
+	return strings.ContainsRune("{", r)
+}
+
 func IsSymbol(r rune) bool {
 	return strings.ContainsRune("(),;{}#:", r)
 }
@@ -362,7 +373,7 @@ func (l *Lexer) Lex(lval *yySymType) int {
 		switch c.Type {
 		case ItemEOF:
 			return int(ItemEOF)
-		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+		case RULE, TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
 		default:
 			lval.x = c
 			fmt.Println("missing", c.Type)
@@ -534,9 +545,20 @@ func (l *Lexer) Text() StateFn {
 		l.Ignore()
 		return l.Text()
 	}
+
+	// Look for rule
+	l.AcceptRunFunc(IsRuleRune)
+	p, _ := l.Peek()
+	if p == '{' {
+		l.Emit(RULE)
+		return l.Action()
+	}
+
+	l.Ignore()
 	// For unknown directives
 	// Give up on searching for commands guess it is text
 	l.AcceptRunFunc(IsAllowedRune)
+
 	l.Emit(TEXT)
 
 	return l.Action()
