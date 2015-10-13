@@ -1,11 +1,8 @@
-package lexer
+package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"testing"
-
-	. "github.com/wellington/wellington/token"
 )
 
 func printItems(items []Item) {
@@ -20,6 +17,48 @@ func TestLexerBools(t *testing.T) {
 	}
 }
 
+func TestLexerRule(t *testing.T) {
+	in := `div  { color: blue; }`
+	items, err := testParse(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if e := RULE; e != int(items[0].Type) {
+		t.Errorf("got: %s wanted: %s", items[0].Type, e)
+	}
+
+	if e := LBRACKET; e != int(items[1].Type) {
+		t.Errorf("got: %s wanted: %s", items[1].Type, e)
+	}
+
+	if e := TEXT; e != int(items[2].Type) {
+		t.Errorf("got: %s wanted: %s", items[2].Type, e)
+	}
+
+	if e := COLON; e != int(items[3].Type) {
+		t.Errorf("got: %s wanted: %s", items[3].Type, e)
+	}
+
+	if e := TEXT; e != int(items[4].Type) {
+		t.Errorf("got: %s wanted: %s", items[4].Type, e)
+	}
+
+	if e := SEMIC; e != int(items[5].Type) {
+		t.Errorf("got: %s wanted: %s", items[5].Type, e)
+	}
+
+	if e := 7; e != len(items) {
+		t.Fatal("wrong number of lexems returned")
+	}
+
+	s := items[0].Value + items[1].Value + items[2].Value + items[3].Value +
+		items[4].Value + items[5].Value + items[6].Value
+	if e := `div{color:blue;}`; e != s {
+		t.Errorf("got: %s wanted: %s", s, e)
+	}
+}
+
 func TestLexerComment(t *testing.T) {
 	in := `/* some;
 multiline comments +*-0
@@ -29,7 +68,7 @@ div {}
 /* Invalid multiline comment`
 	items, err := testParse(in)
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	if e := `/* some;
@@ -130,8 +169,9 @@ div {
 }
 
 func TestLexerImport(t *testing.T) {
-	fvar, _ := ioutil.ReadFile("../test/sass/import.scss")
-	items, _ := testParse(string(fvar))
+	fvar := `@import "var";
+`
+	items, _ := testParse(fvar)
 	vals := map[int]string{
 		0: "@import",
 		1: "var",
@@ -188,7 +228,7 @@ div {
 			e, items[23].Type)
 	}
 
-	if e := TEXT; items[37].Type != e {
+	if e := TEXT; int(items[37].Type) != e {
 		t.Errorf("Failed to parse TEXT expected: %s, was: %s",
 			e, items[37].Type)
 	}
@@ -232,7 +272,7 @@ div {
 		panic(err)
 	}
 
-	if e := TEXT; items[9].Type != e {
+	if e := TEXT; int(items[9].Type) != e {
 		t.Errorf("Type parsed improperly expected: %s, was: %s",
 			e, items[9].Type)
 	}

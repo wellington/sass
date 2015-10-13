@@ -2,18 +2,18 @@
 The lexer processes text flagging any sass extended commands
 sprite* as commands
 */
-package lexer
+package main
 
 import (
 	"container/list"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	. "github.com/wellington/wellington/token"
 )
 
 const EOF rune = 0x04
@@ -50,6 +50,17 @@ type Lexer struct {
 	last  rune       // the last rune read
 	state StateFn    // the current state
 	items *list.List // Buffer of lexed items
+}
+
+// NewDefault creates a Lexer with the default StateFn
+func NewDefault(r io.Reader) *Lexer {
+	// Need to add support for reader internally
+	bs, _ := ioutil.ReadAll(r)
+	return &Lexer{
+		state: func(l *Lexer) StateFn { return l.Action() },
+		input: string(bs),
+		items: list.New(),
+	}
 }
 
 // Create a new lexer. Must be given a non-nil state.
@@ -116,6 +127,21 @@ func (l *Lexer) Advance() (rune, int) {
 // call to Advance.
 func (l *Lexer) Backup() {
 	l.pos -= l.width
+}
+
+// Backup removes the entire current lexem, as if advance had never been
+// called
+func (l *Lexer) BackupLexem() int {
+	str := l.Current()
+	var size int
+	for len(str) > 0 {
+		_, w := utf8.DecodeRuneInString(str)
+		size = size + w
+		str = str[w:]
+	}
+	l.pos -= size
+	l.start = l.pos
+	return size
 }
 
 // Peek returns the next rune in the input stream without adding it to the
@@ -247,6 +273,11 @@ func (l *Lexer) enqueue(i *Item) {
 	l.items.PushBack(i)
 }
 
+func IsRuleRune(r rune) bool {
+	return unicode.IsLetter(r) ||
+		strings.ContainsRune(`#.*[]=`, r)
+}
+
 const (
 	Symbols = `/\.*-_`
 )
@@ -285,6 +316,10 @@ func (i Item) String() string {
 	return i.Value
 }
 
+func (l *Lexer) Error(s string) {
+	fmt.Println(s)
+}
+
 func (l *Lexer) Action() StateFn {
 	for {
 		switch r, _ := l.Advance(); {
@@ -318,14 +353,21 @@ func (l *Lexer) Action() StateFn {
 			return l.File()
 		case r == '$':
 			return l.Var()
+		case IsRuleRune(r):
+			l.Backup()
+			return l.Rule()
 		case IsAllowedRune(r):
 			l.Backup()
-			return l.Text()
+			return l.Rule()
 		default:
 			//l.Advance()
 			//l.Emit(EXTRA)
 		}
 	}
+}
+
+func IsRuleBoundary(r rune) bool {
+	return strings.ContainsRune("{", r)
 }
 
 func IsSymbol(r rune) bool {
@@ -338,6 +380,32 @@ func IsSpace(r rune) bool {
 
 func IsPrintable(r rune) bool {
 	return true
+}
+
+func (l *Lexer) Lex(lval *yySymType) int {
+	var s string
+	var c *Item
+	for {
+		c = l.Next()
+		switch c.Type {
+		case ItemEOF:
+			return int(ItemEOF)
+		case RULE:
+			lval.r = c
+			s = fmt.Sprintf("sending: % #v\n", lval.r)
+		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+			lval.x = c
+			s = fmt.Sprintf("sending: % #v\n", lval.x)
+		default:
+			lval.x = c
+			fmt.Println("missing", c.Type)
+			return int(c.Type)
+		}
+		if yyDebug >= 3 {
+			fmt.Println(s)
+		}
+		return int(c.Type)
+	}
 }
 
 func (l *Lexer) Math() StateFn {
@@ -461,6 +529,20 @@ func (l *Lexer) Var() StateFn {
 	return l.Action()
 }
 
+func (l *Lexer) Rule() StateFn {
+	// Look for rule
+	i := l.AcceptRunFunc(IsRuleRune)
+	p, _ := l.Peek()
+	if i > 0 && !strings.ContainsRune("-;:()", p) {
+		l.Emit(RULE)
+		return l.Action()
+	}
+	l.Current()
+	s := l.BackupLexem()
+	_ = s
+	return l.Text()
+}
+
 func (l *Lexer) Text() StateFn {
 	// Edge case when background:sprite();
 	switch l.Current() {
@@ -501,8 +583,9 @@ func (l *Lexer) Text() StateFn {
 		l.Ignore()
 		return l.Text()
 	}
+
 	// For unknown directives
-	// Give up on searching for commands guess it is text
+	// Give up on searching for RULE guess it is text
 	l.AcceptRunFunc(IsAllowedRune)
 	l.Emit(TEXT)
 
