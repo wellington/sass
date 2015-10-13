@@ -19,6 +19,7 @@ import (
 	"bufio"
 	"io"
     "fmt"
+    "strings"
 )
 
 %}
@@ -26,14 +27,13 @@ import (
 %union {
     s string
     x *Item
-    r *Item
 }
 
 %token  <s>             STMT
 %type   <s>             stmt
 
-%token  <r>             RULE
-%type   <r>             selectors
+%token  <x>             RULE
+%type   <x>             selectors
 
 %type	<x>             props prop nested
 %token  <x>             LBRACKET RBRACKET COLON SEMIC TEXT
@@ -43,52 +43,94 @@ import (
 %%
 top: /*         empty */
         |       stmt {
-            fmt.Fprint(out, $1)
+                    fmt.Fprint(out, $1)
                 }
                 ;
-stmt:           STMT
+stmt:           STMT { debugPrint("stmt1", $1) }
                 | selectors nested {
-    if debug{fmt.Println("stmt", $1, $2)}
-                    $$ = $1.Value + $2.Value
+                    debugPrint("stmt2", $1, $2)
+                    rules := append($1.Rules, $2.Rules...)
+                    props := append($1.Props, $2.Props...)
+                    debugPrint("rules:", rules)
+                    debugPrint("props:", props)
+                    if len(rules) != len(props) {
+                            fmt.Println(rules)
+                            fmt.Println(props)
+                        $$ = fmt.Sprintf(
+                            "props/rules mismatch rules(%d) props(%d)",
+                            len(rules), len(props))
+                    } else {
+                        var sout string
+                        for i := range rules {
+                            r := strings.Join(rules[0:i+1], " ")
+                            if len(props[i]) > 0 {
+                                sout += r + "{" + props[i] + "}"
+                            }
+                        }
+                        $$ = sout
+                    }
                 }
                 ;
 selectors:
-                RULE
+                RULE {
+                    debugPrint("sel1:", $1)
+                    $$.Rules = []string{$1.Value}
+                    $$.Value = ""
+                }
         |       selectors RULE {
-            if debug {fmt.Println("sel2", $1, $2)}
-                    $$.Value = $1.Value + " " + $2.Value
-                        }
+                    debugPrint("sel2:", $1, $2)
+                    $$.Rules = append($1.Rules, $2.Rules...)
+                    $$.Value = ""
+                }
                 ;
 nested:
-                props
+                props {
+                    debugPrint("nested1:", $1)
+                    $$.Rules = append($$.Rules, $1.Rules...)
+                    $$.Value = ""
+                }
         |       LBRACKET selectors nested RBRACKET {
-                    if debug{fmt.Println("nested sel:", $1, $2, $3)}
-                    $$.Value = " " + $2.Value + $3.Value
+                    debugPrint("nested2:", $1, $2, $3, $4)
+                    $$.Rules = $2.Rules
+                    $$.Props = append([]string{""}, $3.Props...)
+                }
+        |       LBRACKET nested selectors nested RBRACKET {
+                debugPrint("nested3:", $1, $2, $3, $4, $5)
+                $$.Rules = $3.Rules
+                $$.Props = append($2.Props, $4.Props...)
+                $$.Value = ""
+                // $$.Value = $1.Value + $2.Value + $4.Value + $5.Value
                 }
         |       LBRACKET nested RBRACKET {
-            if debug {fmt.Println("nested:", $1, $2, $3)}
-                $$.Value = $1.Value + $2.Value + $3.Value
+                debugPrint("nested4:", $1, $2, $3)
+                $$.Rules = $2.Rules
+                $$.Props = $2.Props
+                $$.Value = ""
                 }
                 ;
 props:
                 prop
         |       props prop {
-                    if debug {fmt.Println("props", $1, $2)}
-                    $$.Value = $1.Value + $2.Value
-                        }
+                    debugPrint("props2:", $1, $2)
+                    $$.Props = []string{$1.Props[0] + $2.Props[0]}
+                }
                 ;
 prop:
                 ITEM
         |       TEXT COLON TEXT SEMIC {
-                    if debug {
-                            fmt.Printf("prop: %s %s %s %s\n",
-                                       $1.Value, $2.Value,
-                                       $3.Value, $4.Value)
-                    }
-                    $$.Value = $1.Value + $2.Value + $3.Value + $4.Value
+                debugPrint("prop2:", $1, $2, $3, $4)
+                $$.Props = []string{$1.Value + $2.Value +
+                $3.Value + $4.Value}
+                $$.Value = ""
                 }
                 ;
 %%
+
+func debugPrint(name string, vs ...interface{}) {
+    if !debug { return }
+    app := fmt.Sprint(vs)
+    fmt.Println(name, app)
+}
 
 var out io.Writer
 var debug bool
