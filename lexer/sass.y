@@ -86,12 +86,12 @@ selectors:
 nested:
                 props {
                     debugPrint("nested1:", $1)
-                    $$.Rules = append($$.Rules, $1.Rules...)
+                    $$.Rules = $1.Rules
                     $$.Value = ""
                 }
         |       LBRACKET selectors nested RBRACKET {
                     debugPrint("nested2:", $1, $2, $3, $4)
-                    $$.Rules = $2.Rules
+                    $$.Rules = append($2.Rules, $3.Rules...)
                     $$.Props = append([]string{""}, $3.Props...)
                 }
         |       LBRACKET nested selectors nested RBRACKET {

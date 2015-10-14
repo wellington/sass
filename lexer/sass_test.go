@@ -72,15 +72,15 @@ func TestParserNested(t *testing.T) {
 
 }
 
-func TestParserDoubleNestception(t *testing.T) {
+func TestParserNestception(t *testing.T) {
 	yyDebug = 0
-	in := bytes.NewBufferString(`div { div {p {color: red; } } }`)
+	in := bytes.NewBufferString(`div { p { span {color: red; } } }`)
 	buf, err := setupParser(t, in)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if e := `div div p {color:red;}`; e != buf.String() {
+	if e := `div p span{color:red;}`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 

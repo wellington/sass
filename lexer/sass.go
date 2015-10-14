@@ -571,7 +571,7 @@ yydefault:
 		//line sass.y:87
 		{
 			debugPrint("nested1:", yyDollar[1].x)
-			yyVAL.x.Rules = append(yyVAL.x.Rules, yyDollar[1].x.Rules...)
+			yyVAL.x.Rules = yyDollar[1].x.Rules
 			yyVAL.x.Value = ""
 		}
 	case 8:
@@ -579,7 +579,7 @@ yydefault:
 		//line sass.y:92
 		{
 			debugPrint("nested2:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
-			yyVAL.x.Rules = yyDollar[2].x.Rules
+			yyVAL.x.Rules = append(yyDollar[2].x.Rules, yyDollar[3].x.Rules...)
 			yyVAL.x.Props = append([]string{""}, yyDollar[3].x.Props...)
 		}
 	case 9:
