@@ -30,7 +30,8 @@ func TestParserSimple(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e := `div {color:red;}`; e != buf.String() {
+	if e := `div { color: red; }
+`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 }
@@ -43,7 +44,8 @@ func TestParserProps(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e := `p {color:blue;background-color:red;}`; e != buf.String() {
+	if e := `p { color: blue;background-color: red; }
+`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 }
@@ -56,7 +58,8 @@ func TestParserNested(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e := `div p {color:red;}`; e != buf.String() {
+	if e := `div p { color: red; }
+`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 
@@ -66,7 +69,9 @@ func TestParserNested(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e := `div {color:purple;}div p {color:red;}`; e != buf.String() {
+	if e := `div { color: purple; }
+div p { color: red; }
+`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 
@@ -80,7 +85,8 @@ func TestParserNestception(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if e := `div p span {color:red;}`; e != buf.String() {
+	if e := `div p span { color: red; }
+`; e != buf.String() {
 		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
 	}
 

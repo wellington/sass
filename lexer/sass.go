@@ -48,7 +48,7 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line sass.y:127
+//line sass.y:129
 
 func debugPrint(name string, vs ...interface{}) {
 	if !debug {
@@ -544,7 +544,9 @@ yydefault:
 				for i := range rules {
 					r := strings.Join(rules[0:i+1], " ")
 					if len(props[i]) > 0 {
-						sout += r + " {" + props[i] + "}"
+						sigh := strings.Replace(props[i],
+							":", ": ", -1)
+						sout += r + " { " + sigh + " }" + "\n"
 					}
 				}
 				yyVAL.s = sout
@@ -552,7 +554,7 @@ yydefault:
 		}
 	case 5:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:75
+		//line sass.y:77
 		{
 			debugPrint("sel1:", yyDollar[1].x)
 			yyVAL.x.Rules = []string{yyDollar[1].x.Value}
@@ -560,7 +562,7 @@ yydefault:
 		}
 	case 6:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:80
+		//line sass.y:82
 		{
 			debugPrint("sel2:", yyDollar[1].x, yyDollar[2].x)
 			yyVAL.x.Rules = append(yyDollar[1].x.Rules, yyDollar[2].x.Rules...)
@@ -568,7 +570,7 @@ yydefault:
 		}
 	case 7:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:87
+		//line sass.y:89
 		{
 			debugPrint("nested1:", yyDollar[1].x)
 			yyVAL.x.Rules = yyDollar[1].x.Rules
@@ -576,7 +578,7 @@ yydefault:
 		}
 	case 8:
 		yyDollar = yyS[yypt-4 : yypt+1]
-		//line sass.y:92
+		//line sass.y:94
 		{
 			debugPrint("nested2:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
 			yyVAL.x.Rules = append(yyDollar[2].x.Rules, yyDollar[3].x.Rules...)
@@ -584,7 +586,7 @@ yydefault:
 		}
 	case 9:
 		yyDollar = yyS[yypt-5 : yypt+1]
-		//line sass.y:97
+		//line sass.y:99
 		{
 			debugPrint("nested3:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x, yyDollar[5].x)
 			yyVAL.x.Rules = yyDollar[3].x.Rules
@@ -594,7 +596,7 @@ yydefault:
 		}
 	case 10:
 		yyDollar = yyS[yypt-3 : yypt+1]
-		//line sass.y:104
+		//line sass.y:106
 		{
 			debugPrint("nested4:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x)
 			yyVAL.x.Rules = yyDollar[2].x.Rules
@@ -603,14 +605,14 @@ yydefault:
 		}
 	case 12:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:113
+		//line sass.y:115
 		{
 			debugPrint("props2:", yyDollar[1].x, yyDollar[2].x)
 			yyVAL.x.Props = []string{yyDollar[1].x.Props[0] + yyDollar[2].x.Props[0]}
 		}
 	case 14:
 		yyDollar = yyS[yypt-4 : yypt+1]
-		//line sass.y:120
+		//line sass.y:122
 		{
 			debugPrint("prop2:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
 			yyVAL.x.Props = []string{yyDollar[1].x.Value + yyDollar[2].x.Value +

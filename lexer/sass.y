@@ -64,7 +64,9 @@ stmt:           STMT { debugPrint("stmt1", $1) }
                         for i := range rules {
                             r := strings.Join(rules[0:i+1], " ")
                             if len(props[i]) > 0 {
-                                sout += r + " {" + props[i] + "}"
+                                sigh := strings.Replace(props[i],
+                                                        ":", ": ", -1)
+                                sout += r + " { " + sigh + " }" + "\n"
                             }
                         }
                         $$ = sout
