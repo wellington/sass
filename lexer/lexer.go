@@ -295,6 +295,7 @@ type Item struct {
 	Value string
 	Rules []string
 	Props []string
+	Vars  map[string]string
 }
 
 func (i Item) Error() error {
@@ -306,8 +307,8 @@ func (i Item) Error() error {
 
 // String returns the raw lexeme of i.
 func (i Item) String() string {
-	return fmt.Sprintf("{Rules: %#v Props: %#v Value: %#v}\n",
-		i.Rules, i.Props, i.Value)
+	return fmt.Sprintf("{Rules: %#v Props: %#v Value: %#v vars: %#v}\n",
+		i.Rules, i.Props, i.Value, i.Vars)
 	switch i.Type {
 	case ItemError:
 		return i.Value
@@ -318,10 +319,6 @@ func (i Item) String() string {
 		return fmt.Sprintf("%s", i.Value)
 	}
 	return i.Value
-}
-
-func (l *Lexer) Error(s string) {
-	fmt.Println(s)
 }
 
 func (l *Lexer) Action() StateFn {
@@ -384,32 +381,6 @@ func IsSpace(r rune) bool {
 
 func IsPrintable(r rune) bool {
 	return true
-}
-
-func (l *Lexer) Lex(lval *yySymType) int {
-	var s string
-	var c *Item
-	for {
-		c = l.Next()
-		switch c.Type {
-		case ItemEOF:
-			return int(ItemEOF)
-		case RULE:
-			lval.x = c
-			s = fmt.Sprintf("sending: % #v\n", c)
-		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
-			lval.x = c
-			s = fmt.Sprintf("sending: % #v\n", c)
-		default:
-			lval.x = c
-			fmt.Println("missing", c.Type)
-			return int(c.Type)
-		}
-		if yyDebug >= 3 {
-			fmt.Println(s)
-		}
-		return int(c.Type)
-	}
 }
 
 func (l *Lexer) Math() StateFn {
@@ -609,4 +580,37 @@ func (l *Lexer) File() StateFn {
 		}
 	}
 	return l.Action()
+}
+
+func (l *Lexer) Lex(lval *yySymType) int {
+	var s string
+	var c *Item
+	for {
+		c = l.Next()
+		switch c.Type {
+		case ItemEOF:
+			return int(ItemEOF)
+		case RULE:
+			lval.x = c
+			s = fmt.Sprintf("sending: % #v\n", c)
+		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+			lval.x = c
+			s = fmt.Sprintf("sending: % #v\n", c)
+		case VAR, SUB:
+			lval.x = c
+			s = fmt.Sprintf("sending % #v\n", c)
+		default:
+			lval.x = c
+			fmt.Println("missing", c.Type, c)
+			return int(c.Type)
+		}
+		if yyDebug >= 3 {
+			fmt.Println(s)
+		}
+		return int(c.Type)
+	}
+}
+
+func (l *Lexer) Error(s string) {
+	fmt.Println(s)
 }
