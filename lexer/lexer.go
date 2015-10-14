@@ -238,9 +238,9 @@ func (l *Lexer) AcceptString(s string) (ok bool) {
 // fmt.Sprintf.
 func (l *Lexer) Errorf(format string, vs ...interface{}) StateFn {
 	l.enqueue(&Item{
-		ItemError,
-		l.start,
-		fmt.Sprintf(format, vs...),
+		Type:  ItemError,
+		Pos:   l.start,
+		Value: fmt.Sprintf(format, vs...),
 	})
 	return nil
 }
@@ -248,9 +248,9 @@ func (l *Lexer) Errorf(format string, vs ...interface{}) StateFn {
 // Emit the current value as an Item with the specified type.
 func (l *Lexer) Emit(t ItemType) {
 	l.enqueue(&Item{
-		t,
-		l.start,
-		l.input[l.start:l.pos],
+		Type:  t,
+		Pos:   l.start,
+		Value: l.input[l.start:l.pos],
 	})
 	l.start = l.pos
 }
@@ -263,7 +263,7 @@ func (l *Lexer) Next() (i *Item) {
 			return head
 		}
 		if l.state == nil {
-			return &Item{ItemEOF, l.start, ""}
+			return &Item{Type: ItemEOF, Pos: l.start, Value: ""}
 		}
 		l.state = l.state(l)
 	}
@@ -293,6 +293,8 @@ type Item struct {
 	Type  ItemType
 	Pos   int
 	Value string
+	Rules []string
+	Props []string
 }
 
 func (i Item) Error() error {
@@ -304,6 +306,8 @@ func (i Item) Error() error {
 
 // String returns the raw lexeme of i.
 func (i Item) String() string {
+	return fmt.Sprintf("{Rules: %#v Props: %#v Value: %#v}\n",
+		i.Rules, i.Props, i.Value)
 	switch i.Type {
 	case ItemError:
 		return i.Value
@@ -325,9 +329,9 @@ func (l *Lexer) Action() StateFn {
 		switch r, _ := l.Advance(); {
 		case r == EOF: // || r == '\n':
 			l.enqueue(&Item{
-				ItemEOF,
-				l.start,
-				"",
+				Type:  ItemEOF,
+				Pos:   l.start,
+				Value: "",
 			})
 			return nil
 		case IsSpace(r):
@@ -358,7 +362,7 @@ func (l *Lexer) Action() StateFn {
 			return l.Rule()
 		case IsAllowedRune(r):
 			l.Backup()
-			return l.Rule()
+			return l.Text()
 		default:
 			//l.Advance()
 			//l.Emit(EXTRA)
@@ -391,11 +395,11 @@ func (l *Lexer) Lex(lval *yySymType) int {
 		case ItemEOF:
 			return int(ItemEOF)
 		case RULE:
-			lval.r = c
-			s = fmt.Sprintf("sending: % #v\n", lval.r)
+			lval.x = c
+			s = fmt.Sprintf("sending: % #v\n", c)
 		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
 			lval.x = c
-			s = fmt.Sprintf("sending: % #v\n", lval.x)
+			s = fmt.Sprintf("sending: % #v\n", c)
 		default:
 			lval.x = c
 			fmt.Println("missing", c.Type)
@@ -463,6 +467,7 @@ func (l *Lexer) Paren() StateFn {
 			l.Accept(", ")
 			return l.File()
 		} else {
+			return l.File()
 			// Special case for image-[width|height]
 			switch fmt.Sprintf("%s", last.Value) {
 			case "image-height", "image-width":
@@ -533,7 +538,7 @@ func (l *Lexer) Rule() StateFn {
 	// Look for rule
 	i := l.AcceptRunFunc(IsRuleRune)
 	p, _ := l.Peek()
-	if i > 0 && !strings.ContainsRune("-;:()", p) {
+	if i > 0 && !strings.ContainsRune("/-;:()", p) {
 		l.Emit(RULE)
 		return l.Action()
 	}
@@ -587,8 +592,8 @@ func (l *Lexer) Text() StateFn {
 	// For unknown directives
 	// Give up on searching for RULE guess it is text
 	l.AcceptRunFunc(IsAllowedRune)
-	l.Emit(TEXT)
 
+	l.Emit(TEXT)
 	return l.Action()
 }
 
