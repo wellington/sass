@@ -544,7 +544,7 @@ yydefault:
 				for i := range rules {
 					r := strings.Join(rules[0:i+1], " ")
 					if len(props[i]) > 0 {
-						sout += r + "{" + props[i] + "}"
+						sout += r + " {" + props[i] + "}"
 					}
 				}
 				yyVAL.s = sout
