@@ -189,6 +189,39 @@ func TestLexerImport(t *testing.T) {
 	}
 }
 
+func TestLexerBasicVars(t *testing.T) {
+	in := `$color: "black";
+$color: red;
+$background: "blue";
+
+a {
+  color: $color;
+  background: $background;
+}
+
+$y: before;
+
+$x: 1 2 $y;
+
+foo {
+  a: $x;
+}
+
+$y: after;
+
+foo {
+  a: $x;
+}`
+
+	items, err := testParse(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, t := range items {
+		fmt.Print(t.Type, t)
+	}
+}
+
 // Test disabled due to not working
 func TestLexerSubModifiers(t *testing.T) {
 	in := `$s: sprite-map("*.png");
@@ -233,7 +266,7 @@ div {
 			e, items[37].Type)
 	}
 
-	if e := FILE; items[43].Type != e {
+	if e := FILE; int(items[43].Type) != e {
 		t.Errorf("Type mismatch expected: %s, was: %s", e, items[43].Type)
 	}
 	types := map[int]ItemType{

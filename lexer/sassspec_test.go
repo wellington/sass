@@ -57,3 +57,13 @@ func TestSassSpec_basic(t *testing.T) {
 	}
 
 }
+
+func TestTest(t *testing.T) {
+	yyDebug = 5
+	debug = true
+	buf, e := runner(t, "basic/04_basic_variables")
+	if e != buf.String() {
+		t.Errorf("got: %s\nwanted: %s\n", buf.String(), e)
+	}
+
+}

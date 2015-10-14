@@ -35,14 +35,16 @@ import (
 %type   <s>             stmt
 
 %token  <x>             VAR
-%token  <x>             SUB
 %type   <x>             vars
+
+%token  <x>             SUB
+%type   <x>             subs
 
 %token  <x>             RULE
 %type   <x>             selectors
 
 %type	<x>             props prop nested
-%token  <x>             LBRACKET RBRACKET COLON SEMIC TEXT
+%token  <x>             LBRACKET RBRACKET COLON SEMIC TEXT FILE
 %token  <x>             ITEM
 
 
@@ -107,7 +109,6 @@ stmt:           STMT
                 }
                 ;
 selectors:
-
                 RULE {
                     debugPrint("sel1:", $1)
                     $$.Rules = []string{$1.Value}
@@ -119,9 +120,8 @@ selectors:
                     $$.Value = ""
                     $$.Vars = $1.Vars
                 }
-        |       vars
         |       selectors vars {
-                    debugPrint("")
+                    debugPrint("never selected?")
                 }
                 ;
 nested:
@@ -156,28 +156,45 @@ props:
                 prop
         |       props prop {
                     debugPrint("props2:", $1, $2)
-                    $$.Props = []string{$1.Props[0] + $2.Props[0]}
+                    //$$.Props = []string{$1.Props[0] + $2.Props[0]}
                 }
                 ;
 vars:
                 ITEM
         ;
+subs:
+                SUB
+        |       subs SUB {
+                    debugPrint("sub2:", $1, $2)
+                }
+        ;
 prop:
                 ITEM
-        |       TEXT COLON SUB SEMIC { // variable replacement
-                    fmt.Println("prop2", $1, $2, $3, $4)
+        |       VAR COLON TEXT SEMIC { // variable replacement
+                    debugPrint("prop2:", $1, $2, $3, $4)
                     s := []string{$1.Value+$2.Value+$3.Value+$4.Value}
                     $$.Props = s
                 }
-        |       VAR COLON TEXT SEMIC { // variable assignment
-                    fmt.Println("var3", $1, $2, $3, $4)
+        |       VAR COLON FILE SEMIC { // variable replacement
+                    debugPrint("prop3:", $1, $2, $3, $4)
+                    s := []string{$1.Value+$2.Value+$3.Value+$4.Value}
+                    $$.Props = s
+                }
+        |       VAR COLON subs SEMIC { // variable assignment
+                    debugPrint("prop4:", $1, $2, $3, $4)
                     if $$.Vars == nil {
                         $$.Vars = make(map[string]string)
                     }
                     $$.Vars[$1.Value] = $3.Value
                 }
         |       TEXT COLON TEXT SEMIC {
-                    debugPrint("prop3:", $1, $2, $3, $4)
+                    debugPrint("prop5:", $1, $2, $3, $4)
+                    $$.Props = []string{$1.Value + $2.Value +
+                    $3.Value + $4.Value}
+                    $$.Value = ""
+                }
+        |       TEXT COLON subs SEMIC {
+                    debugPrint("prop6:", $1, $2, $3, $4)
                     $$.Props = []string{$1.Value + $2.Value +
                     $3.Value + $4.Value}
                     $$.Value = ""

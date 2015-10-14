@@ -28,7 +28,7 @@ const (
 	CMDVAR
 	// SUB
 	VALUE
-	FILE
+	// FILE
 	cmd_beg
 	SPRITE
 	SPRITEF

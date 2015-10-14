@@ -282,6 +282,10 @@ const (
 	Symbols = `/\.*-_`
 )
 
+func IsValidSub(r rune) bool {
+	return !strings.ContainsRune(`;:`, r)
+}
+
 func IsAllowedRune(r rune) bool {
 	return unicode.IsNumber(r) ||
 		unicode.IsLetter(r) ||
@@ -497,11 +501,18 @@ func (l *Lexer) Var() StateFn {
 	l.AcceptRunFunc(IsAllowedRune)
 	r, _ := l.Peek()
 
-	if r == ':' {
-		l.Emit(VAR)
-	} else {
+	if r != ':' {
 		l.Emit(SUB)
+		return l.Action()
 	}
+
+	l.Emit(VAR)
+	l.Advance()
+	l.Emit(COLON)
+
+	// Now we have a sub, read it
+	l.AcceptRunFunc(IsValidSub)
+	l.Emit(SUB)
 	return l.Action()
 }
 
@@ -592,8 +603,8 @@ func (l *Lexer) Lex(lval *yySymType) int {
 			return int(ItemEOF)
 		case RULE:
 			lval.x = c
-			s = fmt.Sprintf("sending: % #v\n", c)
-		case TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
+			s = fmt.Sprintf("sending: %s % #v\n", c.Type, c)
+		case FILE, TEXT, LBRACKET, RBRACKET, COLON, SEMIC:
 			lval.x = c
 			s = fmt.Sprintf("sending: % #v\n", c)
 		case VAR, SUB:
