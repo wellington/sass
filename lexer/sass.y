@@ -19,18 +19,24 @@ import (
 	"bufio"
 	"io"
     "fmt"
+    "regexp"
     "strings"
 )
 
 %}
 
 %union {
-    s string
+    s Set
+    v map[string]string
     x *Item
 }
 
 %token  <s>             STMT
 %type   <s>             stmt
+
+%token  <x>             VAR
+%token  <x>             SUB
+%type   <x>             vars
 
 %token  <x>             RULE
 %type   <x>             selectors
@@ -43,24 +49,19 @@ import (
 %%
 top: /*         empty */
         |       stmt {
-                    fmt.Fprint(out, $1)
-                }
-                ;
-stmt:           STMT { debugPrint("stmt1", $1) }
-                | selectors nested {
-                    debugPrint("stmt2", $1, $2)
-                    rules := append($1.Rules, $2.Rules...)
-                    props := append($1.Props, $2.Props...)
+                    debugPrint("stmt", $1)
+                    var sout string
+                    rules := $1.Rules
+                    props := $1.Props
                     debugPrint("rules:", rules)
                     debugPrint("props:", props)
                     if len(rules) != len(props) {
-                            fmt.Println(rules)
-                            fmt.Println(props)
-                        $$ = fmt.Sprintf(
+                        fmt.Println(rules)
+                        fmt.Println(props)
+                        sout = fmt.Sprintf(
                             "props/rules mismatch rules(%d) props(%d)",
                             len(rules), len(props))
                     } else {
-                        var sout string
                         for i := range rules {
                             r := strings.Join(rules[0:i+1], " ")
                             if len(props[i]) > 0 {
@@ -69,11 +70,44 @@ stmt:           STMT { debugPrint("stmt1", $1) }
                                 sout += r + " { " + sigh + " }" + "\n"
                             }
                         }
-                        $$ = sout
                     }
+                    fmt.Fprint(out, sout)
+                }
+                ;
+stmt:           STMT
+        |       props stmt {
+                    // do variable substitutions here
+                    debugPrint("stmt2", $1, $2)
+                    vars := $1.Vars
+                    props := $2.Props
+                    re := regexp.MustCompile("\\$[a-zA-Z0-9]+")
+                    for i := range props {
+                        m := re.FindString(props[i])
+                        if rep, ok := vars[m]; ok && len(m) > 0 {
+                            props[i] = strings.Replace(props[i], m, rep, 1)
+                        }
+                    }
+                    $$.Props = props
+                    $$.Rules = $2.Rules
+                }
+        |       selectors nested {
+                    rules := append($1.Rules, $2.Rules...)
+                    props := append($1.Props, $2.Props...)
+                    vars := make(map[string]string)
+                    for k, v := range $1.Vars {
+                        $1.Vars[k] = v
+                    }
+                    for k, v := range $2.Vars {
+                        $2.Vars[k] = v
+                    }
+
+                    $$.Rules = rules
+                    $$.Props = props
+                    $$.Vars = vars
                 }
                 ;
 selectors:
+
                 RULE {
                     debugPrint("sel1:", $1)
                     $$.Rules = []string{$1.Value}
@@ -83,6 +117,11 @@ selectors:
                     debugPrint("sel2:", $1, $2)
                     $$.Rules = append($1.Rules, $2.Rules...)
                     $$.Value = ""
+                    $$.Vars = $1.Vars
+                }
+        |       vars
+        |       selectors vars {
+                    debugPrint("")
                 }
                 ;
 nested:
@@ -109,6 +148,9 @@ nested:
                 $$.Props = $2.Props
                 $$.Value = ""
                 }
+        |       selectors nested {
+            debugPrint("nested5", $1, $2)
+                }
                 ;
 props:
                 prop
@@ -117,16 +159,37 @@ props:
                     $$.Props = []string{$1.Props[0] + $2.Props[0]}
                 }
                 ;
+vars:
+                ITEM
+        ;
 prop:
                 ITEM
+        |       TEXT COLON SUB SEMIC { // variable replacement
+                    fmt.Println("prop2", $1, $2, $3, $4)
+                    s := []string{$1.Value+$2.Value+$3.Value+$4.Value}
+                    $$.Props = s
+                }
+        |       VAR COLON TEXT SEMIC { // variable assignment
+                    fmt.Println("var3", $1, $2, $3, $4)
+                    if $$.Vars == nil {
+                        $$.Vars = make(map[string]string)
+                    }
+                    $$.Vars[$1.Value] = $3.Value
+                }
         |       TEXT COLON TEXT SEMIC {
-                debugPrint("prop2:", $1, $2, $3, $4)
-                $$.Props = []string{$1.Value + $2.Value +
-                $3.Value + $4.Value}
-                $$.Value = ""
+                    debugPrint("prop3:", $1, $2, $3, $4)
+                    $$.Props = []string{$1.Value + $2.Value +
+                    $3.Value + $4.Value}
+                    $$.Value = ""
                 }
                 ;
 %%
+
+type Set struct {
+    Rules []string
+    Props []string
+    Vars map[string]string
+}
 
 func debugPrint(name string, vs ...interface{}) {
     if !debug { return }

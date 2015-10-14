@@ -24,9 +24,9 @@ const (
 	MIXIN
 	EXTRA
 	CMD
-	VAR
+	// VAR
 	CMDVAR
-	SUB
+	// SUB
 	VALUE
 	FILE
 	cmd_beg

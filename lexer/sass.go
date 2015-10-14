@@ -10,30 +10,36 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 )
 
-//line sass.y:27
+//line sass.y:28
 type yySymType struct {
 	yys int
-	s   string
+	s   Set
+	v   map[string]string
 	x   *Item
 }
 
 const STMT = 57346
-const RULE = 57347
-const LBRACKET = 57348
-const RBRACKET = 57349
-const COLON = 57350
-const SEMIC = 57351
-const TEXT = 57352
-const ITEM = 57353
+const VAR = 57347
+const SUB = 57348
+const RULE = 57349
+const LBRACKET = 57350
+const RBRACKET = 57351
+const COLON = 57352
+const SEMIC = 57353
+const TEXT = 57354
+const ITEM = 57355
 
 var yyToknames = [...]string{
 	"$end",
 	"error",
 	"$unk",
 	"STMT",
+	"VAR",
+	"SUB",
 	"RULE",
 	"LBRACKET",
 	"RBRACKET",
@@ -48,7 +54,13 @@ const yyEofCode = 1
 const yyErrCode = 2
 const yyMaxDepth = 200
 
-//line sass.y:129
+//line sass.y:186
+
+type Set struct {
+	Rules []string
+	Props []string
+	Vars  map[string]string
+}
 
 func debugPrint(name string, vs ...interface{}) {
 	if !debug {
@@ -111,54 +123,66 @@ var yyExca = [...]int{
 	-1, 1,
 	1, -1,
 	-2, 0,
+	-1, 9,
+	1, 18,
+	4, 18,
+	9, 18,
+	-2, 17,
 }
 
-const yyNprod = 15
+const yyNprod = 22
 const yyPrivate = 57344
 
 var yyTokenNames []string
 var yyStates []string
 
-const yyLast = 31
+const yyLast = 57
 
 var yyAct = [...]int{
 
-	6, 4, 7, 9, 12, 11, 20, 12, 11, 23,
-	15, 14, 5, 10, 19, 17, 16, 18, 24, 22,
-	5, 9, 13, 21, 1, 12, 11, 3, 5, 8,
-	2,
+	14, 8, 29, 19, 5, 6, 11, 16, 5, 11,
+	13, 15, 18, 10, 23, 21, 10, 9, 27, 25,
+	26, 16, 24, 22, 28, 30, 16, 36, 11, 31,
+	7, 18, 38, 16, 20, 10, 9, 3, 11, 35,
+	7, 7, 34, 32, 39, 10, 9, 33, 37, 17,
+	4, 2, 1, 0, 4, 0, 12,
 }
 var yyPact = [...]int{
 
-	23, -1000, -1000, -1000, -3, -1000, -1000, -1000, -6, 15,
-	-1000, -1000, 8, -1000, -3, 7, -4, 16, -3, -1000,
-	0, -1000, 11, -1000, -1000,
+	33, -1000, -1000, -1000, 33, 4, -1000, -1000, -1000, -1000,
+	24, 5, -1000, -1000, -1000, -1000, -1000, 1, 23, 4,
+	12, -10, -1000, -1000, 4, 34, -1000, 31, 28, 16,
+	39, 4, -1000, -1000, -1000, -1000, -1000, -1000, 35, -1000,
 }
 var yyPgo = [...]int{
 
-	0, 30, 1, 29, 13, 0, 24,
+	0, 51, 1, 3, 49, 5, 0, 52,
 }
 var yyR1 = [...]int{
 
-	0, 6, 6, 1, 1, 2, 2, 5, 5, 5,
-	5, 3, 3, 4, 4,
+	0, 7, 7, 1, 1, 1, 3, 3, 3, 3,
+	6, 6, 6, 6, 6, 4, 4, 2, 5, 5,
+	5, 5,
 }
 var yyR2 = [...]int{
 
-	0, 0, 1, 1, 2, 1, 2, 1, 4, 5,
-	3, 1, 2, 1, 4,
+	0, 0, 1, 1, 2, 2, 1, 2, 1, 2,
+	1, 4, 5, 3, 2, 1, 2, 1, 1, 4,
+	4, 4,
 }
 var yyChk = [...]int{
 
-	-1000, -6, -1, 4, -2, 5, -5, 5, -3, 6,
-	-4, 11, 10, -4, -2, -5, 8, -5, -2, 7,
-	10, 7, -5, 9, 7,
+	-1000, -7, -1, 4, -4, -3, -5, 7, -2, 13,
+	12, 5, -1, -5, -6, 7, -2, -4, 8, -3,
+	10, 10, -5, 13, -3, -6, -6, 6, 12, 12,
+	-6, -3, 9, 13, 11, 11, 11, 9, -6, 9,
 }
 var yyDef = [...]int{
 
-	1, -2, 2, 3, 0, 5, 4, 6, 7, 0,
-	11, 13, 0, 12, 0, 0, 0, 0, 0, 10,
-	0, 8, 0, 14, 9,
+	1, -2, 2, 3, 0, 0, 15, 6, 8, -2,
+	0, 0, 4, 15, 5, 6, 8, 10, 0, 0,
+	0, 0, 16, 18, 0, 0, 14, 0, 0, 0,
+	14, 0, 13, 17, 19, 21, 20, 11, 0, 12,
 }
 var yyTok1 = [...]int{
 
@@ -167,6 +191,7 @@ var yyTok1 = [...]int{
 var yyTok2 = [...]int{
 
 	2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+	12, 13,
 }
 var yyTok3 = [...]int{
 	0,
@@ -514,33 +539,21 @@ yydefault:
 
 	case 2:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:45
+		//line sass.y:51
 		{
-			fmt.Fprint(out, yyDollar[1].s)
-		}
-	case 3:
-		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:49
-		{
-			debugPrint("stmt1", yyDollar[1].s)
-		}
-	case 4:
-		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:50
-		{
-			debugPrint("stmt2", yyDollar[1].x, yyDollar[2].x)
-			rules := append(yyDollar[1].x.Rules, yyDollar[2].x.Rules...)
-			props := append(yyDollar[1].x.Props, yyDollar[2].x.Props...)
+			debugPrint("stmt", yyDollar[1].s)
+			var sout string
+			rules := yyDollar[1].s.Rules
+			props := yyDollar[1].s.Props
 			debugPrint("rules:", rules)
 			debugPrint("props:", props)
 			if len(rules) != len(props) {
 				fmt.Println(rules)
 				fmt.Println(props)
-				yyVAL.s = fmt.Sprintf(
+				sout = fmt.Sprintf(
 					"props/rules mismatch rules(%d) props(%d)",
 					len(rules), len(props))
 			} else {
-				var sout string
 				for i := range rules {
 					r := strings.Join(rules[0:i+1], " ")
 					if len(props[i]) > 0 {
@@ -549,44 +562,87 @@ yydefault:
 						sout += r + " { " + sigh + " }" + "\n"
 					}
 				}
-				yyVAL.s = sout
 			}
+			fmt.Fprint(out, sout)
+		}
+	case 4:
+		yyDollar = yyS[yypt-2 : yypt+1]
+		//line sass.y:78
+		{
+			// do variable substitutions here
+			debugPrint("stmt2", yyDollar[1].x, yyDollar[2].s)
+			vars := yyDollar[1].x.Vars
+			props := yyDollar[2].s.Props
+			re := regexp.MustCompile("\\$[a-zA-Z0-9]+")
+			for i := range props {
+				m := re.FindString(props[i])
+				if rep, ok := vars[m]; ok && len(m) > 0 {
+					props[i] = strings.Replace(props[i], m, rep, 1)
+				}
+			}
+			yyVAL.s.Props = props
+			yyVAL.s.Rules = yyDollar[2].s.Rules
 		}
 	case 5:
+		yyDollar = yyS[yypt-2 : yypt+1]
+		//line sass.y:93
+		{
+			rules := append(yyDollar[1].x.Rules, yyDollar[2].x.Rules...)
+			props := append(yyDollar[1].x.Props, yyDollar[2].x.Props...)
+			vars := make(map[string]string)
+			for k, v := range yyDollar[1].x.Vars {
+				yyDollar[1].x.Vars[k] = v
+			}
+			for k, v := range yyDollar[2].x.Vars {
+				yyDollar[2].x.Vars[k] = v
+			}
+
+			yyVAL.s.Rules = rules
+			yyVAL.s.Props = props
+			yyVAL.s.Vars = vars
+		}
+	case 6:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:77
+		//line sass.y:111
 		{
 			debugPrint("sel1:", yyDollar[1].x)
 			yyVAL.x.Rules = []string{yyDollar[1].x.Value}
 			yyVAL.x.Value = ""
 		}
-	case 6:
+	case 7:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:82
+		//line sass.y:116
 		{
 			debugPrint("sel2:", yyDollar[1].x, yyDollar[2].x)
 			yyVAL.x.Rules = append(yyDollar[1].x.Rules, yyDollar[2].x.Rules...)
 			yyVAL.x.Value = ""
+			yyVAL.x.Vars = yyDollar[1].x.Vars
 		}
-	case 7:
+	case 9:
+		yyDollar = yyS[yypt-2 : yypt+1]
+		//line sass.y:123
+		{
+			debugPrint("")
+		}
+	case 10:
 		yyDollar = yyS[yypt-1 : yypt+1]
-		//line sass.y:89
+		//line sass.y:128
 		{
 			debugPrint("nested1:", yyDollar[1].x)
 			yyVAL.x.Rules = yyDollar[1].x.Rules
 			yyVAL.x.Value = ""
 		}
-	case 8:
+	case 11:
 		yyDollar = yyS[yypt-4 : yypt+1]
-		//line sass.y:94
+		//line sass.y:133
 		{
 			debugPrint("nested2:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
 			yyVAL.x.Rules = append(yyDollar[2].x.Rules, yyDollar[3].x.Rules...)
 			yyVAL.x.Props = append([]string{""}, yyDollar[3].x.Props...)
 		}
-	case 9:
+	case 12:
 		yyDollar = yyS[yypt-5 : yypt+1]
-		//line sass.y:99
+		//line sass.y:138
 		{
 			debugPrint("nested3:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x, yyDollar[5].x)
 			yyVAL.x.Rules = yyDollar[3].x.Rules
@@ -594,27 +650,51 @@ yydefault:
 			yyVAL.x.Value = ""
 			// $$.Value = $1.Value + $2.Value + $4.Value + $5.Value
 		}
-	case 10:
+	case 13:
 		yyDollar = yyS[yypt-3 : yypt+1]
-		//line sass.y:106
+		//line sass.y:145
 		{
 			debugPrint("nested4:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x)
 			yyVAL.x.Rules = yyDollar[2].x.Rules
 			yyVAL.x.Props = yyDollar[2].x.Props
 			yyVAL.x.Value = ""
 		}
-	case 12:
+	case 14:
 		yyDollar = yyS[yypt-2 : yypt+1]
-		//line sass.y:115
+		//line sass.y:151
+		{
+			debugPrint("nested5", yyDollar[1].x, yyDollar[2].x)
+		}
+	case 16:
+		yyDollar = yyS[yypt-2 : yypt+1]
+		//line sass.y:157
 		{
 			debugPrint("props2:", yyDollar[1].x, yyDollar[2].x)
 			yyVAL.x.Props = []string{yyDollar[1].x.Props[0] + yyDollar[2].x.Props[0]}
 		}
-	case 14:
+	case 19:
 		yyDollar = yyS[yypt-4 : yypt+1]
-		//line sass.y:122
+		//line sass.y:167
+		{ // variable replacement
+			fmt.Println("prop2", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
+			s := []string{yyDollar[1].x.Value + yyDollar[2].x.Value + yyDollar[3].x.Value + yyDollar[4].x.Value}
+			yyVAL.x.Props = s
+		}
+	case 20:
+		yyDollar = yyS[yypt-4 : yypt+1]
+		//line sass.y:172
+		{ // variable assignment
+			fmt.Println("var3", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
+			if yyVAL.x.Vars == nil {
+				yyVAL.x.Vars = make(map[string]string)
+			}
+			yyVAL.x.Vars[yyDollar[1].x.Value] = yyDollar[3].x.Value
+		}
+	case 21:
+		yyDollar = yyS[yypt-4 : yypt+1]
+		//line sass.y:179
 		{
-			debugPrint("prop2:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
+			debugPrint("prop3:", yyDollar[1].x, yyDollar[2].x, yyDollar[3].x, yyDollar[4].x)
 			yyVAL.x.Props = []string{yyDollar[1].x.Value + yyDollar[2].x.Value +
 				yyDollar[3].x.Value + yyDollar[4].x.Value}
 			yyVAL.x.Value = ""
