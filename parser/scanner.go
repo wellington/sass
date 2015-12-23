@@ -21,6 +21,14 @@ func isSpace(r rune) bool {
 	return unicode.IsSpace(r)
 }
 
+func isLetter(ch rune) bool {
+	return 'a' <= ch && ch <= 'z' || 'A' <= ch && ch <= 'Z' || ch == '_' || ch >= 0x80 && unicode.IsLetter(ch)
+}
+
+func isDigit(ch rune) bool {
+	return '0' <= ch && ch <= '9' || ch >= 0x80 && unicode.IsDigit(ch)
+}
+
 const (
 	symbols = `/\.*-_`
 )
@@ -111,9 +119,11 @@ type Item struct {
 }
 
 func (s *Scanner) skipWhitespace() {
+	offs := s.offset
 	for s.ch == ' ' || s.ch == '\n' || s.ch == '\r' {
 		s.next()
 	}
+	fmt.Printf("skipping`%s`", string(s.src[offs:s.offset]))
 }
 
 func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
@@ -123,34 +133,46 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	pos = s.file.Pos(s.offset)
 	ch := s.ch
 	switch {
-	case isAllowedRune(ch):
+	case isLetter(ch):
+		fmt.Println("letter")
 		lit = s.scanIdent()
 		// Do some string analysis to determine token
-		tok = token.Error
+		tok = token.IDENT
 		return
 	}
 
+	fmt.Println("1", string(s.ch))
 	// move forward
 	s.next()
+	fmt.Println("2", string(s.ch))
 	switch ch {
 	case eof:
 		tok = token.EOF
 		return
 	case '/':
+		fmt.Println("find", s.ch)
 		if s.ch == '/' || s.ch == '*' {
+			fmt.Println("scan comment")
 			comment := s.scanComment()
 			tok = token.CMT
 			lit = comment
 			return
 		}
 	}
+	fmt.Println("find", string(s.ch))
 
 	// item = Item{Type: ItemILLEGAL, Value: string(ch)}
 	return
 }
 
 func (s *Scanner) scanIdent() string {
-	return ""
+	offs := s.offset
+	for isLetter(s.ch) || isDigit(s.ch) {
+		s.next()
+	}
+	ss := string(s.src[offs:s.offset])
+	fmt.Println(ss)
+	return ss
 }
 
 func (s *Scanner) scanComment() string {

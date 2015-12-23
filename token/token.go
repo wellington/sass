@@ -10,8 +10,10 @@ const NotFound = -1
 // Special item types.
 const (
 	EOF Token = iota
-	Error
-	SPACE
+	CMT
+	IDENT
+
+	keyword_beg
 	IF
 	ELSE
 	EACH
@@ -23,10 +25,11 @@ const (
 	EXTRA
 	CMD
 	VAR
+	keyword_end
+
 	CMDVAR
-	SUB
 	VALUE
-	// FILE
+
 	cmd_beg
 	SPRITE
 	SPRITEF
@@ -34,25 +37,59 @@ const (
 	SPRITEH
 	SPRITEW
 	cmd_end
+
+	literal_beg
 	NUMBER
 	TEXT
 	RULE
 	DOLLAR
-	math_beg
-	PLUS
-	MINUS
-	MULT
-	DIVIDE
-	math_end
-	special_beg
-	LPAREN
-	RPAREN
-	LBRACKET
-	RBRACKET
-	SEMIC
-	COLON
-	CMT
-	special_end
+	literal_end
+
+	operator_beg
+	ADD // +
+	SUB // -
+	MUL // *
+	QUO // /
+	REM // %
+
+	AND     // &
+	OR      // |
+	XOR     // ^
+	SHL     // <<
+	SHR     // >>
+	AND_NOT // &^
+
+	LAND  // &&
+	LOR   // ||
+	ARROW // <-
+	INC   // ++
+	DEC   // --
+
+	EQL    // ==
+	LSS    // <
+	GTR    // >
+	ASSIGN // =
+	NOT    // !
+
+	NEQ      // !=
+	LEQ      // <=
+	GEQ      // >=
+	DEFINE   // :=
+	ELLIPSIS // ...
+
+	LPAREN // (
+	LBRACK // [
+	LBRACE // {
+	COMMA  // ,
+	PERIOD // .
+
+	RPAREN    // )
+	RBRACK    // ]
+	RBRACE    // }
+	SEMICOLON // ;
+	COLON     // :
+	operator_end
+
 	include_mixin_beg
 	FILE
 	BKND
@@ -61,45 +98,45 @@ const (
 )
 
 var Tokens = [...]string{
-	EOF:      "eof",
-	Error:    "error",
-	IF:       "@if",
-	ELSE:     "@else",
-	EACH:     "@each",
-	IMPORT:   "@import",
-	INCLUDE:  "@include",
-	INTP:     "#{",
-	FUNC:     "@function",
-	MIXIN:    "@mixin",
-	EXTRA:    "extra",
-	CMD:      "command",
-	VAR:      "variable",
-	CMDVAR:   "command-variable",
-	SUB:      "sub",
-	VALUE:    "value",
-	FILE:     "file",
-	SPRITE:   "sprite",
-	SPRITEF:  "sprite-file",
-	SPRITED:  "sprite-dimensions",
-	SPRITEH:  "sprite-height",
-	SPRITEW:  "sprite-width",
-	NUMBER:   "number",
-	TEXT:     "text",
-	RULE:     "rule",
-	DOLLAR:   "$",
-	PLUS:     "+",
-	MINUS:    "-",
-	MULT:     "*",
-	DIVIDE:   "/",
-	LPAREN:   "(",
-	RPAREN:   ")",
-	LBRACKET: "{",
-	RBRACKET: "}",
-	SEMIC:    ";",
-	COLON:    ":",
-	CMT:      "comment",
-	BKND:     "background",
-	FIN:      "FINISHED",
+	EOF: "eof",
+	CMT: "comment",
+
+	IDENT:     "IDENT",
+	IF:        "@if",
+	ELSE:      "@else",
+	EACH:      "@each",
+	IMPORT:    "@import",
+	INCLUDE:   "@include",
+	INTP:      "#{",
+	FUNC:      "@function",
+	MIXIN:     "@mixin",
+	EXTRA:     "extra",
+	CMD:       "command",
+	VAR:       "variable",
+	CMDVAR:    "command-variable",
+	VALUE:     "value",
+	FILE:      "file",
+	SPRITE:    "sprite",
+	SPRITEF:   "sprite-file",
+	SPRITED:   "sprite-dimensions",
+	SPRITEH:   "sprite-height",
+	SPRITEW:   "sprite-width",
+	NUMBER:    "number",
+	TEXT:      "text",
+	RULE:      "rule",
+	DOLLAR:    "$",
+	ADD:       "+",
+	SUB:       "-",
+	MUL:       "*",
+	QUO:       "/",
+	LPAREN:    "(",
+	RPAREN:    ")",
+	LBRACE:    "{",
+	RBRACE:    "}",
+	SEMICOLON: ";",
+	COLON:     ":",
+	BKND:      "background",
+	FIN:       "FINISHED",
 }
 
 func (i Token) String() string {
@@ -125,3 +162,20 @@ func Lookup(ident string) Token {
 	}
 	return NotFound
 }
+
+// Predicates
+
+// IsLiteral returns true for tokens corresponding to identifiers
+// and basic type literals; it returns false otherwise.
+//
+func (tok Token) IsLiteral() bool { return literal_beg < tok && tok < literal_end }
+
+// IsOperator returns true for tokens corresponding to operators and
+// delimiters; it returns false otherwise.
+//
+func (tok Token) IsOperator() bool { return operator_beg < tok && tok < operator_end }
+
+// IsKeyword returns true for tokens corresponding to keywords;
+// it returns false otherwise.
+//
+func (tok Token) IsKeyword() bool { return keyword_beg < tok && tok < keyword_end }
