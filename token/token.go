@@ -9,7 +9,8 @@ const NotFound = -1
 
 // Special item types.
 const (
-	EOF Token = iota
+	ILLEGAL Token = iota
+	EOF
 	CMT
 	IDENT
 

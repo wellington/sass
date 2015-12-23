@@ -80,8 +80,10 @@ func (s *Scanner) Init(file *gotoken.File, src []byte, err goscanner.ErrorHandle
 }
 
 func (s *Scanner) next() {
+
 	if s.rdOffset < len(s.src) {
 		s.offset = s.rdOffset
+
 		if s.ch == '\n' {
 			s.lineOffset = s.offset
 			s.file.AddLine(s.offset)
@@ -102,11 +104,13 @@ func (s *Scanner) next() {
 		s.rdOffset += w
 		s.ch = r
 	} else {
+
 		s.offset = len(s.src)
 		if s.ch == '\n' {
 			s.lineOffset = s.offset
 			s.file.AddLine(s.offset)
 		}
+
 		s.ch = -1 // eof
 	}
 
@@ -119,11 +123,9 @@ type Item struct {
 }
 
 func (s *Scanner) skipWhitespace() {
-	offs := s.offset
-	for s.ch == ' ' || s.ch == '\n' || s.ch == '\r' {
+	for s.ch == ' ' || s.ch == '\t' || s.ch == '\n' || s.ch == '\r' {
 		s.next()
 	}
-	fmt.Printf("skipping`%s`", string(s.src[offs:s.offset]))
 }
 
 func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
@@ -134,32 +136,28 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	ch := s.ch
 	switch {
 	case isLetter(ch):
-		fmt.Println("letter")
 		lit = s.scanIdent()
 		// Do some string analysis to determine token
 		tok = token.IDENT
 		return
 	}
 
-	fmt.Println("1", string(s.ch))
 	// move forward
 	s.next()
-	fmt.Println("2", string(s.ch))
 	switch ch {
-	case eof:
+	case -1:
 		tok = token.EOF
 		return
 	case '/':
-		fmt.Println("find", s.ch)
 		if s.ch == '/' || s.ch == '*' {
-			fmt.Println("scan comment")
 			comment := s.scanComment()
 			tok = token.CMT
 			lit = comment
 			return
 		}
+	default:
+		fmt.Printf("Illegal %q\n", ch)
 	}
-	fmt.Println("find", string(s.ch))
 
 	// item = Item{Type: ItemILLEGAL, Value: string(ch)}
 	return
@@ -171,7 +169,6 @@ func (s *Scanner) scanIdent() string {
 		s.next()
 	}
 	ss := string(s.src[offs:s.offset])
-	fmt.Println(ss)
 	return ss
 }
 

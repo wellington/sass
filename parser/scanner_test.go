@@ -1,10 +1,8 @@
 package parser
 
 import (
-	"fmt"
 	gotoken "go/token"
 	"testing"
-	"time"
 
 	"github.com/wellington/sass/token"
 )
@@ -61,7 +59,7 @@ func checkPos(t *testing.T, lit string, p gotoken.Pos, expected gotoken.Position
 }
 
 func TestScan(t *testing.T) {
-	whitespace_linecount := newlineCount(whitespace)
+	whitespaceLinecount := newlineCount(whitespace)
 
 	// error handler
 	eh := func(_ gotoken.Position, msg string) {
@@ -71,7 +69,6 @@ func TestScan(t *testing.T) {
 	var s Scanner
 	s.Init(fset.AddFile("", fset.Base(), len(source)), source, eh)
 
-	fmt.Println("input", string(source))
 	epos := gotoken.Position{
 		Filename: "",
 		Offset:   0,
@@ -82,9 +79,6 @@ func TestScan(t *testing.T) {
 	index := 0
 	for {
 		pos, tok, lit := s.Scan()
-		fmt.Println(pos, tok, lit)
-		time.Sleep(50 * time.Millisecond)
-
 		if tok == token.EOF {
 			epos.Line = newlineCount(string(source))
 			epos.Column = 2
@@ -136,7 +130,7 @@ func TestScan(t *testing.T) {
 
 		// update position
 		epos.Offset += len(e.lit) + len(whitespace)
-		epos.Line += newlineCount(e.lit) + whitespace_linecount
+		epos.Line += newlineCount(e.lit) + whitespaceLinecount
 
 	}
 }
