@@ -32,6 +32,7 @@ func runner(t *testing.T, path string) (bytes.Buffer, string) {
 }
 
 func TestSassSpec_basic(t *testing.T) {
+	t.Skip("")
 	var e string
 	var buf bytes.Buffer
 	yyDebug = 0
@@ -59,6 +60,7 @@ func TestSassSpec_basic(t *testing.T) {
 }
 
 func TestTest(t *testing.T) {
+	t.Skip("")
 	yyDebug = 5
 	debug = true
 	buf, e := runner(t, "basic/04_basic_variables")
