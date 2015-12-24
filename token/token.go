@@ -40,7 +40,8 @@ const (
 	cmd_end
 
 	literal_beg
-	NUMBER
+	INT
+	FLOAT
 	TEXT
 	RULE
 	DOLLAR
@@ -122,7 +123,8 @@ var Tokens = [...]string{
 	SPRITED:   "sprite-dimensions",
 	SPRITEH:   "sprite-height",
 	SPRITEW:   "sprite-width",
-	NUMBER:    "number",
+	INT:       "integer",
+	FLOAT:     "float",
 	TEXT:      "text",
 	RULE:      "rule",
 	DOLLAR:    "$",

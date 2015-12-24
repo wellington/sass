@@ -18,6 +18,9 @@ const whitespace = "  \t  \n\n\n" // to separate tokens
 var tokens = [...]elt{
 	{token.CMT, "/* a comment */"},
 	{token.CMT, "// single comment \n"},
+	{token.INT, "0"},
+	{token.INT, "314"},
+	{token.FLOAT, "3.1415"},
 }
 
 var source = func() []byte {

@@ -139,6 +139,11 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 		lit = s.scanIdent()
 		// Do some string analysis to determine token
 		tok = token.IDENT
+	case '0' <= ch && ch <= '9':
+		tok, lit = s.scanNumber(false)
+	}
+
+	if tok != token.ILLEGAL {
 		return
 	}
 
@@ -148,6 +153,10 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	case -1:
 		tok = token.EOF
 		return
+	case '.':
+		if '0' <= s.ch && s.ch <= '9' {
+			tok, lit = s.scanNumber(true)
+		}
 	case '/':
 		if s.ch == '/' || s.ch == '*' {
 			comment := s.scanComment()
@@ -170,6 +179,98 @@ func (s *Scanner) scanIdent() string {
 	}
 	ss := string(s.src[offs:s.offset])
 	return ss
+}
+
+func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
+	// digitVal(s.ch) < 10
+	offs := s.offset
+	tok := token.INT
+
+	if seenDecimalPoint {
+		offs--
+		tok = token.FLOAT
+		s.scanMantissa(10)
+		goto exponent
+	}
+
+	if s.ch == '0' {
+		// int or float
+		offs := s.offset
+		s.next()
+		if s.ch == 'x' || s.ch == 'X' {
+			// hexadecimal int
+			s.next()
+			s.scanMantissa(16)
+			if s.offset-offs <= 2 {
+				// only scanned "0x" or "0X"
+				s.error(offs, "illegal hexadecimal number")
+			}
+		} else {
+			// octal int or float
+			seenDecimalDigit := false
+			s.scanMantissa(8)
+			if s.ch == '8' || s.ch == '9' {
+				// illegal octal int or float
+				seenDecimalDigit = true
+				s.scanMantissa(10)
+			}
+			if s.ch == '.' || s.ch == 'e' || s.ch == 'E' || s.ch == 'i' {
+				goto fraction
+			}
+			// octal int
+			if seenDecimalDigit {
+				s.error(offs, "illegal octal number")
+			}
+		}
+		goto exit
+	}
+
+	// decimal int or float
+	s.scanMantissa(10)
+
+fraction:
+	if s.ch == '.' {
+		tok = token.FLOAT
+		s.next()
+		s.scanMantissa(10)
+	}
+
+exponent:
+	if s.ch == 'e' || s.ch == 'E' {
+		tok = token.FLOAT
+		s.next()
+		if s.ch == '-' || s.ch == '+' {
+			s.next()
+		}
+		s.scanMantissa(10)
+	}
+
+	if s.ch == 'i' {
+		tok = token.ILLEGAL
+		s.next()
+	}
+
+exit:
+	return tok, string(s.src[offs:s.offset])
+
+}
+
+func (s *Scanner) scanMantissa(base int) {
+	for digitVal(s.ch) < base {
+		s.next()
+	}
+}
+
+func digitVal(ch rune) int {
+	switch {
+	case '0' <= ch && ch <= '9':
+		return int(ch - '0')
+	case 'a' <= ch && ch <= 'f':
+		return int(ch - 'a' + 10)
+	case 'A' <= ch && ch <= 'F':
+		return int(ch - 'A' + 10)
+	}
+	return 16 // larger than any legal digit val
 }
 
 func (s *Scanner) scanComment() string {
