@@ -40,20 +40,19 @@ var tokens = [...]elt{
 	// {token.NEQ, "!="},
 	// {token.LEQ, "<="},
 	// {token.GEQ, ">="},
-	// {token.DEFINE, ":="},
 
-	// // Delimiters
+	// Delimiters
 	{token.LPAREN, "("},
 	{token.LBRACK, "["},
 	{token.LBRACE, "{"},
 	{token.COMMA, ","},
 	{token.PERIOD, "."},
 
-	// {token.RPAREN, ")"},
-	// {token.RBRACK, "]"},
-	// {token.RBRACE, "}"},
-	// {token.SEMICOLON, ";"},
-	// {token.COLON, ":"},
+	{token.RPAREN, ")"},
+	{token.RBRACK, "]"},
+	{token.RBRACE, "}"},
+	{token.SEMICOLON, ";"},
+	{token.COLON, ":"},
 }
 
 var source = func() []byte {
