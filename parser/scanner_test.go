@@ -21,6 +21,39 @@ var tokens = [...]elt{
 	{token.INT, "0"},
 	{token.INT, "314"},
 	{token.FLOAT, "3.1415"},
+
+	// Operators and delimiters
+	{token.ADD, "+"},
+	{token.SUB, "-"},
+	{token.MUL, "*"},
+	{token.QUO, "/"},
+	{token.REM, "%"},
+
+	// {token.LAND, "&&"},
+	// {token.LOR, "||"},
+	// {token.EQL, "=="},
+	// {token.LSS, "<"},
+	// {token.GTR, ">"},
+	// {token.ASSIGN, "="},
+	// {token.NOT, "!"},
+
+	// {token.NEQ, "!="},
+	// {token.LEQ, "<="},
+	// {token.GEQ, ">="},
+	// {token.DEFINE, ":="},
+
+	// // Delimiters
+	{token.LPAREN, "("},
+	{token.LBRACK, "["},
+	{token.LBRACE, "{"},
+	{token.COMMA, ","},
+	{token.PERIOD, "."},
+
+	// {token.RPAREN, ")"},
+	// {token.RBRACK, "]"},
+	// {token.RBRACE, "}"},
+	// {token.SEMICOLON, ";"},
+	// {token.COLON, ":"},
 }
 
 var source = func() []byte {

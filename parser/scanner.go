@@ -152,18 +152,47 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	switch ch {
 	case -1:
 		tok = token.EOF
-		return
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
 			tok, lit = s.scanNumber(true)
+		} else {
+			tok = token.PERIOD
 		}
 	case '/':
 		if s.ch == '/' || s.ch == '*' {
 			comment := s.scanComment()
 			tok = token.CMT
 			lit = comment
-			return
+		} else {
+			tok = token.QUO
 		}
+	case ':':
+		tok = token.COLON
+	case ',':
+		tok = token.COMMA
+	case ';':
+		tok = token.SEMICOLON
+		lit = ";"
+	case '(':
+		tok = token.LPAREN
+	case ')':
+		tok = token.RPAREN
+	case '[':
+		tok = token.LBRACK
+	case ']':
+		tok = token.RBRACK
+	case '{':
+		tok = token.LBRACE
+	case '}':
+		tok = token.RBRACE
+	case '%':
+		tok = token.REM
+	case '+':
+		tok = token.ADD
+	case '-':
+		tok = token.SUB
+	case '*':
+		tok = token.MUL
 	default:
 		fmt.Printf("Illegal %q\n", ch)
 	}
