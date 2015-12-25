@@ -14,31 +14,6 @@ const (
 	CMT
 	IDENT
 
-	keyword_beg
-	IF
-	ELSE
-	EACH
-	IMPORT
-	INCLUDE
-	INTP
-	FUNC
-	MIXIN
-	EXTRA
-	CMD
-	VAR
-	keyword_end
-
-	CMDVAR
-	VALUE
-
-	cmd_beg
-	SPRITE
-	SPRITEF
-	SPRITED
-	SPRITEH
-	SPRITEW
-	cmd_end
-
 	literal_beg
 	INT
 	FLOAT
@@ -96,6 +71,31 @@ const (
 	COLON     // :
 	operator_end
 
+	keyword_beg
+	IF
+	ELSE
+	EACH
+	IMPORT
+	INCLUDE
+	// INTP
+	FUNC
+	MIXIN
+	EXTRA
+	CMD
+	VAR
+	keyword_end
+
+	CMDVAR
+	VALUE
+
+	cmd_beg
+	SPRITE
+	SPRITEF
+	SPRITED
+	SPRITEH
+	SPRITEW
+	cmd_end
+
 	include_mixin_beg
 	FILE
 	BKND
@@ -108,14 +108,6 @@ var Tokens = [...]string{
 	EOF:     "EOF",
 	CMT:     "comment",
 
-	IF:      "@if",
-	ELSE:    "@else",
-	EACH:    "@each",
-	IMPORT:  "@import",
-	INCLUDE: "@include",
-	INTP:    "#{",
-	FUNC:    "@function",
-	MIXIN:   "@mixin",
 	EXTRA:   "extra",
 	CMD:     "command",
 	VAR:     "variable",
@@ -172,6 +164,15 @@ var Tokens = [...]string{
 
 	NUMBER: "#",
 	QUOTE:  "\"",
+
+	IF:      "@if",
+	ELSE:    "@else",
+	EACH:    "@each",
+	IMPORT:  "@import",
+	INCLUDE: "@include",
+	// INTP:    "#{",
+	FUNC:  "@function",
+	MIXIN: "@mixin",
 
 	BKND: "background",
 	FIN:  "FINISHED",
