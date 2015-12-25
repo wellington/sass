@@ -166,6 +166,10 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 		} else {
 			tok = token.QUO
 		}
+	case '#':
+		tok = token.NUMBER
+	case '$':
+		tok = token.DOLLAR
 	case ':':
 		tok = token.COLON
 	case ',':

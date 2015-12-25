@@ -44,7 +44,6 @@ const (
 	FLOAT
 	TEXT
 	RULE
-	DOLLAR
 	literal_end
 
 	operator_beg
@@ -78,6 +77,9 @@ const (
 	GEQ      // >=
 	DEFINE   // :=
 	ELLIPSIS // ...
+
+	DOLLAR // $
+	NUMBER // #
 
 	LPAREN // (
 	LBRACK // [

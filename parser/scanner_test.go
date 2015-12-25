@@ -53,6 +53,9 @@ var tokens = [...]elt{
 	{token.RBRACE, "}"},
 	{token.SEMICOLON, ";"},
 	{token.COLON, ":"},
+
+	{token.NUMBER, "#"},
+	{token.DOLLAR, "$"},
 }
 
 var source = func() []byte {
