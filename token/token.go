@@ -104,10 +104,10 @@ const (
 )
 
 var Tokens = [...]string{
-	EOF: "eof",
-	CMT: "comment",
+	ILLEGAL: "ILLEGAL",
+	EOF:     "EOF",
+	CMT:     "comment",
 
-	IDENT:   "IDENT",
 	IF:      "@if",
 	ELSE:    "@else",
 	EACH:    "@each",
@@ -127,26 +127,51 @@ var Tokens = [...]string{
 	SPRITED: "sprite-dimensions",
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
-	INT:     "integer",
-	FLOAT:   "float",
 	TEXT:    "text",
 	RULE:    "rule",
 
+	IDENT: "IDENT",
+	INT:   "INT",
+	FLOAT: "FLOAT",
+
+	ADD: "+",
+	SUB: "-",
+	MUL: "*",
+	QUO: "/",
+	REM: "%",
+
+	AND: "&",
+	//OR: "|",
 	XOR: "^",
 
-	DOLLAR:    "$",
-	ADD:       "+",
-	SUB:       "-",
-	MUL:       "*",
-	QUO:       "/",
-	LPAREN:    "(",
+	AT:     "@",
+	EQL:    "==",
+	LSS:    "<",
+	GTR:    ">",
+	ASSIGN: "=",
+	NOT:    "!",
+
+	DOLLAR: "$",
+
+	NEQ:    "!=",
+	LEQ:    "<=",
+	GEQ:    ">=",
+	DEFINE: ":=",
+
+	LPAREN: "(",
+	LBRACK: "[",
+	LBRACE: "{",
+	COMMA:  ",",
+	PERIOD: ".",
+
 	RPAREN:    ")",
-	LBRACE:    "{",
+	RBRACK:    "]",
 	RBRACE:    "}",
 	SEMICOLON: ";",
 	COLON:     ":",
-	NUMBER:    "#",
-	QUOTE:     "\"",
+
+	NUMBER: "#",
+	QUOTE:  "\"",
 
 	BKND: "background",
 	FIN:  "FINISHED",

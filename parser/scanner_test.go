@@ -33,15 +33,15 @@ var tokens = [...]elt{
 	{token.XOR, "^"},
 	// {token.LAND, "&&"},
 	// {token.LOR, "||"},
-	// {token.EQL, "=="},
-	// {token.LSS, "<"},
-	// {token.GTR, ">"},
-	// {token.ASSIGN, "="},
+	{token.EQL, "=="},
+	{token.LSS, "<"},
+	{token.GTR, ">"},
+	{token.ASSIGN, "="},
 	{token.NOT, "!"},
 
-	// {token.NEQ, "!="},
-	// {token.LEQ, "<="},
-	// {token.GEQ, ">="},
+	{token.NEQ, "!="},
+	{token.LEQ, "<="},
+	{token.GEQ, ">="},
 
 	// Delimiters
 	{token.LPAREN, "("},

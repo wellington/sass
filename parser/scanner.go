@@ -172,12 +172,20 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 		tok = token.NUMBER
 	case '&':
 		tok = token.AND
+
+	case '<':
+		tok = s.switch2(token.LSS, token.LEQ)
+	case '>':
+		tok = s.switch2(token.GTR, token.GEQ)
+	case '=':
+		tok = s.switch2(token.ASSIGN, token.EQL)
+
 	case '@':
 		tok = token.AT
 	case '$':
 		tok = token.DOLLAR
 	case '!':
-		tok = token.NOT
+		tok = s.switch2(token.NOT, token.NEQ)
 	case ':':
 		tok = token.COLON
 	case ',':
@@ -376,4 +384,12 @@ func stripCR(b []byte) []byte {
 		}
 	}
 	return c[:i]
+}
+
+func (s *Scanner) switch2(tok0, tok1 token.Token) token.Token {
+	if s.ch == '=' {
+		s.next()
+		return tok1
+	}
+	return tok0
 }
