@@ -29,13 +29,15 @@ var tokens = [...]elt{
 	{token.QUO, "/"},
 	{token.REM, "%"},
 
+	{token.AND, "&"},
+	{token.XOR, "^"},
 	// {token.LAND, "&&"},
 	// {token.LOR, "||"},
 	// {token.EQL, "=="},
 	// {token.LSS, "<"},
 	// {token.GTR, ">"},
 	// {token.ASSIGN, "="},
-	// {token.NOT, "!"},
+	{token.NOT, "!"},
 
 	// {token.NEQ, "!="},
 	// {token.LEQ, "<="},
@@ -54,6 +56,8 @@ var tokens = [...]elt{
 	{token.SEMICOLON, ";"},
 	{token.COLON, ":"},
 
+	{token.QUOTE, "\""},
+	{token.AT, "@"},
 	{token.NUMBER, "#"},
 	{token.DOLLAR, "$"},
 }

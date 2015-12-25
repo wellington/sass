@@ -78,8 +78,10 @@ const (
 	DEFINE   // :=
 	ELLIPSIS // ...
 
+	AT     // @
 	DOLLAR // $
 	NUMBER // #
+	QUOTE  // "
 
 	LPAREN // (
 	LBRACK // [
@@ -105,30 +107,33 @@ var Tokens = [...]string{
 	EOF: "eof",
 	CMT: "comment",
 
-	IDENT:     "IDENT",
-	IF:        "@if",
-	ELSE:      "@else",
-	EACH:      "@each",
-	IMPORT:    "@import",
-	INCLUDE:   "@include",
-	INTP:      "#{",
-	FUNC:      "@function",
-	MIXIN:     "@mixin",
-	EXTRA:     "extra",
-	CMD:       "command",
-	VAR:       "variable",
-	CMDVAR:    "command-variable",
-	VALUE:     "value",
-	FILE:      "file",
-	SPRITE:    "sprite",
-	SPRITEF:   "sprite-file",
-	SPRITED:   "sprite-dimensions",
-	SPRITEH:   "sprite-height",
-	SPRITEW:   "sprite-width",
-	INT:       "integer",
-	FLOAT:     "float",
-	TEXT:      "text",
-	RULE:      "rule",
+	IDENT:   "IDENT",
+	IF:      "@if",
+	ELSE:    "@else",
+	EACH:    "@each",
+	IMPORT:  "@import",
+	INCLUDE: "@include",
+	INTP:    "#{",
+	FUNC:    "@function",
+	MIXIN:   "@mixin",
+	EXTRA:   "extra",
+	CMD:     "command",
+	VAR:     "variable",
+	CMDVAR:  "command-variable",
+	VALUE:   "value",
+	FILE:    "file",
+	SPRITE:  "sprite",
+	SPRITEF: "sprite-file",
+	SPRITED: "sprite-dimensions",
+	SPRITEH: "sprite-height",
+	SPRITEW: "sprite-width",
+	INT:     "integer",
+	FLOAT:   "float",
+	TEXT:    "text",
+	RULE:    "rule",
+
+	XOR: "^",
+
 	DOLLAR:    "$",
 	ADD:       "+",
 	SUB:       "-",
@@ -140,8 +145,11 @@ var Tokens = [...]string{
 	RBRACE:    "}",
 	SEMICOLON: ";",
 	COLON:     ":",
-	BKND:      "background",
-	FIN:       "FINISHED",
+	NUMBER:    "#",
+	QUOTE:     "\"",
+
+	BKND: "background",
+	FIN:  "FINISHED",
 }
 
 func (i Token) String() string {

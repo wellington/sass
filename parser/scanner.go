@@ -166,10 +166,18 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 		} else {
 			tok = token.QUO
 		}
+	case '^':
+		tok = token.XOR
 	case '#':
 		tok = token.NUMBER
+	case '&':
+		tok = token.AND
+	case '@':
+		tok = token.AT
 	case '$':
 		tok = token.DOLLAR
+	case '!':
+		tok = token.NOT
 	case ':':
 		tok = token.COLON
 	case ',':
@@ -177,6 +185,8 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	case ';':
 		tok = token.SEMICOLON
 		lit = ";"
+	case '"':
+		tok = token.QUOTE
 	case '(':
 		tok = token.LPAREN
 	case ')':
