@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"go/token"
 	"testing"
 )
@@ -22,4 +23,13 @@ func TestParse(t *testing.T) {
 
 func TestParseDir(t *testing.T) {
 	// paths := "../sass-spec/spec/basic/00_empty"
+}
+
+func TestVarScope(t *testing.T) {
+	f, err := ParseFile(token.NewFileSet(), "", `$z = x;`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	fmt.Printf("% #v\n", f.Decls)
 }

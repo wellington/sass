@@ -20,6 +20,7 @@ const (
 	FLOAT
 	TEXT
 	RULE
+	STRING // "main.scss"
 	literal_end
 
 	operator_beg

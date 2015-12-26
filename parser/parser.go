@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"strconv"
+	"strings"
+	"unicode"
 
 	goast "go/ast"
 	goscanner "go/scanner"
@@ -60,6 +63,12 @@ type parser struct {
 	pos gotoken.Pos
 	tok token.Token
 	lit string
+
+	// Scopes
+	pkgScope   *goast.Scope
+	topScope   *goast.Scope
+	unresolved []*goast.Ident
+	imports    []*goast.ImportSpec
 }
 
 func ParseFile(fset *gotoken.FileSet, filename string, src interface{}, mode Mode) (f *goast.File, err error) {
@@ -85,7 +94,151 @@ func (p *parser) parseFile() *goast.File {
 		return nil
 	}
 
-	return &goast.File{}
+	p.openScope()
+	p.pkgScope = p.topScope
+	var decls []goast.Decl
+	for p.tok == token.IMPORT {
+		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
+	}
+	p.closeScope()
+
+	i := 0
+	for _, ident := range p.unresolved {
+		ident.Obj = p.pkgScope.Lookup(ident.Name)
+
+		if ident.Obj == nil {
+			p.unresolved[i] = ident
+			i++
+		}
+	}
+	return &goast.File{
+		// Package:    pos,
+		// Name:       ident,
+		// Decls:      decls,
+		Scope:      p.pkgScope,
+		Imports:    p.imports,
+		Unresolved: p.unresolved[0:i],
+		Comments:   p.comments,
+	}
+}
+
+func (p *parser) expectSemi() {
+	// semicolon is optional before a closing ')' or '}'
+	if p.tok != token.RPAREN && p.tok != token.RBRACE {
+		switch p.tok {
+		case token.COMMA:
+			// permit a ',' instead of a ';' but complain
+			p.errorExpected(p.pos, "';'")
+			fallthrough
+		case token.SEMICOLON:
+			p.next()
+		default:
+			p.errorExpected(p.pos, "';'")
+			// syncStmt(p)
+		}
+	}
+}
+
+func (p *parser) parseImportSpec(doc *goast.CommentGroup, _ token.Token, _ int) goast.Spec {
+	if p.trace {
+		defer un(trace(p, "ImportSpec"))
+	}
+
+	var ident *goast.Ident
+	switch p.tok {
+	case token.PERIOD:
+		ident = &goast.Ident{NamePos: p.pos, Name: "."}
+		p.next()
+	case token.IDENT:
+		ident = p.parseIdent()
+	}
+
+	pos := p.pos
+	var path string
+	if p.tok == token.STRING {
+		path = p.lit
+		if !isValidImport(path) {
+			p.error(pos, "invalid import path: "+path)
+		}
+		p.next()
+	} else {
+		p.expect(token.STRING) // use expect() error handling
+	}
+	p.expectSemi() // call before accessing p.linecomment
+
+	// collect imports
+	spec := &goast.ImportSpec{
+		Doc:     doc,
+		Name:    ident,
+		Path:    &goast.BasicLit{ValuePos: pos, Kind: gotoken.STRING, Value: path},
+		Comment: p.lineComment,
+	}
+	p.imports = append(p.imports, spec)
+
+	return spec
+}
+
+func isValidImport(lit string) bool {
+	const illegalChars = `!"#$%&'()*,:;<=>?[\]^{|}` + "`\uFFFD"
+	s, _ := strconv.Unquote(lit) // go/scanner returns a legal string literal
+	for _, r := range s {
+		if !unicode.IsGraphic(r) || unicode.IsSpace(r) || strings.ContainsRune(illegalChars, r) {
+			return false
+		}
+	}
+	return s != ""
+}
+
+type parseSpecFunction func(doc *goast.CommentGroup, keyword token.Token, iota int) goast.Spec
+
+func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *goast.GenDecl {
+	if p.trace {
+		defer un(trace(p, "GenDecl("+keyword.String()+")"))
+	}
+
+	doc := p.leadComment
+	pos := p.expect(keyword)
+	var lparen, rparen gotoken.Pos
+	var list []goast.Spec
+	if p.tok == token.LPAREN {
+		lparen = p.pos
+		p.next()
+		for iota := 0; p.tok != token.RPAREN && p.tok != token.EOF; iota++ {
+			list = append(list, f(p.leadComment, keyword, iota))
+		}
+		rparen = p.expect(token.RPAREN)
+	} else {
+		list = append(list, f(nil, keyword, 0))
+	}
+
+	// Hack to delay creating ast package
+	gokeyword := gotoken.Token(keyword)
+
+	return &goast.GenDecl{
+		Doc:    doc,
+		TokPos: pos,
+		Tok:    gokeyword,
+		Lparen: lparen,
+		Specs:  list,
+		Rparen: rparen,
+	}
+}
+
+func (p *parser) expect(tok token.Token) gotoken.Pos {
+	pos := p.pos
+	if p.tok != tok {
+		p.errorExpected(pos, "'"+tok.String()+"'")
+	}
+	p.next()
+	return pos
+}
+
+func (p *parser) openScope() {
+	p.topScope = goast.NewScope(p.topScope)
+}
+
+func (p *parser) closeScope() {
+	p.topScope = p.topScope.Outer
 }
 
 func (p *parser) errorExpected(pos gotoken.Pos, msg string) {
@@ -103,15 +256,6 @@ func (p *parser) errorExpected(pos gotoken.Pos, msg string) {
 		}
 	}
 	p.error(pos, msg)
-}
-
-func (p *parser) expect(tok token.Token) gotoken.Pos {
-	pos := p.pos
-	if p.tok != tok {
-		p.errorExpected(pos, "'"+tok.String()+"'")
-	}
-	p.next() // make progress
-	return pos
 }
 
 // Identifiers
