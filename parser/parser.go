@@ -48,20 +48,21 @@ type parser struct {
 	errors  goscanner.ErrorList
 	scanner scanner.Scanner
 
+	mode   Mode // parsing mode
+	trace  bool // tracing
+	indent int  // indention used for tracing
+
 	// Comments, probably going to be unused
 	comments    []*goast.CommentGroup
 	leadComment *goast.CommentGroup
 	lineComment *goast.CommentGroup
-
-	trace  bool // tracing
-	indent int  // indention used for tracing
 
 	pos gotoken.Pos
 	tok token.Token
 	lit string
 }
 
-func ParseFile(fset *gotoken.FileSet, filename string, src interface{}) (f *goast.File, err error) {
+func ParseFile(fset *gotoken.FileSet, filename string, src interface{}, mode Mode) (f *goast.File, err error) {
 
 	text, err := readSource(filename, src)
 	if err != nil {
@@ -69,7 +70,7 @@ func ParseFile(fset *gotoken.FileSet, filename string, src interface{}) (f *goas
 	}
 
 	var p parser
-	p.init(fset, filename, text)
+	p.init(fset, filename, text, mode)
 	f = p.parseFile()
 	return
 }
@@ -238,8 +239,19 @@ func (p *parser) consumeCommentGroup(n int) (comments *goast.CommentGroup, endli
 	return
 }
 
-func (p *parser) init(fset *gotoken.FileSet, filename string, text []byte) {
+func (p *parser) init(fset *gotoken.FileSet, filename string, src []byte, mode Mode) {
+	p.file = fset.AddFile(filename, -1, len(src))
+	var m scanner.Mode
+	if mode&ParseComments != 0 {
+		m = scanner.ScanComments
+	}
+	eh := func(pos gotoken.Position, msg string) { p.errors.Add(pos, msg) }
+	p.scanner.Init(p.file, src, eh, m)
 
+	p.mode = mode
+	p.trace = mode&Trace != 0
+
+	p.next()
 }
 
 // ----------------------------------------------------------------------------

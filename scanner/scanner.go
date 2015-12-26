@@ -46,6 +46,8 @@ type Scanner struct {
 	ch     rune
 	offset int
 
+	mode Mode
+
 	file       *gotoken.File
 	dir        string
 	err        goscanner.ErrorHandler
@@ -54,7 +56,14 @@ type Scanner struct {
 	lineOffset int
 }
 
-func (s *Scanner) Init(file *gotoken.File, src []byte, err goscanner.ErrorHandler) {
+// Mode controls scanner behavior
+type Mode uint
+
+const (
+	ScanComments Mode = 1 << iota // return comments during Scan
+)
+
+func (s *Scanner) Init(file *gotoken.File, src []byte, err goscanner.ErrorHandler, mode Mode) {
 
 	// Explicitly initialize all fields since a scanner may be reused.
 	if file.Size() != len(src) {
@@ -64,7 +73,7 @@ func (s *Scanner) Init(file *gotoken.File, src []byte, err goscanner.ErrorHandle
 	s.dir, _ = filepath.Split(file.Name())
 	s.src = src
 	s.err = err
-	// s.mode = mode
+	s.mode = mode
 
 	s.ch = ' '
 	s.offset = 0
@@ -129,7 +138,7 @@ func (s *Scanner) skipWhitespace() {
 }
 
 func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
-
+scanAgain:
 	s.skipWhitespace()
 
 	pos = s.file.Pos(s.offset)
@@ -161,6 +170,9 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	case '/':
 		if s.ch == '/' || s.ch == '*' {
 			comment := s.scanComment()
+			if s.mode&ScanComments == 0 {
+				goto scanAgain
+			}
 			tok = token.COMMENT
 			lit = comment
 		} else {

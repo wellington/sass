@@ -13,9 +13,13 @@ var validFiles = []string{
 
 func TestParse(t *testing.T) {
 	for _, name := range validFiles {
-		_, err := ParseFile(token.NewFileSet(), name, nil)
+		_, err := ParseFile(token.NewFileSet(), name, nil, DeclarationErrors)
 		if err != nil {
 			t.Fatalf("ParseFile(%s): %v", name, err)
 		}
 	}
+}
+
+func TestParseDir(t *testing.T) {
+	// paths := "../sass-spec/spec/basic/00_empty"
 }
