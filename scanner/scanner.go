@@ -1,4 +1,4 @@
-package parser
+package scanner
 
 import (
 	"fmt"
@@ -161,7 +161,7 @@ func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
 	case '/':
 		if s.ch == '/' || s.ch == '*' {
 			comment := s.scanComment()
-			tok = token.CMT
+			tok = token.COMMENT
 			lit = comment
 		} else {
 			tok = token.QUO

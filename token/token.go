@@ -11,10 +11,11 @@ const NotFound = -1
 const (
 	ILLEGAL Token = iota
 	EOF
-	CMT
-	IDENT
+	COMMENT
 
 	literal_beg
+	// Identifiers
+	IDENT
 	INT
 	FLOAT
 	TEXT
@@ -72,17 +73,14 @@ const (
 	operator_end
 
 	keyword_beg
-	IF
-	ELSE
-	EACH
-	IMPORT
-	INCLUDE
-	// INTP
-	FUNC
-	MIXIN
-	EXTRA
-	CMD
-	VAR
+	IF      // @if
+	ELSE    // @else
+	EACH    // @each
+	IMPORT  // @import
+	INCLUDE // @include
+	FUNC    // @function
+	MIXIN   // @mixin
+
 	keyword_end
 
 	CMDVAR
@@ -106,11 +104,12 @@ const (
 var Tokens = [...]string{
 	ILLEGAL: "ILLEGAL",
 	EOF:     "EOF",
-	CMT:     "comment",
+	COMMENT: "comment",
 
-	EXTRA:   "extra",
-	CMD:     "command",
-	VAR:     "variable",
+	IDENT: "IDENT",
+	INT:   "INT",
+	FLOAT: "FLOAT",
+
 	CMDVAR:  "command-variable",
 	VALUE:   "value",
 	FILE:    "file",
@@ -121,10 +120,6 @@ var Tokens = [...]string{
 	SPRITEW: "sprite-width",
 	TEXT:    "text",
 	RULE:    "rule",
-
-	IDENT: "IDENT",
-	INT:   "INT",
-	FLOAT: "FLOAT",
 
 	ADD: "+",
 	SUB: "-",
@@ -170,9 +165,8 @@ var Tokens = [...]string{
 	EACH:    "@each",
 	IMPORT:  "@import",
 	INCLUDE: "@include",
-	// INTP:    "#{",
-	FUNC:  "@function",
-	MIXIN: "@mixin",
+	FUNC:    "@function",
+	MIXIN:   "@mixin",
 
 	BKND: "background",
 	FIN:  "FINISHED",

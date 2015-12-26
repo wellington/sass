@@ -1,4 +1,4 @@
-package parser
+package scanner
 
 import (
 	gotoken "go/token"
@@ -16,8 +16,8 @@ type elt struct {
 const whitespace = "  \t  \n\n\n" // to separate tokens
 
 var tokens = [...]elt{
-	{token.CMT, "/* a comment */"},
-	{token.CMT, "// single comment \n"},
+	{token.COMMENT, "/* a comment */"},
+	{token.COMMENT, "// single comment \n"},
 	{token.INT, "0"},
 	{token.INT, "314"},
 	{token.FLOAT, "3.1415"},
@@ -140,7 +140,7 @@ func TestScan(t *testing.T) {
 		// check literal
 		elit := ""
 		switch e.tok {
-		case token.CMT:
+		case token.COMMENT:
 			// no CRs in comments
 			elit = string(stripCR([]byte(e.lit)))
 			//-style comment literal doesn't contain newline
