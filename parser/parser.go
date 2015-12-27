@@ -70,11 +70,17 @@ type parser struct {
 	tok token.Token
 	lit string
 
+	// Non-syntactic parser control
+	inRhs bool
+
 	// Scopes
 	pkgScope   *goast.Scope
 	topScope   *goast.Scope
 	unresolved []*goast.Ident
 	imports    []*goast.ImportSpec
+
+	labelScope  *goast.Scope
+	targetStack [][]*goast.Ident
 }
 
 func ParseFile(fset *gotoken.FileSet, filename string, src interface{}, mode Mode) (f *goast.File, err error) {
@@ -198,7 +204,7 @@ func isValidImport(lit string) bool {
 
 type parseSpecFunction func(doc *goast.CommentGroup, keyword token.Token, iota int) goast.Spec
 
-func (p *parser) parseTmtList() (list []goast.Stmt) {
+func (p *parser) parseStmtList() (list []goast.Stmt) {
 	if p.trace {
 		defer un(trace(p, "StatementList"))
 	}
@@ -206,6 +212,8 @@ func (p *parser) parseTmtList() (list []goast.Stmt) {
 	for p.tok != token.EOF {
 		list = append(list, p.parseStmt())
 	}
+
+	return
 }
 
 func (p *parser) parseStmt() (s goast.Stmt) {
@@ -221,16 +229,25 @@ func (p *parser) parseStmt() (s goast.Stmt) {
 		token.LBRACK,
 		// composite types
 		token.ADD, token.SUB, token.MUL, token.AND, token.XOR, token.NOT:
-		s, _ = p.parseSimpleStmt()
+		s, _ = p.parseSimpleStmt(labelOk)
+	case token.SEMICOLON:
+		s = &goast.EmptyStmt{Semicolon: p.pos, Implicit: true}
+	default:
+		pos := p.pos
+		p.errorExpected(pos, "statement")
+		syncStmt(p)
+		s = &goast.BadStmt{From: pos, To: p.pos}
 	}
+
+	return
 }
 
-func (p *parser) parseSimpleStmt(mode int) {
+func (p *parser) parseSimpleStmt(mode int) (goast.Stmt, bool) {
 	if p.trace {
 		defer un(trace(p, "SimpleStmt"))
 	}
 
-	// x := p.parseLhsList()
+	x := p.parseLhsList()
 
 	switch p.tok {
 	case
@@ -248,11 +265,11 @@ func (p *parser) parseSimpleStmt(mode int) {
 		// } else {
 		y = p.parseRhsList()
 		// }
-
-		as := &goast.AssignStmt{Lhs: x, TokPos: pos, Tok: tok, Rhs: y}
-		if tok == token.DEFINE {
-			p.shortVarDecl(as, x)
-		}
+		gotok := gotoken.Token(tok)
+		as := &goast.AssignStmt{Lhs: x, TokPos: pos, Tok: gotok, Rhs: y}
+		// if tok == token.DEFINE {
+		// 	p.shortVarDecl(as, x)
+		// }
 		return as, isRange
 	}
 
@@ -266,12 +283,12 @@ func (p *parser) parseSimpleStmt(mode int) {
 		// labeled statement
 		colon := p.pos
 		p.next()
-		if label, isIdent := x[0].(*ast.Ident); mode == labelOk && isIdent {
+		if label, isIdent := x[0].(*goast.Ident); mode == labelOk && isIdent {
 			// Go spec: The scope of a label is the body of the function
 			// in which it is declared and excludes the body of any nested
 			// function.
-			stmt := &ast.LabeledStmt{Label: label, Colon: colon, Stmt: p.parseStmt()}
-			p.declare(stmt, nil, p.labelScope, ast.Lbl, label)
+			stmt := &goast.LabeledStmt{Label: label, Colon: colon, Stmt: p.parseStmt()}
+			p.declare(stmt, nil, p.labelScope, goast.Lbl, label)
 			return stmt, false
 		}
 		// The label declaration typically starts at x[0].Pos(), but the label
@@ -292,13 +309,35 @@ func (p *parser) parseSimpleStmt(mode int) {
 
 	case token.INC, token.DEC:
 		// increment or decrement
-		s := &goast.IncDecStmt{X: x[0], TokPos: p.pos, Tok: p.tok}
+		gotok := gotoken.Token(p.tok)
+		s := &goast.IncDecStmt{X: x[0], TokPos: p.pos, Tok: gotok}
 		p.next()
 		return s, false
 	}
 
 	// expression
 	return &goast.ExprStmt{X: x[0]}, false
+}
+
+func (p *parser) declare(decl, data interface{}, scope *goast.Scope, kind goast.ObjKind, idents ...*goast.Ident) {
+	for _, ident := range idents {
+		assert(ident.Obj == nil, "identifier already declared or resolved")
+		obj := goast.NewObj(kind, ident.Name)
+		// remember the corresponding declaration for redeclaration
+		// errors and global variable resolution/typechecking phase
+		obj.Decl = decl
+		obj.Data = data
+		ident.Obj = obj
+		if ident.Name != "_" {
+			if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
+				prevDecl := ""
+				if pos := alt.Pos(); pos.IsValid() {
+					prevDecl = fmt.Sprintf("\n\tprevious declaration at %s", p.file.Position(pos))
+				}
+				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
+			}
+		}
+	}
 }
 
 func (p *parser) parseLhsList() []goast.Expr {
@@ -337,8 +376,150 @@ func (p *parser) parseRhsList() []goast.Expr {
 	return list
 }
 
+func (p *parser) parseRhs() goast.Expr {
+	old := p.inRhs
+	p.inRhs = true
+	x := p.checkExpr(p.parseExpr(false))
+	p.inRhs = old
+	return x
+}
+
 func syncStmt(p *parser) {
 
+}
+
+// If lhs is set and the result is an identifier, it is not resolved.
+// The result may be a type or even a raw type ([...]int). Callers must
+// check the result (using checkExpr or checkExprOrType), depending on
+// context.
+func (p *parser) parseExpr(lhs bool) goast.Expr {
+	if p.trace {
+		defer un(trace(p, "Expression"))
+	}
+
+	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+}
+
+func (p *parser) tokPrec() (token.Token, int) {
+	tok := p.tok
+	if p.inRhs && tok == token.ASSIGN {
+		tok = token.EQL
+	}
+	return tok, tok.Precedence()
+}
+
+// If lhs is set and the result is an identifier, it is not resolved.
+func (p *parser) parseBinaryExpr(lhs bool, prec1 int) goast.Expr {
+	if p.trace {
+		defer un(trace(p, "BinaryExpr"))
+	}
+
+	x := p.parseUnaryExpr(lhs)
+	for _, prec := p.tokPrec(); prec >= prec1; prec-- {
+		for {
+			op, oprec := p.tokPrec()
+			if oprec != prec {
+				break
+			}
+			pos := p.expect(op)
+			if lhs {
+				p.resolve(x)
+				lhs = false
+			}
+			y := p.parseBinaryExpr(false, prec+1)
+			x = &goast.BinaryExpr{X: p.checkExpr(x), OpPos: pos, Op: op, Y: p.checkExpr(y)}
+		}
+	}
+
+	return x
+}
+
+func (p *parser) resolve(x goast.Expr) {
+	p.tryResolve(x, true)
+}
+
+// The unresolved object is a sentinel to mark identifiers that have been added
+// to the list of unresolved identifiers. The sentinel is only used for verifying
+// internal consistency.
+var unresolved = new(goast.Object)
+
+// If x is an identifier, tryResolve attempts to resolve x by looking up
+// the object it denotes. If no object is found and collectUnresolved is
+// set, x is marked as unresolved and collected in the list of unresolved
+// identifiers.
+//
+func (p *parser) tryResolve(x goast.Expr, collectUnresolved bool) {
+	// nothing to do if x is not an identifier or the blank identifier
+	ident, _ := x.(*goast.Ident)
+	if ident == nil {
+		return
+	}
+	assert(ident.Obj == nil, "identifier already declared or resolved")
+	if ident.Name == "_" {
+		return
+	}
+	// try to resolve the identifier
+	for s := p.topScope; s != nil; s = s.Outer {
+		if obj := s.Lookup(ident.Name); obj != nil {
+			ident.Obj = obj
+			return
+		}
+	}
+	// all local scopes are known, so any unresolved identifier
+	// must be found either in the file scope, package scope
+	// (perhaps in another file), or universe scope --- collect
+	// them so that they can be resolved later
+	if collectUnresolved {
+		ident.Obj = unresolved
+		p.unresolved = append(p.unresolved, ident)
+	}
+}
+
+func assert(cond bool, msg string) {
+	if !cond {
+		panic("sass/parser internal error: " + msg)
+	}
+}
+
+// If lhs is set and the result is an identifier, it is not resolved.
+func (p *parser) parseUnaryExpr(lhs bool) goast.Expr {
+	if p.trace {
+		defer un(trace(p, "UnaryExpr"))
+	}
+
+	switch p.tok {
+	case token.ADD, token.SUB, token.NOT, token.XOR, token.AND:
+		pos, op := p.pos, p.tok
+		p.next()
+		x := p.parseUnaryExpr(false)
+		goop := gotoken.Token(op)
+		return &goast.UnaryExpr{OpPos: pos, Op: goop, X: p.checkExpr(x)}
+
+	case token.MUL:
+		// pointer type or unary "*" expression
+		pos := p.pos
+		p.next()
+		x := p.parseUnaryExpr(false)
+		return &goast.StarExpr{Star: pos, X: p.checkExprOrType(x)}
+	}
+
+	return p.parsePrimaryExpr(lhs)
+}
+
+func (p *parser) checkExpr(x goast.Expr) goast.Expr {
+	return x
+}
+
+func (p *parser) parseExprList(lhs bool) (list []goast.Expr) {
+	if p.trace {
+		defer un(trace(p, "ExpressionList"))
+	}
+
+	list = append(list, p.checkExpr(p.parseExpr(lhs)))
+	for p.tok == token.COMMA {
+		p.next()
+		list = append(list, p.checkExpr(p.parseExpr(lhs)))
+	}
 }
 
 func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *goast.GenDecl {
