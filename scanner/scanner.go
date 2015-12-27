@@ -64,7 +64,7 @@ const (
 )
 
 func (s *Scanner) Init(file *gotoken.File, src []byte, err goscanner.ErrorHandler, mode Mode) {
-
+	fmt.Println("source", string(src))
 	// Explicitly initialize all fields since a scanner may be reused.
 	if file.Size() != len(src) {
 		panic(fmt.Sprintf("file size (%d) does not match src len (%d)", file.Size(), len(src)))
@@ -241,6 +241,7 @@ func (s *Scanner) scanIdent() string {
 		s.next()
 	}
 	ss := string(s.src[offs:s.offset])
+	fmt.Println("ident", ss)
 	return ss
 }
 

@@ -31,5 +31,7 @@ func TestVarScope(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("% #v\n", f.Decls)
+	fmt.Printf("% #v\n", f.Name)
+	fmt.Printf("% #v\n", f.Scope)
+	fmt.Printf("% #v\n", f)
 }

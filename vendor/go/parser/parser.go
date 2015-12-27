@@ -314,6 +314,7 @@ func (p *parser) consumeCommentGroup(n int) (comments *ast.CommentGroup, endline
 // stored in the AST.
 //
 func (p *parser) next() {
+	fmt.Println("next")
 	p.leadComment = nil
 	p.lineComment = nil
 	prev := p.pos
