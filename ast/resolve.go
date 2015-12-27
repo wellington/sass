@@ -8,9 +8,10 @@ package ast
 
 import (
 	"fmt"
-	"go/scanner"
-	"go/token"
 	"strconv"
+
+	"github.com/wellington/sass/scanner"
+	"github.com/wellington/sass/token"
 )
 
 type pkgBuilder struct {

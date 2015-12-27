@@ -1,21 +1,16 @@
-// Copyright 2009 The Go Authors. All rights reserved.
-// Use of this source code is governed by a BSD-style
-// license that can be found in the LICENSE file.
-
-// This file contains the exported entry points for invoking the parser.
-
 package parser
 
 import (
 	"bytes"
 	"errors"
-	"go/ast"
-	"go/token"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/token"
 )
 
 // If src != nil, readSource converts src to a []byte if possible;

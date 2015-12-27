@@ -6,9 +6,10 @@ package scanner
 
 import (
 	"fmt"
-	"go/token"
 	"io"
 	"sort"
+
+	"github.com/wellington/sass/token"
 )
 
 // In an ErrorList, an error is represented by an *Error.

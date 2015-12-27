@@ -8,10 +8,11 @@ package ast
 
 import (
 	"fmt"
-	"go/token"
 	"io"
 	"os"
 	"reflect"
+
+	"github.com/wellington/sass/token"
 )
 
 // A FieldFilter may be provided to Fprint to control the output.

@@ -5,9 +5,10 @@
 package ast
 
 import (
-	"go/token"
 	"sort"
 	"strconv"
+
+	"github.com/wellington/sass/token"
 )
 
 // SortImports sorts runs of consecutive import lines in import blocks in f.

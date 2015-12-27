@@ -7,9 +7,6 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	goscanner "go/scanner"
-	gotoken "go/token"
-
 	"github.com/wellington/sass/token"
 )
 
@@ -41,6 +38,13 @@ func isAllowedRune(r rune) bool {
 
 var eof = rune(0)
 
+// An ErrorHandler may be provided to Scanner.Init. If a syntax error is
+// encountered and a handler was installed, the handler is called with a
+// position and an error message. The position points to the beginning of
+// the offending token.
+//
+type ErrorHandler func(pos token.Position, msg string)
+
 type Scanner struct {
 	src    []byte
 	ch     rune
@@ -48,9 +52,9 @@ type Scanner struct {
 
 	mode Mode
 
-	file       *gotoken.File
+	file       *token.File
 	dir        string
-	err        goscanner.ErrorHandler
+	err        ErrorHandler
 	ErrorCount int
 	rdOffset   int
 	lineOffset int
@@ -63,8 +67,7 @@ const (
 	ScanComments Mode = 1 << iota // return comments during Scan
 )
 
-func (s *Scanner) Init(file *gotoken.File, src []byte, err goscanner.ErrorHandler, mode Mode) {
-	fmt.Println("source", string(src))
+func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode) {
 	// Explicitly initialize all fields since a scanner may be reused.
 	if file.Size() != len(src) {
 		panic(fmt.Sprintf("file size (%d) does not match src len (%d)", file.Size(), len(src)))
@@ -137,13 +140,29 @@ func (s *Scanner) skipWhitespace() {
 	}
 }
 
-func (s *Scanner) Scan() (pos gotoken.Pos, tok token.Token, lit string) {
+func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 scanAgain:
 	s.skipWhitespace()
 
 	pos = s.file.Pos(s.offset)
 	ch := s.ch
 	switch {
+	case ch == '$':
+		lit = string(ch)
+		// lit = s.scanIdent()
+		// Do some string analysis to determine token
+		tok = token.VAR
+		s.next()
+	case ch == '\'':
+		s.next()
+		lit = "'" + s.scanIdent() + "'"
+		tok = token.QSSTRING
+		s.next()
+	case ch == '"':
+		s.next()
+		lit = `"` + s.scanIdent() + `"`
+		tok = token.QSTRING
+		s.next()
 	case isLetter(ch):
 		lit = s.scanIdent()
 		// Do some string analysis to determine token
@@ -241,7 +260,6 @@ func (s *Scanner) scanIdent() string {
 		s.next()
 	}
 	ss := string(s.src[offs:s.offset])
-	fmt.Println("ident", ss)
 	return ss
 }
 

@@ -9,7 +9,8 @@ package ast
 import (
 	"bytes"
 	"fmt"
-	"go/token"
+
+	"github.com/wellington/sass/token"
 )
 
 // A Scope maintains the set of named language entities declared

@@ -16,11 +16,14 @@ const (
 	literal_beg
 	// Identifiers
 	IDENT
+	VAR // $var
 	INT
 	FLOAT
 	TEXT
 	RULE
-	STRING // "main.scss"
+	STRING   // word
+	QSTRING  // "word"
+	QSSTRING // 'word'
 	literal_end
 
 	operator_beg
@@ -77,11 +80,14 @@ const (
 	IF      // @if
 	ELSE    // @else
 	EACH    // @each
+	EXTEND  // @extend
 	IMPORT  // @import
 	INCLUDE // @include
+	FOR     // @for
 	FUNC    // @function
 	MIXIN   // @mixin
-
+	RETURN  // @return
+	WHILE   // @while
 	keyword_end
 
 	CMDVAR
@@ -107,9 +113,14 @@ var Tokens = [...]string{
 	EOF:     "EOF",
 	COMMENT: "comment",
 
-	IDENT: "IDENT",
-	INT:   "INT",
-	FLOAT: "FLOAT",
+	IDENT:    "IDENT",
+	INT:      "INT",
+	FLOAT:    "FLOAT",
+	VAR:      "VAR",
+	RULE:     "rule",
+	STRING:   "word",
+	QSTRING:  `"word"`,
+	QSSTRING: `'word'`,
 
 	CMDVAR:  "command-variable",
 	VALUE:   "value",
@@ -120,7 +131,6 @@ var Tokens = [...]string{
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
 	TEXT:    "text",
-	RULE:    "rule",
 
 	ADD: "+",
 	SUB: "-",
@@ -163,11 +173,15 @@ var Tokens = [...]string{
 
 	IF:      "@if",
 	ELSE:    "@else",
+	EXTEND:  "@extend",
+	FOR:     "@for",
 	EACH:    "@each",
 	IMPORT:  "@import",
 	INCLUDE: "@include",
 	FUNC:    "@function",
 	MIXIN:   "@mixin",
+	RETURN:  "@return",
+	WHILE:   "$while",
 
 	BKND: "background",
 	FIN:  "FINISHED",

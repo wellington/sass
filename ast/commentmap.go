@@ -7,8 +7,9 @@ package ast
 import (
 	"bytes"
 	"fmt"
-	"go/token"
 	"sort"
+
+	"github.com/wellington/sass/token"
 )
 
 type byPos []*CommentGroup

@@ -5,8 +5,9 @@
 package ast
 
 import (
-	"go/token"
 	"sort"
+
+	"github.com/wellington/sass/token"
 )
 
 // ----------------------------------------------------------------------------
