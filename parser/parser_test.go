@@ -2,8 +2,10 @@ package parser
 
 import (
 	"fmt"
-	"go/token"
+
 	"testing"
+
+	"github.com/wellington/sass/token"
 )
 
 var validFiles = []string{

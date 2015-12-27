@@ -77,11 +77,15 @@ const (
 	IF      // @if
 	ELSE    // @else
 	EACH    // @each
+	EXTEND  // @extend
 	IMPORT  // @import
 	INCLUDE // @include
+	FOR     // @for
 	FUNC    // @function
 	MIXIN   // @mixin
-
+	RETURN  // @return
+	WHILE   // @while
+	VAR     // $var
 	keyword_end
 
 	CMDVAR
@@ -163,11 +167,16 @@ var Tokens = [...]string{
 
 	IF:      "@if",
 	ELSE:    "@else",
+	EXTEND:  "@extend",
+	FOR:     "@for",
 	EACH:    "@each",
 	IMPORT:  "@import",
 	INCLUDE: "@include",
 	FUNC:    "@function",
 	MIXIN:   "@mixin",
+	RETURN:  "@return",
+	VAR:     "$var",
+	WHILE:   "$while",
 
 	BKND: "background",
 	FIN:  "FINISHED",
