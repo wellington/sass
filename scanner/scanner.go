@@ -148,7 +148,7 @@ scanAgain:
 	pos = s.file.Pos(s.offset)
 	ch := s.ch
 	switch {
-	case isLetter(ch):
+	case ch == '$' || isLetter(ch):
 		lit = s.scanIdent()
 		// Do some string analysis to determine token
 		tok = token.IDENT
@@ -241,7 +241,7 @@ scanAgain:
 
 func (s *Scanner) scanIdent() string {
 	offs := s.offset
-	for isLetter(s.ch) || isDigit(s.ch) {
+	for s.ch == '$' || isLetter(s.ch) || isDigit(s.ch) {
 		s.next()
 	}
 	ss := string(s.src[offs:s.offset])
