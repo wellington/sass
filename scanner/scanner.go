@@ -68,7 +68,6 @@ const (
 )
 
 func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode) {
-	fmt.Println("source", string(src))
 	// Explicitly initialize all fields since a scanner may be reused.
 	if file.Size() != len(src) {
 		panic(fmt.Sprintf("file size (%d) does not match src len (%d)", file.Size(), len(src)))
@@ -148,7 +147,13 @@ scanAgain:
 	pos = s.file.Pos(s.offset)
 	ch := s.ch
 	switch {
-	case ch == '$' || isLetter(ch):
+	case ch == '$':
+		lit = string(ch)
+		// lit = s.scanIdent()
+		// Do some string analysis to determine token
+		tok = token.VAR
+		s.next()
+	case isLetter(ch):
 		lit = s.scanIdent()
 		// Do some string analysis to determine token
 		tok = token.IDENT
@@ -241,11 +246,10 @@ scanAgain:
 
 func (s *Scanner) scanIdent() string {
 	offs := s.offset
-	for s.ch == '$' || isLetter(s.ch) || isDigit(s.ch) {
+	for isLetter(s.ch) || isDigit(s.ch) {
 		s.next()
 	}
 	ss := string(s.src[offs:s.offset])
-	fmt.Println("ident", ss)
 	return ss
 }
 

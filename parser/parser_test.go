@@ -1,10 +1,9 @@
 package parser
 
 import (
-	"fmt"
-
 	"testing"
 
+	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/token"
 )
 
@@ -27,13 +26,19 @@ func TestParseDir(t *testing.T) {
 	// paths := "../sass-spec/spec/basic/00_empty"
 }
 
-func TestVarScope(t *testing.T) {
-	f, err := ParseFile(token.NewFileSet(), "", `$zz : x;`, 0)
+func TestVarScope_list2(t *testing.T) {
+	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : x,y;`, Trace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("% #v\n", f.Name)
-	fmt.Printf("% #v\n", f.Scope)
-	fmt.Printf("% #v\n", f)
+	if e := "main.scss"; e != f.Name.Name {
+		t.Fatalf("got: %s wanted: %s", f.Name, e)
+	}
+
+	vals := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
+
+	if e := 2; len(vals) != e {
+		t.Fatalf("got: %d wanted: %d", len(vals), e)
+	}
 }

@@ -299,7 +299,6 @@ func (p *parser) consumeCommentGroup(n int) (comments *ast.CommentGroup, endline
 // stored in the AST.
 //
 func (p *parser) next() {
-	fmt.Println("next")
 	p.leadComment = nil
 	p.lineComment = nil
 	prev := p.pos
@@ -370,6 +369,7 @@ func (p *parser) errorExpected(pos token.Pos, msg string) {
 			}
 		}
 	}
+
 	p.error(pos, msg)
 }
 
@@ -600,6 +600,51 @@ func (p *parser) parseType() ast.Expr {
 	}
 
 	return typ
+}
+
+func (p *parser) inferRhsList() []ast.Expr {
+	old := p.inRhs
+	p.inRhs = true
+	list := p.inferExprList(false)
+	p.inRhs = old
+
+	return list
+}
+
+func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
+	if p.trace {
+		defer un(trace(p, "InferExprList"))
+	}
+
+	list = append(list, p.inferExpr(lhs))
+	// TODO: it also accepts spaces, b/c stupid
+	for p.tok == token.COMMA {
+		p.next()
+		list = append(list, p.inferExpr(lhs))
+	}
+
+	return
+}
+
+// Derive the type from the nature of the value, there is no hint for what
+// a value could be. Complete list of types follows
+//
+// http://sass-lang.com/documentation/file.SASS_REFERENCE.html#data_types
+//numbers (e.g. 1.2, 13, 10px)
+// strings of text, with and without quotes (e.g. "foo", 'bar', baz)
+// colors (e.g. blue, #04a3f9, rgba(255, 0, 0, 0.5))
+// booleans (e.g. true, false)
+// nulls (e.g. null)
+// lists of values, separated by spaces or commas (e.g. 1.5em 1em 0 2em, Helvetica, Arial, sans-serif)
+// maps from one value to another (e.g. (key1: value1, key2: value2))
+func (p *parser) inferExpr(lhs bool) (expr ast.Expr) {
+	switch p.tok {
+	case token.IDENT:
+		expr = &ast.BasicLit{ValuePos: p.pos, Kind: token.STRING, Value: p.lit}
+	}
+	// Always be steppin'
+	p.next()
+	return
 }
 
 // If the result is an identifier, it is not resolved.
@@ -899,6 +944,7 @@ func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
 
 // If the result is an identifier, it is not resolved.
 func (p *parser) tryIdentOrType() ast.Expr {
+
 	switch p.tok {
 	case token.IDENT:
 		return p.parseTypeName()
@@ -1888,18 +1934,21 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 
 	pos := p.pos
 	idents := p.parseIdentList()
-	typ := p.tryType()
+
+	// Type has to be derived from the values being set
+	// typ := p.tryType()
+	// var typ ast.Expr
 	var values []ast.Expr
 	// always permit optional initialization for more tolerant parsing
-	if p.tok == token.ASSIGN {
+	if p.tok == token.COLON {
 		p.next()
-		values = p.parseRhsList()
+		values = p.inferRhsList()
 	}
 	p.expectSemi() // call before accessing p.linecomment
 
 	switch keyword {
 	case token.VAR:
-		if typ == nil && values == nil {
+		if /*typ == nil &&*/ values == nil {
 			p.error(pos, "missing variable type or initialization")
 		}
 	}
@@ -1911,7 +1960,7 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	spec := &ast.ValueSpec{
 		Doc:     doc,
 		Names:   idents,
-		Type:    typ,
+		Type:    values[0],
 		Values:  values,
 		Comment: p.lineComment,
 	}
@@ -1919,7 +1968,7 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	if keyword == token.VAR {
 		kind = ast.Var
 	}
-	p.declare(spec, iota, p.topScope, kind, idents...)
+	p.declare(spec, iota, p.topScope, kind) //, idents...)
 
 	return spec
 }
@@ -2034,6 +2083,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	var f parseSpecFunction
 	switch p.tok {
 	case token.VAR:
+
 		f = p.parseValueSpec
 
 	case token.FUNC:
@@ -2063,15 +2113,15 @@ func (p *parser) parseFile() *ast.File {
 		return nil
 	}
 
-	// package clause
-	doc := p.leadComment
-	// Go spec: The package clause is not a declaration;
-	// the package name does not appear in any scope.
-	ident := p.parseIdent()
-	if ident.Name == "_" && p.mode&DeclarationErrors != 0 {
-		p.error(p.pos, "invalid package name _")
-	}
-	p.expectSemi()
+	// // package clause
+	// doc := p.leadComment
+	// // Go spec: The package clause is not a declaration;
+	// // the package name does not appear in any scope.
+	// ident := p.parseIdent()
+	// if ident.Name == "_" && p.mode&DeclarationErrors != 0 {
+	// 	p.error(p.pos, "invalid package name _")
+	// }
+	// p.expectSemi()
 
 	// Don't bother parsing the rest if we had errors parsing the package clause.
 	// Likely not a Go source file at all.
@@ -2082,19 +2132,20 @@ func (p *parser) parseFile() *ast.File {
 	p.openScope()
 	p.pkgScope = p.topScope
 	var decls []ast.Decl
-	if p.mode&PackageClauseOnly == 0 {
-		// import decls
-		for p.tok == token.IMPORT {
-			decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
-		}
+	// Bypass importing for now
+	// if p.mode&PackageClauseOnly == 0 {
+	// 	// import decls
+	// 	for p.tok == token.IMPORT {
+	// 		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
+	// 	}
 
-		if p.mode&ImportsOnly == 0 {
-			// rest of package body
-			for p.tok != token.EOF {
-				decls = append(decls, p.parseDecl(syncDecl))
-			}
+	if p.mode&ImportsOnly == 0 {
+		// rest of package body
+		for p.tok != token.EOF {
+			decls = append(decls, p.parseDecl(syncDecl))
 		}
 	}
+	// }
 	p.closeScope()
 	assert(p.topScope == nil, "unbalanced scopes")
 	assert(p.labelScope == nil, "unbalanced label scopes")
@@ -2112,9 +2163,9 @@ func (p *parser) parseFile() *ast.File {
 	}
 
 	return &ast.File{
-		Doc: doc,
+		// Doc: doc,
 		// Package:    pos,
-		Name:       ident,
+		Name:       &ast.Ident{Name: p.file.Name()},
 		Decls:      decls,
 		Scope:      p.pkgScope,
 		Imports:    p.imports,
