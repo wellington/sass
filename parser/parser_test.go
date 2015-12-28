@@ -15,7 +15,7 @@ var validFiles = []string{
 
 func TestParse(t *testing.T) {
 	for _, name := range validFiles {
-		_, err := ParseFile(token.NewFileSet(), name, nil, DeclarationErrors)
+		_, err := ParseFile(token.NewFileSet(), name, nil, ImportsOnly)
 		if err != nil {
 			t.Fatalf("ParseFile(%s): %v", name, err)
 		}
