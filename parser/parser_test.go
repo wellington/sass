@@ -28,7 +28,7 @@ func TestParseDir(t *testing.T) {
 }
 
 func TestVarScope(t *testing.T) {
-	f, err := ParseFile(token.NewFileSet(), "", `$zz = x;`, 0)
+	f, err := ParseFile(token.NewFileSet(), "", `$zz : x;`, 0)
 	if err != nil {
 		t.Fatal(err)
 	}

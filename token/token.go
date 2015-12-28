@@ -16,6 +16,7 @@ const (
 	literal_beg
 	// Identifiers
 	IDENT
+	VAR // $var
 	INT
 	FLOAT
 	TEXT
@@ -85,7 +86,6 @@ const (
 	MIXIN   // @mixin
 	RETURN  // @return
 	WHILE   // @while
-	VAR     // $var
 	keyword_end
 
 	CMDVAR
@@ -114,6 +114,7 @@ var Tokens = [...]string{
 	IDENT: "IDENT",
 	INT:   "INT",
 	FLOAT: "FLOAT",
+	VAR:   "$VAR",
 
 	CMDVAR:  "command-variable",
 	VALUE:   "value",
@@ -175,7 +176,6 @@ var Tokens = [...]string{
 	FUNC:    "@function",
 	MIXIN:   "@mixin",
 	RETURN:  "@return",
-	VAR:     "$var",
 	WHILE:   "$while",
 
 	BKND: "background",
