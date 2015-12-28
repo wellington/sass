@@ -10,3 +10,6 @@ general:
 dependencies:
   override:
     - git submodule update --init --recursive
+test:
+  override:
+    - go list -f '{{if len .TestGoFiles}}"go test -covermode=count -short -coverprofile={{.Dir}}/.coverprofile {{.ImportPath}}"{{end}}' ./... | grep -v /vendor/ | xargs -L 1 sh -c
