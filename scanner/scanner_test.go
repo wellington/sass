@@ -1,7 +1,6 @@
 package scanner
 
 import (
-	gotoken "go/token"
 	"testing"
 
 	"github.com/wellington/sass/token"
@@ -56,10 +55,10 @@ var tokens = [...]elt{
 	{token.SEMICOLON, ";"},
 	{token.COLON, ":"},
 
-	{token.QUOTE, "\""},
+	// {token.QUOTE, "\""},
 	{token.AT, "@"},
 	{token.NUMBER, "#"},
-	{token.DOLLAR, "$"},
+	{token.VAR, "$"},
 }
 
 var source = func() []byte {
@@ -72,7 +71,7 @@ var source = func() []byte {
 	return src
 }()
 
-var fset = gotoken.NewFileSet()
+var fset = token.NewFileSet()
 
 func newlineCount(s string) int {
 	n := 0
@@ -84,7 +83,7 @@ func newlineCount(s string) int {
 	return n
 }
 
-func checkPos(t *testing.T, lit string, p gotoken.Pos, expected gotoken.Position) {
+func checkPos(t *testing.T, lit string, p token.Pos, expected token.Position) {
 	pos := fset.Position(p)
 	if pos.Filename != expected.Filename {
 		t.Errorf("bad filename for %q: got %s, expected %s", lit, pos.Filename, expected.Filename)
@@ -104,14 +103,14 @@ func TestScan(t *testing.T) {
 	whitespaceLinecount := newlineCount(whitespace)
 
 	// error handler
-	eh := func(_ gotoken.Position, msg string) {
+	eh := func(_ token.Position, msg string) {
 		t.Errorf("error handler called (msg = %s)", msg)
 	}
 
 	var s Scanner
-	s.Init(fset.AddFile("", fset.Base(), len(source)), source, eh)
+	s.Init(fset.AddFile("", fset.Base(), len(source)), source, eh, ScanComments)
 
-	epos := gotoken.Position{
+	epos := token.Position{
 		Filename: "",
 		Offset:   0,
 		Line:     1,

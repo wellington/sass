@@ -116,7 +116,7 @@ var Tokens = [...]string{
 	IDENT:    "IDENT",
 	INT:      "INT",
 	FLOAT:    "FLOAT",
-	VAR:      "$VAR",
+	VAR:      "VAR",
 	RULE:     "rule",
 	STRING:   "word",
 	QSTRING:  `"word"`,
