@@ -153,6 +153,16 @@ scanAgain:
 		// Do some string analysis to determine token
 		tok = token.VAR
 		s.next()
+	case ch == '\'':
+		s.next()
+		lit = "'" + s.scanIdent() + "'"
+		tok = token.QSSTRING
+		s.next()
+	case ch == '"':
+		s.next()
+		lit = `"` + s.scanIdent() + `"`
+		tok = token.QSTRING
+		s.next()
 	case isLetter(ch):
 		lit = s.scanIdent()
 		// Do some string analysis to determine token

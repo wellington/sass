@@ -21,7 +21,9 @@ const (
 	FLOAT
 	TEXT
 	RULE
-	STRING // "main.scss"
+	STRING   // word
+	QSTRING  // "word"
+	QSSTRING // 'word'
 	literal_end
 
 	operator_beg
@@ -111,10 +113,14 @@ var Tokens = [...]string{
 	EOF:     "EOF",
 	COMMENT: "comment",
 
-	IDENT: "IDENT",
-	INT:   "INT",
-	FLOAT: "FLOAT",
-	VAR:   "$VAR",
+	IDENT:    "IDENT",
+	INT:      "INT",
+	FLOAT:    "FLOAT",
+	VAR:      "$VAR",
+	RULE:     "rule",
+	STRING:   "word",
+	QSTRING:  `"word"`,
+	QSSTRING: `'word'`,
 
 	CMDVAR:  "command-variable",
 	VALUE:   "value",
@@ -125,7 +131,6 @@ var Tokens = [...]string{
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
 	TEXT:    "text",
-	RULE:    "rule",
 
 	ADD: "+",
 	SUB: "-",

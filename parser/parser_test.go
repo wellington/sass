@@ -27,7 +27,7 @@ func TestParseDir(t *testing.T) {
 }
 
 func TestVarScope_list2(t *testing.T) {
-	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : x,y;`, Trace)
+	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : x,y;`, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,5 +40,38 @@ func TestVarScope_list2(t *testing.T) {
 
 	if e := 2; len(vals) != e {
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
+	}
+}
+
+func TestVarScope_quotes(t *testing.T) {
+	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : 'word';`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vals := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
+
+	if e := 1; len(vals) != e {
+		t.Fatalf("got: %d wanted: %d", len(vals), e)
+	}
+
+	lit := vals[0].(*ast.BasicLit)
+	if e := token.QSSTRING; e != lit.Kind {
+		t.Fatalf("got: %s wanted: %s", lit.Kind, e)
+	}
+
+	f, err = ParseFile(token.NewFileSet(), "main.scss", `$zz : "word";`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vals = f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
+	if e := 1; len(vals) != e {
+		t.Fatalf("got: %d wanted: %d", len(vals), e)
+	}
+
+	lit = vals[0].(*ast.BasicLit)
+	if e := token.QSTRING; e != lit.Kind {
+		t.Fatalf("got: %s wanted: %s", lit.Kind, e)
 	}
 }

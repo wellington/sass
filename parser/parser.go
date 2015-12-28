@@ -637,14 +637,20 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 // nulls (e.g. null)
 // lists of values, separated by spaces or commas (e.g. 1.5em 1em 0 2em, Helvetica, Arial, sans-serif)
 // maps from one value to another (e.g. (key1: value1, key2: value2))
-func (p *parser) inferExpr(lhs bool) (expr ast.Expr) {
+func (p *parser) inferExpr(lhs bool) ast.Expr {
+	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	switch p.tok {
+	case token.QSSTRING:
+		basic.Kind = token.QSSTRING
+	case token.QSTRING:
+		basic.Kind = token.QSTRING
 	case token.IDENT:
-		expr = &ast.BasicLit{ValuePos: p.pos, Kind: token.STRING, Value: p.lit}
+		basic.Kind = token.IDENT
 	}
+
 	// Always be steppin'
 	p.next()
-	return
+	return basic
 }
 
 // If the result is an identifier, it is not resolved.
