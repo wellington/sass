@@ -1,3 +1,10 @@
+machine:
+  environment:
+    GO15VENDOREXPERIMENT: 1
+  post:
+    - mkdir -p ${GOPATH%%:*}/src/github.com/${CIRCLE_PROJECT_USERNAME}
+    - rm -rf ${GOPATH%%:*}/src/github.com/${CIRCLE_PROJECT_USERNAME}/*
+    - ln -sf ~/${CIRCLE_PROJECT_REPONAME} ${GOPATH%%:*}/src/github.com/${CIRCLE_PROJECT_USERNAME}/${CIRCLE_PROJECT_REPONAME}
 general:
   build_dir: ../.go_workspace/src/github.com/wellington/sass
 dependencies:
