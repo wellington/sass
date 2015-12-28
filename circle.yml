@@ -1,0 +1,5 @@
+general:
+  build_dir: ../.go_workspace/src/github.com/wellington/sass
+dependencies:
+  override:
+    - git submodule update --init --recursive
