@@ -59,6 +59,8 @@ var tokens = [...]elt{
 	{token.AT, "@"},
 	{token.NUMBER, "#"},
 	{token.VAR, "$"},
+	{token.QSTRING, `"a 'red'\! and \"blue\" value"`},
+	{token.UPX, "10px"},
 }
 
 var source = func() []byte {
@@ -157,7 +159,7 @@ func TestScan(t *testing.T) {
 				if elit[0] == '`' {
 					elit = string(stripCR([]byte(elit)))
 				}
-			} else if e.tok.IsKeyword() {
+			} else if e.tok.IsKeyword() || e.tok.IsCSSNum() {
 				elit = e.lit
 			}
 		}

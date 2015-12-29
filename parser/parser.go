@@ -505,7 +505,8 @@ func (p *parser) safePos(pos token.Pos) (res token.Pos) {
 func (p *parser) parseIdent() *ast.Ident {
 	pos := p.pos
 	name := "_"
-	if p.tok == token.IDENT {
+	// FIXME: parseIdent should not be responding with non-IDENT
+	if p.tok == token.IDENT || p.tok == token.RULE {
 		name = p.lit
 		p.next()
 	} else {
@@ -544,6 +545,34 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 	}
 
 	return
+}
+
+func (p *parser) inferLhsList() []ast.Expr {
+	old := p.inRhs
+	p.inRhs = false
+	list := p.inferExprList(true)
+	switch p.tok {
+	case token.DEFINE:
+		// lhs of a short variable declaration
+		// but doesn't enter scope until later:
+		// caller must call p.shortVarDecl(p.makeIdentList(list))
+		// at appropriate time.
+	case token.COLON:
+		// lhs of a label declaration or a communication clause of a select
+		// statement (parseLhsList is not called when parsing the case clause
+		// of a switch statement):
+		// - labels are declared by the caller of parseLhsList
+		// - for communication clauses, if there is a stand-alone identifier
+		//   followed by a colon, we have a syntax error; there is no need
+		//   to resolve the identifier in that case
+	default:
+		// identifiers must be declared elsewhere
+		for _, x := range list {
+			p.resolve(x)
+		}
+	}
+	p.inRhs = old
+	return list
 }
 
 func (p *parser) parseLhsList() []ast.Expr {
@@ -616,13 +645,15 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		defer un(trace(p, "InferExprList"))
 	}
 
-	list = append(list, p.inferExpr(lhs))
+	// list = append(list, p.inferExpr(lhs))
 	// TODO: it also accepts spaces, b/c stupid
-	for p.tok == token.COMMA {
-		p.next()
+	for p.tok != token.SEMICOLON && p.tok != token.COLON && p.tok != token.EOF {
+		// Accept commas for sacrifices to Cthulu
+		if p.tok == token.COMMA {
+			p.next()
+		}
 		list = append(list, p.inferExpr(lhs))
 	}
-
 	return
 }
 
@@ -638,6 +669,9 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 // lists of values, separated by spaces or commas (e.g. 1.5em 1em 0 2em, Helvetica, Arial, sans-serif)
 // maps from one value to another (e.g. (key1: value1, key2: value2))
 func (p *parser) inferExpr(lhs bool) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "inferExpr"))
+	}
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	switch p.tok {
 	case token.QSSTRING:
@@ -646,6 +680,20 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		basic.Kind = token.QSTRING
 	case token.IDENT:
 		basic.Kind = token.IDENT
+	case token.RULE:
+		basic.Kind = token.RULE
+	case token.INT:
+		basic.Kind = p.tok
+	case token.VAR:
+		p.next()
+		// Messy eat of '$'
+		basic = &ast.BasicLit{
+			ValuePos: p.pos,
+			Value:    p.lit,
+			Kind:     token.VAR,
+		}
+	default:
+		p.errorExpected(p.pos, "inferExpr match")
 	}
 
 	// Always be steppin'
@@ -1000,7 +1048,6 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 	if p.trace {
 		defer un(trace(p, "Body"))
 	}
-
 	lbrace := p.expect(token.LBRACE)
 	p.topScope = scope // open function scope
 	p.openLabelScope()
@@ -1584,9 +1631,27 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 	if p.trace {
 		defer un(trace(p, "SimpleStmt"))
 	}
+	tok, pos := p.tok, p.pos
+	x := p.inferLhsList()
+	var stmt ast.Stmt
+	isRange := false
+	switch tok {
+	case token.VAR:
+		p.expect(token.COLON)
+		y := p.inferRhsList()
+		stmt = &ast.AssignStmt{Lhs: x, TokPos: pos, Rhs: y}
+	default:
+		p.error(p.pos, "SimpleStmt failed")
+		stmt = &ast.BadStmt{From: x[0].Pos(), To: p.pos + 1}
+	}
 
-	x := p.parseLhsList()
+	if len(x) > 1 {
+		p.errorExpected(x[0].Pos(), "1 expression")
+		// continue with first expression
+	}
 
+	return stmt, isRange
+	// Unreachable
 	switch p.tok {
 	case
 		token.DEFINE, token.ASSIGN:
@@ -1755,6 +1820,21 @@ func (p *parser) parseTypeList() (list []ast.Expr) {
 	return
 }
 
+func (p *parser) parseSelStmt() ast.Stmt {
+	if p.trace {
+		defer un(trace(p, "SelStmt"))
+	}
+
+	pos := p.expect(token.SELECTOR)
+	scope := ast.NewScope(p.topScope)
+	body := p.parseBody(scope)
+
+	return &ast.SelStmt{
+		Sel:  pos,
+		Body: body,
+	}
+}
+
 func (p *parser) parseForStmt() ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "ForStmt"))
@@ -1836,9 +1916,13 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 	}
 
 	switch p.tok {
+	case token.IDENT, token.RULE:
+		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
 	case
+		token.VAR,
+		// TODO: Not sure any of these cases ever exist in Sass
 		// tokens that may start an expression
-		token.IDENT, token.INT, token.FLOAT, token.STRING, token.FUNC, token.LPAREN, // operands
+		token.INT, token.FLOAT, token.STRING, token.FUNC, token.LPAREN, // operands
 		token.LBRACK,
 		// composite types
 		token.ADD, token.SUB, token.MUL, token.AND, token.XOR, token.NOT: // unary operators
@@ -1858,6 +1942,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = p.parseIfStmt()
 	case token.FOR:
 		s = p.parseForStmt()
+	case token.SELECTOR:
+		s = p.parseSelStmt()
 	case token.SEMICOLON:
 		// Is it ever possible to have an implicit semicolon
 		// producing an empty statement in a valid program?
@@ -1979,6 +2065,43 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	return spec
 }
 
+func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+
+	if p.trace {
+		defer un(trace(p, keyword.String()+" RuleSpec"))
+	}
+
+	var values []ast.Expr
+	pos := p.pos
+	switch keyword {
+	case token.VAR:
+		values = p.inferRhsList()
+	case
+		token.IDENT, token.INT,
+		// Stick these here for now, probably needs special Expr
+		token.UPX, token.UPT, token.UEM, token.UREM, token.UPCT:
+		values = []ast.Expr{
+			&ast.BasicLit{
+				ValuePos: pos,
+				Kind:     keyword,
+				Value:    p.lit,
+			},
+		}
+		p.next()
+	default:
+		p.errorExpected(pos, "unsupported rule spec")
+		// Be steppin'
+		p.next()
+	}
+
+	spec := &ast.ValueSpec{
+		// Names:  []*ast.Ident{ident},
+		Values: values,
+	}
+
+	return spec
+}
+
 func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
 	if p.trace {
 		defer un(trace(p, "TypeSpec"))
@@ -2029,6 +2152,44 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		Specs:  list,
 		Rparen: rparen,
 	}
+}
+
+func (p *parser) parseSelDecl() *ast.SelDecl {
+	if p.trace {
+		defer un(trace(p, "SelDecl"))
+	}
+	pos := p.expect(token.SELECTOR)
+	scope := ast.NewScope(p.topScope)
+	decl := &ast.SelDecl{
+		TokPos: pos,
+	}
+	decl.Tok = p.tok
+	body := p.parseBody(scope)
+	decl.Body = body
+	return decl
+
+}
+
+func (p *parser) parseRuleDecl() *ast.GenDecl {
+	if p.trace {
+		defer un(trace(p, "RuleDecl"))
+	}
+	pos := p.expect(token.RULE)
+	decl := &ast.GenDecl{
+		TokPos: pos,
+		Tok:    p.tok,
+	}
+	f := p.parseRuleSpec
+	p.expect(token.COLON)
+	var list []ast.Spec
+	for iota := 0; p.tok != token.SEMICOLON && p.tok != token.EOF; iota++ {
+		list = append(list, f(p.leadComment, p.tok, iota))
+	}
+	p.expectSemi()
+	decl.Specs = list
+
+	return decl
+
 }
 
 func (p *parser) parseFuncDecl() *ast.FuncDecl {
@@ -2089,14 +2250,17 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	var f parseSpecFunction
 	switch p.tok {
 	case token.VAR:
-
 		f = p.parseValueSpec
-
 	case token.FUNC:
 		return p.parseFuncDecl()
-
+	case token.SELECTOR:
+		// Regular CSS
+		return p.parseSelDecl()
+	case token.RULE, token.IDENT:
+		return p.parseRuleDecl()
 	default:
 		pos := p.pos
+		fmt.Printf("blew up tok: %s lit: %s\n", p.tok, p.lit)
 		p.errorExpected(pos, "declaration")
 		sync(p)
 		return &ast.BadDecl{From: pos, To: p.pos}

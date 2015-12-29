@@ -20,11 +20,20 @@ const (
 	INT
 	FLOAT
 	TEXT
+	SELECTOR // a { rules... }
 	RULE
 	STRING   // word
 	QSTRING  // "word"
 	QSSTRING // 'word'
 	literal_end
+
+	cssnums_beg
+	UPX  // 16px
+	UPT  // 16pt
+	UEM  // 1em
+	UREM // 1rem
+	UPCT // 10%
+	cssnums_end
 
 	operator_beg
 	ADD // +
@@ -121,6 +130,14 @@ var Tokens = [...]string{
 	STRING:   "word",
 	QSTRING:  `"word"`,
 	QSSTRING: `'word'`,
+	TEXT:     "text",
+	SELECTOR: "selector",
+
+	UPX:  "unitpx",
+	UPT:  "unitpt",
+	UEM:  "unitem",
+	UREM: "unitrem",
+	UPCT: "unitpct",
 
 	CMDVAR:  "command-variable",
 	VALUE:   "value",
@@ -130,7 +147,6 @@ var Tokens = [...]string{
 	SPRITED: "sprite-dimensions",
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
-	TEXT:    "text",
 
 	ADD: "+",
 	SUB: "-",
@@ -259,3 +275,8 @@ func (tok Token) IsOperator() bool { return operator_beg < tok && tok < operator
 // it returns false otherwise.
 //
 func (tok Token) IsKeyword() bool { return keyword_beg < tok && tok < keyword_end }
+
+// IsCSSNum returns true if token correponding to cssnums; it returns
+// false otherwise
+//
+func (tok Token) IsCSSNum() bool { return cssnums_beg < tok && tok < cssnums_end }
