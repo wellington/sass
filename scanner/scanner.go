@@ -308,7 +308,8 @@ scanAgain:
 func isText(ch rune, end rune) bool {
 	switch {
 	case
-		isSpace(ch), isLetter(ch), isDigit(ch):
+		isSpace(ch), isLetter(ch), isDigit(ch),
+		ch == '.', ch == '/':
 		return true
 	case (ch == '\'' || ch == '"') && ch != end:
 		return true
