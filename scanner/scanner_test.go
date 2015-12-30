@@ -14,7 +14,7 @@ type elt struct {
 
 const whitespace = "  \t  \n\n\n" // to separate tokens
 
-var tokens = [...]elt{
+var elts = []elt{
 	{token.COMMENT, "/* a comment */"},
 	{token.COMMENT, "// single comment \n"},
 	{token.INT, "0"},
@@ -56,16 +56,18 @@ var tokens = [...]elt{
 	{token.COLON, ":"},
 
 	// {token.QUOTE, "\""},
-	{token.AT, "@"},
+	// {token.AT, "@"},
 	{token.NUMBER, "#"},
 	{token.VAR, "$"},
 	{token.QSTRING, `"a 'red'\! and \"blue\" value"`},
 	{token.UPX, "10px"},
-	{token.SELECTOR, "& > boo"},
-	//{token.SELECTOR, "&.goo"},
+	{token.IMPORT, "@import"},
+	{token.ATROOT, "@at-root"},
+	{token.DEBUG, "@debug"},
+	{token.ERROR, "@error"},
 }
 
-var source = func() []byte {
+var source = func(tokens []elt) []byte {
 	var src []byte
 	for _, t := range tokens {
 		src = append(src, t.lit...)
@@ -73,7 +75,7 @@ var source = func() []byte {
 	}
 
 	return src
-}()
+}
 
 var fset = token.NewFileSet()
 
@@ -104,6 +106,16 @@ func checkPos(t *testing.T, lit string, p token.Pos, expected token.Position) {
 }
 
 func TestScan(t *testing.T) {
+	testScan(t, elts)
+}
+
+func TestScan_selectors(t *testing.T) {
+	// selectors are so flexible, that they must be tested in isolation
+	testScan(t, []elt{{token.SELECTOR, "& > boo"}})
+	testScan(t, []elt{{token.SELECTOR, "&.goo"}})
+}
+
+func testScan(t *testing.T, tokens []elt) {
 	whitespaceLinecount := newlineCount(whitespace)
 
 	// error handler
@@ -111,8 +123,10 @@ func TestScan(t *testing.T) {
 		t.Errorf("error handler called (msg = %s)", msg)
 	}
 
+	src := source(tokens)
+
 	var s Scanner
-	s.Init(fset.AddFile("", fset.Base(), len(source)), source, eh, ScanComments)
+	s.Init(fset.AddFile("", fset.Base(), len(src)), src, eh, ScanComments)
 
 	epos := token.Position{
 		Filename: "",
@@ -125,7 +139,7 @@ func TestScan(t *testing.T) {
 	for {
 		pos, tok, lit := s.Scan()
 		if tok == token.EOF {
-			epos.Line = newlineCount(string(source))
+			epos.Line = newlineCount(string(src))
 			epos.Column = 2
 		}
 		checkPos(t, lit, pos, epos)

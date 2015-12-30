@@ -348,7 +348,7 @@ func (s *Scanner) scanText(end rune) string {
 // ScanDirective matches Sass directives http://sass-lang.com/documentation/file.SASS_REFERENCE.html#directives
 func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	offs := s.offset - 1
-	for isLetter(s.ch) {
+	for isLetter(s.ch) || s.ch == '-' {
 		s.next()
 	}
 	lit = string(s.src[offs:s.offset])
