@@ -395,6 +395,12 @@ type (
 		Results *FieldList // (outgoing) results; or nil
 	}
 
+	// A RuleType node represents a rule type.
+	RuleType struct {
+		Rule token.Pos
+		To   token.Pos // Record end of rule
+	}
+
 	// An InterfaceType node represents an interface type.
 	InterfaceType struct {
 		Interface  token.Pos  // position of "interface" keyword
@@ -448,6 +454,9 @@ func (x *FuncType) Pos() token.Pos {
 		return x.Func
 	}
 	return x.Params.Pos() // interface method declarations have no "func" keyword
+}
+func (x *RuleType) Pos() token.Pos {
+	return x.Rule
 }
 func (x *InterfaceType) Pos() token.Pos { return x.Interface }
 func (x *MapType) Pos() token.Pos       { return x.Map }
@@ -707,6 +716,12 @@ type (
 		X          Expr        // value to range over
 		Body       *BlockStmt
 	}
+
+	// A SelectorStmt represents a selector "a" + block "{}"
+	SelStmt struct {
+		Sel  token.Pos
+		Body *BlockStmt
+	}
 )
 
 // Pos and End implementations for statement nodes.
@@ -732,6 +747,7 @@ func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
+func (s *SelStmt) Pos() token.Pos        { return s.Sel }
 
 func (s *BadStmt) End() token.Pos  { return s.To }
 func (s *DeclStmt) End() token.Pos { return s.Decl.End() }
@@ -786,6 +802,7 @@ func (s *CommClause) End() token.Pos {
 func (s *SelectStmt) End() token.Pos { return s.Body.End() }
 func (s *ForStmt) End() token.Pos    { return s.Body.End() }
 func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
+func (s *SelStmt) End() token.Pos    { return s.Body.End() }
 
 // stmtNode() ensures that only statement nodes can be
 // assigned to a Stmt.
@@ -811,6 +828,7 @@ func (*CommClause) stmtNode()     {}
 func (*SelectStmt) stmtNode()     {}
 func (*ForStmt) stmtNode()        {}
 func (*RangeStmt) stmtNode()      {}
+func (*SelStmt) stmtNode()        {}
 
 // ----------------------------------------------------------------------------
 // Declarations
@@ -929,6 +947,16 @@ type (
 		Type *FuncType     // function signature: parameters, results, and position of "func" keyword
 		Body *BlockStmt    // function body; or nil (forward declaration)
 	}
+
+	// A SelDecl node represents a standard CSS declaration
+	//
+	// As a shortcut, RULE are identified as token.IDENT
+	SelDecl struct {
+		Doc    *CommentGroup
+		TokPos token.Pos
+		Tok    token.Token
+		Body   *BlockStmt
+	}
 )
 
 // Pos and End implementations for declaration nodes.
@@ -936,6 +964,7 @@ type (
 func (d *BadDecl) Pos() token.Pos  { return d.From }
 func (d *GenDecl) Pos() token.Pos  { return d.TokPos }
 func (d *FuncDecl) Pos() token.Pos { return d.Type.Pos() }
+func (d *SelDecl) Pos() token.Pos  { return d.TokPos }
 
 func (d *BadDecl) End() token.Pos { return d.To }
 func (d *GenDecl) End() token.Pos {
@@ -950,6 +979,12 @@ func (d *FuncDecl) End() token.Pos {
 	}
 	return d.Type.End()
 }
+func (d *SelDecl) End() token.Pos {
+	if d.Body != nil {
+		return d.Body.End()
+	}
+	return token.Pos(int(d.TokPos) + len(d.Tok.String()))
+}
 
 // declNode() ensures that only declaration nodes can be
 // assigned to a Decl.
@@ -957,6 +992,7 @@ func (d *FuncDecl) End() token.Pos {
 func (*BadDecl) declNode()  {}
 func (*GenDecl) declNode()  {}
 func (*FuncDecl) declNode() {}
+func (*SelDecl) declNode()  {}
 
 // ----------------------------------------------------------------------------
 // Files and packages

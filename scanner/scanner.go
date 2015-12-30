@@ -153,22 +153,31 @@ scanAgain:
 		// Do some string analysis to determine token
 		tok = token.VAR
 		s.next()
-	case ch == '\'':
-		s.next()
-		lit = "'" + s.scanIdent() + "'"
-		tok = token.QSSTRING
-		s.next()
-	case ch == '"':
-		s.next()
-		lit = `"` + s.scanIdent() + `"`
-		tok = token.QSTRING
-		s.next()
 	case isLetter(ch):
-		lit = s.scanIdent()
-		// Do some string analysis to determine token
 		tok = token.IDENT
+	selAgain:
+		lit += s.scanRule()
+		// Do some string analysis to determine token
+		s.skipWhitespace()
+		// look for special IDENT
+		switch s.ch {
+		case '{':
+			tok = token.SELECTOR
+		case ',':
+			lit += ", " // Probably going to bite me later
+			s.next()
+			s.skipWhitespace()
+			goto selAgain
+		case ':':
+			tok = token.RULE
+		}
 	case '0' <= ch && ch <= '9':
 		tok, lit = s.scanNumber(false)
+		utok, ulit := s.scanUnit()
+		if utok != token.ILLEGAL {
+			tok = utok
+			lit = lit + ulit
+		}
 	}
 
 	if tok != token.ILLEGAL {
@@ -180,9 +189,20 @@ scanAgain:
 	switch ch {
 	case -1:
 		tok = token.EOF
+	case '\'':
+		lit = s.scanText('\'')
+		tok = token.QSSTRING
+	case '"':
+		lit = s.scanText('"')
+		tok = token.QSTRING
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
 			tok, lit = s.scanNumber(true)
+			utok, ulit := s.scanUnit()
+			if utok != token.ILLEGAL {
+				tok = utok
+				lit = lit + ulit
+			}
 		} else {
 			tok = token.PERIOD
 		}
@@ -224,8 +244,6 @@ scanAgain:
 	case ';':
 		tok = token.SEMICOLON
 		lit = ";"
-	case '"':
-		tok = token.QUOTE
 	case '(':
 		tok = token.LPAREN
 	case ')':
@@ -243,6 +261,17 @@ scanAgain:
 	case '+':
 		tok = token.ADD
 	case '-':
+		offs := s.offset - 1
+		if isLetter(s.ch) {
+			lit = "-" + s.scanRule()
+			// Do some string analysis to determine token
+			tok = token.RULE
+			s.skipWhitespace()
+			if s.ch != ':' {
+				s.error(offs, "invalid rule found starting with -")
+			}
+			return
+		}
 		tok = token.SUB
 	case '*':
 		tok = token.MUL
@@ -254,6 +283,55 @@ scanAgain:
 	return
 }
 
+func isText(ch rune, end rune) bool {
+	switch {
+	case
+		isSpace(ch), isLetter(ch), isDigit(ch):
+		return true
+	case (ch == '\'' || ch == '"') && ch != end:
+		return true
+	}
+	return false
+}
+
+// ScanText is responsible for gobbling all text up to ending rune.
+// For example, "a ' \";" is one Text
+//
+// This should validate variable naming http://stackoverflow.com/a/17194994
+// a-zA-Z0-9_-
+// Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
+func (s *Scanner) scanText(end rune) string {
+	offs := s.offset - 1 // catch first quote
+
+	for s.ch == '\\' || isText(s.ch, end) {
+		ch := s.ch
+		s.next()
+
+		if ch == '\\' {
+			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
+				s.next()
+			} else {
+				s.error(s.offset, "attempted to escape invalid character "+string(s.ch))
+			}
+		}
+	}
+	if s.ch != end {
+		s.error(s.offset, "expected "+string(end))
+	}
+	s.next()
+	ss := string(s.src[offs:s.offset])
+	return ss
+}
+
+func (s *Scanner) scanRule() string {
+	offs := s.offset
+	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
+		s.next()
+	}
+	ss := string(s.src[offs:s.offset])
+	return ss
+}
+
 func (s *Scanner) scanIdent() string {
 	offs := s.offset
 	for isLetter(s.ch) || isDigit(s.ch) {
@@ -261,6 +339,26 @@ func (s *Scanner) scanIdent() string {
 	}
 	ss := string(s.src[offs:s.offset])
 	return ss
+}
+
+func (s *Scanner) scanUnit() (token.Token, string) {
+	offs := s.offset
+	switch s.ch {
+	case 'p':
+		// pt px
+		s.next()
+		if s.ch == 'x' {
+			s.next()
+			return token.UPX, string(s.src[offs:s.offset])
+		} else if s.ch == 't' {
+			s.next()
+			return token.UPT, string(s.src[offs:s.offset])
+		}
+	case '%':
+		s.next()
+		return token.UPCT, "%"
+	}
+	return token.ILLEGAL, ""
 }
 
 func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
@@ -398,11 +496,10 @@ exit:
 }
 
 func (s *Scanner) error(offs int, msg string) {
-	// Track scanning errors
-	// if s.err != nil {
-	// 	s.err(s.file.Position(s.file.Pos(offs)), msg)
-	// }
-	// s.ErrorCount++
+	if s.err != nil {
+		s.err(s.file.Position(s.file.Pos(offs)), msg)
+	}
+	s.ErrorCount++
 }
 
 func stripCR(b []byte) []byte {
