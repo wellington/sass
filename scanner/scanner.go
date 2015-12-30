@@ -153,24 +153,46 @@ scanAgain:
 		// Do some string analysis to determine token
 		tok = token.VAR
 		s.next()
+	case ch == '&':
+		s.skipWhitespace()
+		fallthrough
+	case ch == '[':
+		// TODO: do more strict validation
+		fallthrough
 	case isLetter(ch):
+		sels := 0
+		offs := s.offset
 		tok = token.IDENT
 	selAgain:
+		if sels > 10 {
+			s.error(offs, "loop detected")
+			return
+		}
+		sels++
 		lit += s.scanRule()
+		lastchpos := s.offset
 		// Do some string analysis to determine token
 		s.skipWhitespace()
 		// look for special IDENT
 		switch s.ch {
 		case '{':
 			tok = token.SELECTOR
-		case ',':
-			lit += ", " // Probably going to bite me later
+		case ',', '+', '>', '~', '.', '#', ']', '&':
 			s.next()
 			s.skipWhitespace()
 			goto selAgain
 		case ':':
 			tok = token.RULE
+		case ';':
+			tok = token.IDENT
+		case -1: // eof
+			// only for testing
+			tok = token.SELECTOR
+		default:
+			s.next()
+			goto selAgain
 		}
+		lit = string(s.src[offs:lastchpos])
 	case '0' <= ch && ch <= '9':
 		tok, lit = s.scanNumber(false)
 		utok, ulit := s.scanUnit()
@@ -217,6 +239,8 @@ scanAgain:
 		} else {
 			tok = token.QUO
 		}
+	case '@':
+		tok, lit = s.scanDirective()
 	case '^':
 		tok = token.XOR
 	case '#':
@@ -231,8 +255,6 @@ scanAgain:
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
 
-	case '@':
-		tok = token.AT
 	case '$':
 		tok = token.DOLLAR
 	case '!':
@@ -321,6 +343,33 @@ func (s *Scanner) scanText(end rune) string {
 	s.next()
 	ss := string(s.src[offs:s.offset])
 	return ss
+}
+
+// ScanDirective matches Sass directives http://sass-lang.com/documentation/file.SASS_REFERENCE.html#directives
+func (s *Scanner) scanDirective() (tok token.Token, lit string) {
+	offs := s.offset - 1
+	for isLetter(s.ch) {
+		s.next()
+	}
+	lit = string(s.src[offs:s.offset])
+	switch lit {
+	case "@import":
+		tok = token.IMPORT
+	case "@media":
+		tok = token.MEDIA
+	case "@extend":
+		tok = token.EXTEND
+	case "@at-root":
+		tok = token.ATROOT
+	case "@debug":
+		tok = token.DEBUG
+	case "@warn":
+		tok = token.WARN
+	case "@error":
+		tok = token.ERROR
+	}
+
+	return
 }
 
 func (s *Scanner) scanRule() string {

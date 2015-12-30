@@ -89,14 +89,21 @@ const (
 	IF      // @if
 	ELSE    // @else
 	EACH    // @each
-	EXTEND  // @extend
-	IMPORT  // @import
 	INCLUDE // @include
 	FOR     // @for
 	FUNC    // @function
 	MIXIN   // @mixin
 	RETURN  // @return
 	WHILE   // @while
+
+	// Directives
+	IMPORT // @import
+	MEDIA  // @media
+	EXTEND // @extend
+	ATROOT // @at-root
+	DEBUG  // @debug
+	WARN   // @warn
+	ERROR  // @error
 	keyword_end
 
 	CMDVAR
@@ -189,15 +196,21 @@ var Tokens = [...]string{
 
 	IF:      "@if",
 	ELSE:    "@else",
-	EXTEND:  "@extend",
 	FOR:     "@for",
 	EACH:    "@each",
-	IMPORT:  "@import",
 	INCLUDE: "@include",
 	FUNC:    "@function",
 	MIXIN:   "@mixin",
 	RETURN:  "@return",
 	WHILE:   "$while",
+
+	IMPORT: "@import",
+	MEDIA:  "@media",
+	EXTEND: "@extend",
+	ATROOT: "@atroot",
+	DEBUG:  "@debug",
+	WARN:   "@warn",
+	ERROR:  "@error",
 
 	BKND: "background",
 	FIN:  "FINISHED",

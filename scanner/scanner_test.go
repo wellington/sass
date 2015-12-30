@@ -28,7 +28,7 @@ var tokens = [...]elt{
 	{token.QUO, "/"},
 	{token.REM, "%"},
 
-	{token.AND, "&"},
+	// {token.AND, "&"},
 	{token.XOR, "^"},
 	// {token.LAND, "&&"},
 	// {token.LOR, "||"},
@@ -44,7 +44,7 @@ var tokens = [...]elt{
 
 	// Delimiters
 	{token.LPAREN, "("},
-	{token.LBRACK, "["},
+	// {token.LBRACK, "["},
 	{token.LBRACE, "{"},
 	{token.COMMA, ","},
 	{token.PERIOD, "."},
@@ -61,6 +61,8 @@ var tokens = [...]elt{
 	{token.VAR, "$"},
 	{token.QSTRING, `"a 'red'\! and \"blue\" value"`},
 	{token.UPX, "10px"},
+	{token.SELECTOR, "& > boo"},
+	//{token.SELECTOR, "&.goo"},
 }
 
 var source = func() []byte {
