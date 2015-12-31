@@ -193,7 +193,14 @@ scanAgain:
 		case ':':
 			s.rhs = true
 			tok = token.RULE
-		case ';', '(':
+		case '(':
+			if string(s.src[offs:lastchpos]) == "rgb" {
+				tok, lit = s.scanRGB()
+				return
+			} else {
+				tok = token.IDENT
+			}
+		case ';':
 			s.rhs = false
 			tok = token.IDENT
 		case -1: // eof
@@ -357,6 +364,43 @@ func (s *Scanner) scanText(end rune) string {
 	s.next()
 	ss := string(s.src[offs:s.offset])
 	return ss
+}
+
+func (s *Scanner) scanRGB() (tok token.Token, lit string) {
+	tok = token.COLOR
+	offs := s.offset - 3
+
+	if s.ch != '(' {
+		lit = string(s.src[offs:s.offset])
+		s.error(offs, "invalid rgb (: "+lit)
+	}
+
+	s.next()
+	ttok, num := s.scanNumber(false)
+	if ttok != token.INT {
+		s.error(s.offset, "invalid rgb int: "+num)
+	}
+
+	for i := 0; i < 2; i++ {
+		if s.ch != ',' {
+			s.error(s.offset, "invalid rgb ,: "+string(s.ch))
+		}
+		s.next()
+		s.skipWhitespace()
+		tok, num := s.scanNumber(false)
+		if tok != token.INT {
+			s.error(s.offset, "invalid rgb int: "+num)
+		}
+	}
+
+	if s.ch != ')' {
+		s.error(offs, "invalid rgb(): "+lit)
+		tok = token.ILLEGAL
+	}
+	s.next()
+
+	lit = string(s.src[offs:s.offset])
+	return
 }
 
 func (s *Scanner) scanColor() (tok token.Token, lit string) {
