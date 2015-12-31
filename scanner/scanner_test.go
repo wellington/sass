@@ -67,7 +67,8 @@ var elts = []elt{
 	{token.ERROR, "@error"},
 	{token.COLOR, "#000"},
 	{token.COLOR, "#abcabc"},
-	// {token.MIXIN, "@mixin"},
+	{token.MIXIN, "@mixin"},
+	// {token.SELECTOR, "foo($a,$b)"},
 }
 
 var source = func(tokens []elt) []byte {

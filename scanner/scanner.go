@@ -193,7 +193,7 @@ scanAgain:
 		case ':':
 			s.rhs = true
 			tok = token.RULE
-		case ';':
+		case ';', '(':
 			s.rhs = false
 			tok = token.IDENT
 		case -1: // eof
@@ -383,6 +383,8 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 		tok = token.IMPORT
 	case "@media":
 		tok = token.MEDIA
+	case "@mixin":
+		tok = token.MIXIN
 	case "@extend":
 		tok = token.EXTEND
 	case "@at-root":
