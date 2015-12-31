@@ -47,7 +47,7 @@ var elts = []elt{
 	// {token.LBRACK, "["},
 	{token.LBRACE, "{"},
 	{token.COMMA, ","},
-	{token.PERIOD, "."},
+	// {token.PERIOD, "."},
 
 	{token.RPAREN, ")"},
 	{token.RBRACK, "]"},
@@ -57,7 +57,7 @@ var elts = []elt{
 
 	// {token.QUOTE, "\""},
 	// {token.AT, "@"},
-	{token.NUMBER, "#"},
+	// {token.NUMBER, "#"},
 	{token.VAR, "$"},
 	{token.QSTRING, `"a 'red'\! and \"blue\" value"`},
 	{token.UPX, "10px"},
@@ -67,6 +67,7 @@ var elts = []elt{
 	{token.ERROR, "@error"},
 	{token.COLOR, "#000"},
 	{token.COLOR, "#abcabc"},
+	// {token.MIXIN, "@mixin"},
 }
 
 var source = func(tokens []elt) []byte {
