@@ -65,6 +65,8 @@ var elts = []elt{
 	{token.ATROOT, "@at-root"},
 	{token.DEBUG, "@debug"},
 	{token.ERROR, "@error"},
+	{token.COLOR, "#000"},
+	{token.COLOR, "#abcabc"},
 }
 
 var source = func(tokens []elt) []byte {

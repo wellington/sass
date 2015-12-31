@@ -682,8 +682,6 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		basic.Kind = token.IDENT
 	case token.RULE:
 		basic.Kind = token.RULE
-	case token.INT:
-		basic.Kind = p.tok
 	case token.VAR:
 		p.next()
 		// Messy eat of '$'
@@ -693,7 +691,8 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 			Kind:     token.VAR,
 		}
 	default:
-		p.errorExpected(p.pos, "inferExpr match")
+		// p.errorExpected(p.pos, "inferExpr match")
+		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
 
 	// Always be steppin'
@@ -1110,8 +1109,10 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 			p.resolve(x)
 		}
 		return x
-
-	case token.INT, token.FLOAT, token.STRING:
+	case
+		token.COLOR,
+		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,
+		token.INT, token.FLOAT, token.STRING:
 		x := &ast.BasicLit{ValuePos: p.pos, Kind: p.tok, Value: p.lit}
 		p.next()
 		return x
@@ -1462,6 +1463,7 @@ L:
 			if lhs {
 				p.resolve(x)
 			}
+			fmt.Println("gobble lparen")
 			x = p.parseCallOrConversion(p.checkExprOrType(x))
 		case token.LBRACE:
 			if isLiteralType(x) && (p.exprLev >= 0 || !isTypeName(x)) {
@@ -1942,6 +1944,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = p.parseIfStmt()
 	case token.FOR:
 		s = p.parseForStmt()
+	case token.IMPORT:
+		s = &ast.DeclStmt{Decl: p.parseGenDecl(token.IMPORT, p.parseImportSpec)}
 	case token.SELECTOR:
 		s = p.parseSelStmt()
 	case token.SEMICOLON:
@@ -1996,7 +2000,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 
 	pos := p.pos
 	var path string
-	if p.tok == token.STRING {
+	if p.tok == token.STRING || p.tok == token.QSTRING {
 		path = p.lit
 		if !isValidImport(path) {
 			p.error(pos, "invalid import path: "+path)
@@ -2017,6 +2021,42 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	p.imports = append(p.imports, spec)
 
 	return spec
+}
+
+func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+	if p.trace {
+		defer un(trace(p, keyword.String()+"InferSpec"))
+	}
+
+	// pos := p.pos
+	// idents := p.parseIdentList()
+
+	// Type has to be derived from the values being set
+	// typ := p.tryType()
+	// var typ ast.Expr
+	var values []ast.Expr
+
+	values = p.inferExprList(false)
+
+	// Go spec: The scope of a constant or variable identifier declared inside
+	// a function begins at the end of the ConstSpec or VarSpec and ends at
+	// the end of the innermost containing block.
+	// (Global identifiers are resolved in a separate phase after parsing.)
+	spec := &ast.ValueSpec{
+		Doc: doc,
+		// Names:   idents,
+		// Type:    values[0],
+		Values:  values,
+		Comment: p.lineComment,
+	}
+	kind := ast.Con
+	if keyword == token.VAR {
+		kind = ast.Var
+	}
+	p.declare(spec, iota, p.topScope, kind) //, idents...)
+
+	return spec
+
 }
 
 func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
@@ -2179,9 +2219,9 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		TokPos: pos,
 		Tok:    p.tok,
 	}
-	f := p.parseRuleSpec
 	p.expect(token.COLON)
 	var list []ast.Spec
+	f := p.inferValueSpec
 	for iota := 0; p.tok != token.SEMICOLON && p.tok != token.EOF; iota++ {
 		list = append(list, f(p.leadComment, p.tok, iota))
 	}
@@ -2258,9 +2298,11 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		return p.parseSelDecl()
 	case token.RULE, token.IDENT:
 		return p.parseRuleDecl()
+	case token.IMPORT:
+		// s := &ast.DeclStmt{Decl: p.parse}
+		return p.parseGenDecl(token.IMPORT, p.parseImportSpec)
 	default:
 		pos := p.pos
-		fmt.Printf("blew up tok: %s lit: %s\n", p.tok, p.lit)
 		p.errorExpected(pos, "declaration")
 		sync(p)
 		return &ast.BadDecl{From: pos, To: p.pos}

@@ -52,6 +52,10 @@ type Scanner struct {
 
 	mode Mode
 
+	// Many things in Sass change on left or right side of colon
+	// rhs will track which side of the colon we are in.
+	rhs bool
+
 	file       *token.File
 	dir        string
 	err        ErrorHandler
@@ -77,6 +81,8 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 	s.src = src
 	s.err = err
 	s.mode = mode
+
+	s.rhs = false
 
 	s.ch = ' '
 	s.offset = 0
@@ -159,6 +165,9 @@ scanAgain:
 	case ch == '[':
 		// TODO: do more strict validation
 		fallthrough
+		// ID and class selectors
+	case !s.rhs && (ch == '#' || ch == '.'):
+		fallthrough
 	case isLetter(ch):
 		sels := 0
 		offs := s.offset
@@ -182,8 +191,10 @@ scanAgain:
 			s.skipWhitespace()
 			goto selAgain
 		case ':':
+			s.rhs = true
 			tok = token.RULE
 		case ';':
+			s.rhs = false
 			tok = token.IDENT
 		case -1: // eof
 			// only for testing
@@ -244,7 +255,7 @@ scanAgain:
 	case '^':
 		tok = token.XOR
 	case '#':
-		tok = token.NUMBER
+		tok, lit = s.scanColor()
 	case '&':
 		tok = token.AND
 
@@ -260,10 +271,12 @@ scanAgain:
 	case '!':
 		tok = s.switch2(token.NOT, token.NEQ)
 	case ':':
+		s.rhs = true
 		tok = token.COLON
 	case ',':
 		tok = token.COMMA
 	case ';':
+		s.rhs = false
 		tok = token.SEMICOLON
 		lit = ";"
 	case '(':
@@ -344,6 +357,18 @@ func (s *Scanner) scanText(end rune) string {
 	s.next()
 	ss := string(s.src[offs:s.offset])
 	return ss
+}
+
+func (s *Scanner) scanColor() (tok token.Token, lit string) {
+	offs := s.offset - 1
+	for isLetter(s.ch) || isDigit(s.ch) {
+		s.next()
+	}
+	lit = string(s.src[offs:s.offset])
+	if len(lit) > 1 {
+		return token.COLOR, lit
+	}
+	return token.NUMBER, lit
 }
 
 // ScanDirective matches Sass directives http://sass-lang.com/documentation/file.SASS_REFERENCE.html#directives

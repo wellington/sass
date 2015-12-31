@@ -25,6 +25,7 @@ const (
 	STRING   // word
 	QSTRING  // "word"
 	QSSTRING // 'word'
+	COLOR    // #000
 	literal_end
 
 	cssnums_beg
@@ -137,6 +138,8 @@ var Tokens = [...]string{
 	STRING:   "word",
 	QSTRING:  `"word"`,
 	QSSTRING: `'word'`,
+	COLOR:    "color",
+
 	TEXT:     "text",
 	SELECTOR: "selector",
 
