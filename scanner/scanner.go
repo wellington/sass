@@ -156,10 +156,7 @@ scanAgain:
 	case ch == '$':
 		s.next()
 		lit = s.scanText(0, false)
-		// lit = string(ch)
-		// Do some string analysis to determine token
 		tok = token.VAR
-		s.next()
 	case ch == '&':
 		s.skipWhitespace()
 		fallthrough

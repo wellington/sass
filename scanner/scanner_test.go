@@ -118,6 +118,27 @@ func TestScan_selectors(t *testing.T) {
 	// selectors are so flexible, that they must be tested in isolation
 	testScan(t, []elt{{token.SELECTOR, "& > boo"}})
 	testScan(t, []elt{{token.SELECTOR, "&.goo"}})
+	testScan(t, []elt{{token.VAR, "$color"}})
+}
+
+func TestScan_duel(t *testing.T) {
+	tokens := []byte(`$color;`)
+
+	// error handler
+	eh := func(_ token.Position, msg string) {
+		t.Errorf("error handler called (msg = %s)", msg)
+	}
+	var s Scanner
+	s.Init(fset.AddFile("", fset.Base(), len(tokens)), tokens, eh, ScanComments)
+	_, tok, lit := s.Scan()
+	if e := "$color"; e != lit {
+		t.Fatalf("got: %s wanted: %s", lit, e)
+	}
+	_, tok, lit = s.Scan()
+	if e := ";"; e != lit {
+		t.Fatalf("got: %s wanted: %s", lit, e)
+	}
+	_ = tok
 }
 
 func testScan(t *testing.T, tokens []elt) {
