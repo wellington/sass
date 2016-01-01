@@ -506,7 +506,7 @@ func (p *parser) parseIdent() *ast.Ident {
 	pos := p.pos
 	name := "_"
 	// FIXME: parseIdent should not be responding with non-IDENT
-	if p.tok == token.IDENT || p.tok == token.RULE {
+	if p.tok == token.IDENT || p.tok == token.RULE || p.tok == token.SELECTOR {
 		name = p.lit
 		p.next()
 	} else {
@@ -647,7 +647,10 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 
 	// list = append(list, p.inferExpr(lhs))
 	// TODO: it also accepts spaces, b/c stupid
-	for p.tok != token.SEMICOLON && p.tok != token.COLON && p.tok != token.EOF {
+	for p.tok != token.SEMICOLON &&
+		p.tok != token.COLON &&
+		p.tok != token.EOF &&
+		p.tok != token.RBRACE {
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
 			p.next()
@@ -683,8 +686,6 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	case token.RULE:
 		basic.Kind = token.RULE
 	case token.VAR:
-		p.next()
-		// Messy eat of '$'
 		basic = &ast.BasicLit{
 			ValuePos: p.pos,
 			Value:    p.lit,
@@ -1463,7 +1464,6 @@ L:
 			if lhs {
 				p.resolve(x)
 			}
-			fmt.Println("gobble lparen")
 			x = p.parseCallOrConversion(p.checkExprOrType(x))
 		case token.LBRACE:
 			if isLiteralType(x) && (p.exprLev >= 0 || !isTypeName(x)) {
@@ -2037,7 +2037,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	var values []ast.Expr
 
 	values = p.inferExprList(false)
-
 	// Go spec: The scope of a constant or variable identifier declared inside
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
@@ -2054,7 +2053,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		kind = ast.Var
 	}
 	p.declare(spec, iota, p.topScope, kind) //, idents...)
-
 	return spec
 
 }
@@ -2182,8 +2180,8 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		p.expectSemi()
 	} else {
 		list = append(list, f(nil, keyword, 0))
-	}
 
+	}
 	return &ast.GenDecl{
 		Doc:    doc,
 		TokPos: pos,
@@ -2222,7 +2220,8 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	p.expect(token.COLON)
 	var list []ast.Spec
 	f := p.inferValueSpec
-	for iota := 0; p.tok != token.SEMICOLON && p.tok != token.EOF; iota++ {
+	for iota := 0; p.tok != token.SEMICOLON &&
+		p.tok != token.EOF; iota++ {
 		list = append(list, f(p.leadComment, p.tok, iota))
 	}
 	p.expectSemi()
@@ -2230,6 +2229,54 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 
 	return decl
 
+}
+
+// @mixin foo($x, $y) {
+//   hugabug: $y $x;
+// }
+func (p *parser) parseMixinDecl() *ast.FuncDecl {
+	if p.trace {
+		defer un(trace(p, "MixinDecl"))
+	}
+
+	doc := p.leadComment
+	pos := p.expect(token.MIXIN)
+	scope := ast.NewScope(p.topScope) // function scope
+
+	ident := p.parseIdent()
+
+	params, results := p.parseSignature(scope)
+
+	var body *ast.BlockStmt
+	if p.tok == token.LBRACE {
+		body = p.parseBody(scope)
+	}
+	p.expectSemi()
+
+	decl := &ast.FuncDecl{
+		Doc: doc,
+		// Recv: recv,
+		Name: ident,
+		Type: &ast.FuncType{
+			Func:    pos,
+			Params:  params,
+			Results: results,
+		},
+		Body: body,
+	}
+	if true /*recv == nil*/ {
+		// Go spec: The scope of an identifier denoting a constant, type,
+		// variable, or function (but not method) declared at top level
+		// (outside any function) is the package block.
+		//
+		// init() functions cannot be referred to and there may
+		// be more than one - don't put them in the pkgScope
+		if ident.Name != "init" {
+			p.declare(decl, nil, p.pkgScope, ast.Fun, ident)
+		}
+	}
+
+	return decl
 }
 
 func (p *parser) parseFuncDecl() *ast.FuncDecl {
@@ -2290,7 +2337,8 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	var f parseSpecFunction
 	switch p.tok {
 	case token.VAR:
-		f = p.parseValueSpec
+		f = p.inferValueSpec
+		p.next()
 	case token.FUNC:
 		return p.parseFuncDecl()
 	case token.SELECTOR:
@@ -2301,14 +2349,18 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	case token.IMPORT:
 		// s := &ast.DeclStmt{Decl: p.parse}
 		return p.parseGenDecl(token.IMPORT, p.parseImportSpec)
+	case token.MIXIN:
+		return p.parseMixinDecl()
 	default:
 		pos := p.pos
 		p.errorExpected(pos, "declaration")
 		sync(p)
 		return &ast.BadDecl{From: pos, To: p.pos}
 	}
-
-	return p.parseGenDecl(p.tok, f)
+	p.expect(token.COLON)
+	decl := p.parseGenDecl(p.tok, f)
+	p.expectSemi()
+	return decl
 }
 
 // ----------------------------------------------------------------------------
