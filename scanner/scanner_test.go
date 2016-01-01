@@ -58,7 +58,7 @@ var elts = []elt{
 	// {token.QUOTE, "\""},
 	// {token.AT, "@"},
 	// {token.NUMBER, "#"},
-	{token.VAR, "$"},
+	{token.VAR, "$poop"},
 	{token.QSTRING, `"a 'red'\! and \"blue\" value"`},
 	{token.UPX, "10px"},
 	{token.IMPORT, "@import"},

@@ -154,8 +154,9 @@ scanAgain:
 	ch := s.ch
 	switch {
 	case ch == '$':
-		lit = string(ch)
-		// lit = s.scanIdent()
+		s.next()
+		lit = s.scanText(0, false)
+		// lit = string(ch)
 		// Do some string analysis to determine token
 		tok = token.VAR
 		s.next()
@@ -230,10 +231,10 @@ scanAgain:
 	case -1:
 		tok = token.EOF
 	case '\'':
-		lit = s.scanText('\'')
+		lit = s.scanText('\'', true)
 		tok = token.QSSTRING
 	case '"':
-		lit = s.scanText('"')
+		lit = s.scanText('"', true)
 		tok = token.QSTRING
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
@@ -325,29 +326,32 @@ scanAgain:
 	return
 }
 
-func isText(ch rune, end rune) bool {
+func isText(ch rune, whitespace bool) bool {
+
 	switch {
 	case
-		isSpace(ch), isLetter(ch), isDigit(ch),
+		isLetter(ch), isDigit(ch),
 		ch == '.', ch == '/':
 		return true
-	case (ch == '\'' || ch == '"') && ch != end:
+	case (ch == '\'' || ch == '"'):
+		return true
+	case whitespace && isSpace(ch):
 		return true
 	}
 	return false
 }
 
-// ScanText is responsible for gobbling all text up to ending rune.
-// For example, "a ' \";" is one Text
+// ScanText is responsible for gobbling non-whitespace characters
 //
 // This should validate variable naming http://stackoverflow.com/a/17194994
 // a-zA-Z0-9_-
 // Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
-func (s *Scanner) scanText(end rune) string {
+func (s *Scanner) scanText(end rune, whitespace bool) string {
 	offs := s.offset - 1 // catch first quote
 
-	for s.ch == '\\' || isText(s.ch, end) {
-		ch := s.ch
+	var ch rune
+	for s.ch == '\\' || isText(s.ch, whitespace) || s.ch == end {
+		ch = s.ch
 		s.next()
 
 		if ch == '\\' {
@@ -357,11 +361,17 @@ func (s *Scanner) scanText(end rune) string {
 				s.error(s.offset, "attempted to escape invalid character "+string(s.ch))
 			}
 		}
+
+		if ch == end {
+			break
+		}
 	}
-	if s.ch != end {
-		s.error(s.offset, "expected "+string(end))
+
+	// eat the end character
+	if end != 0 && ch != end {
+		s.error(s.offset, "expected end of "+string(end))
 	}
-	s.next()
+
 	ss := string(s.src[offs:s.offset])
 	return ss
 }
