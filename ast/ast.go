@@ -870,7 +870,16 @@ type (
 		Type    Expr          // *Ident, *ParenExpr, *SelectorExpr, *StarExpr, or any of the *XxxTypes
 		Comment *CommentGroup // line comments; or nil
 	}
+
+	SelSpec struct {
+		Name *Ident
+		Decl *SelDecl
+	}
 )
+
+func (s *SelSpec) Pos() token.Pos {
+	return s.Name.Pos()
+}
 
 // Pos and End implementations for spec nodes.
 //
@@ -880,8 +889,13 @@ func (s *ImportSpec) Pos() token.Pos {
 	}
 	return s.Path.Pos()
 }
+
 func (s *ValueSpec) Pos() token.Pos { return s.Names[0].Pos() }
 func (s *TypeSpec) Pos() token.Pos  { return s.Name.Pos() }
+
+func (s *SelSpec) End() token.Pos {
+	return s.Name.End()
+}
 
 func (s *ImportSpec) End() token.Pos {
 	if s.EndPos != 0 {
@@ -907,6 +921,7 @@ func (s *TypeSpec) End() token.Pos { return s.Type.End() }
 func (*ImportSpec) specNode() {}
 func (*ValueSpec) specNode()  {}
 func (*TypeSpec) specNode()   {}
+func (*SelSpec) specNode()    {}
 
 // A declaration is represented by one of the following declaration nodes.
 //

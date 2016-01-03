@@ -2025,6 +2025,18 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	return spec
 }
 
+func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+	if p.trace {
+		defer un(trace(p, keyword.String()+"InferSelSpec"))
+	}
+
+	decl := p.parseSelDecl()
+
+	return &ast.SelSpec{
+		Decl: decl,
+	}
+}
+
 func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
 		defer un(trace(p, keyword.String()+"InferValueSpec"))
@@ -2241,9 +2253,7 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 
 		switch p.tok {
 		case token.SELECTOR:
-			decl := p.parseSelDecl()
-			list = append(list, decl)
-			fmt.Println("Selector")
+			list = append(list, p.inferSelSpec(p.leadComment, p.tok, iota))
 			time.Sleep(100 * time.Millisecond)
 		default:
 			list = append(list, f(p.leadComment, p.tok, iota))
