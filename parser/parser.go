@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/wellington/sass/ast"
@@ -649,8 +650,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
-		p.tok != token.EOF &&
-		p.tok != token.RBRACE {
+		p.tok != token.EOF {
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
 			p.next()
@@ -692,10 +692,11 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 			Kind:     token.VAR,
 		}
 	default:
+		fmt.Println("binary time", p.tok)
 		// p.errorExpected(p.pos, "inferExpr match")
 		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
-
+	time.Sleep(100 * time.Millisecond)
 	// Always be steppin'
 	p.next()
 	return basic
@@ -1920,6 +1921,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 	switch p.tok {
 	case token.IDENT, token.RULE:
 		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
+		// p.expectSemi()
 	case
 		token.VAR,
 		// TODO: Not sure any of these cases ever exist in Sass
@@ -1945,7 +1947,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 	case token.FOR:
 		s = p.parseForStmt()
 	case token.IMPORT:
-		s = &ast.DeclStmt{Decl: p.parseGenDecl(token.IMPORT, p.parseImportSpec)}
+		s = &ast.DeclStmt{Decl: p.parseGenDecl("", token.IMPORT, p.parseImportSpec)}
 	case token.SELECTOR:
 		s = p.parseSelStmt()
 	case token.SEMICOLON:
@@ -2025,25 +2027,38 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 
 func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, keyword.String()+"InferSpec"))
+		defer un(trace(p, keyword.String()+"InferValueSpec"))
 	}
 
-	// pos := p.pos
-	// idents := p.parseIdentList()
+	name := p.lit
 
 	// Type has to be derived from the values being set
 	// typ := p.tryType()
 	// var typ ast.Expr
 	var values []ast.Expr
 
-	values = p.inferExprList(false)
+	var lhs bool
+	// if keyword == token.VAR {
+	p.next()
+	if p.tok == token.COLON {
+		fmt.Println("gobble colon")
+		lhs = true
+		p.next()
+	}
+	// }
+
+	values = p.inferExprList(lhs)
+	p.expectSemi()
 	// Go spec: The scope of a constant or variable identifier declared inside
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
+	idents := []*ast.Ident{&ast.Ident{
+		Name: name,
+	}}
 	spec := &ast.ValueSpec{
-		Doc: doc,
-		// Names:   idents,
+		Doc:   doc,
+		Names: idents,
 		// Type:    values[0],
 		Values:  values,
 		Comment: p.lineComment,
@@ -2052,7 +2067,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	if keyword == token.VAR {
 		kind = ast.Var
 	}
-	p.declare(spec, iota, p.topScope, kind) //, idents...)
+	p.declare(spec, iota, p.topScope, kind, idents...)
 	return spec
 
 }
@@ -2082,7 +2097,7 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			p.error(pos, "missing variable type or initialization")
 		}
 	}
-
+	fmt.Println("var value")
 	// Go spec: The scope of a constant or variable identifier declared inside
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
@@ -2161,15 +2176,16 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	return spec
 }
 
-func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.GenDecl {
+func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFunction) *ast.GenDecl {
 	if p.trace {
 		defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
-
+	pos := p.pos
 	doc := p.leadComment
-	pos := p.expect(keyword)
+	// pos := p.expect(keyword)
 	var lparen, rparen token.Pos
 	var list []ast.Spec
+	// TODO: can probably remove this
 	if p.tok == token.LPAREN {
 		lparen = p.pos
 		p.next()
@@ -2180,7 +2196,6 @@ func (p *parser) parseGenDecl(keyword token.Token, f parseSpecFunction) *ast.Gen
 		p.expectSemi()
 	} else {
 		list = append(list, f(nil, keyword, 0))
-
 	}
 	return &ast.GenDecl{
 		Doc:    doc,
@@ -2221,10 +2236,22 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	var list []ast.Spec
 	f := p.inferValueSpec
 	for iota := 0; p.tok != token.SEMICOLON &&
+		p.tok != token.RBRACE &&
 		p.tok != token.EOF; iota++ {
-		list = append(list, f(p.leadComment, p.tok, iota))
+
+		switch p.tok {
+		case token.SELECTOR:
+			decl := p.parseSelDecl()
+			list = append(list, decl)
+			fmt.Println("Selector")
+			time.Sleep(100 * time.Millisecond)
+		default:
+			list = append(list, f(p.leadComment, p.tok, iota))
+		}
+
+		fmt.Println("endloop", p.tok)
 	}
-	p.expectSemi()
+	fmt.Println("found semi", p.tok)
 	decl.Specs = list
 
 	return decl
@@ -2338,7 +2365,6 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	switch p.tok {
 	case token.VAR:
 		f = p.inferValueSpec
-		p.next()
 	case token.FUNC:
 		return p.parseFuncDecl()
 	case token.SELECTOR:
@@ -2348,7 +2374,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		return p.parseRuleDecl()
 	case token.IMPORT:
 		// s := &ast.DeclStmt{Decl: p.parse}
-		return p.parseGenDecl(token.IMPORT, p.parseImportSpec)
+		return p.parseGenDecl("", token.IMPORT, p.parseImportSpec)
 	case token.MIXIN:
 		return p.parseMixinDecl()
 	default:
@@ -2357,10 +2383,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		sync(p)
 		return &ast.BadDecl{From: pos, To: p.pos}
 	}
-	p.expect(token.COLON)
-	decl := p.parseGenDecl(p.tok, f)
-	p.expectSemi()
-	return decl
+	return p.parseGenDecl(p.lit, p.tok, f)
 }
 
 // ----------------------------------------------------------------------------
