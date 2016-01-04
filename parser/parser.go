@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 	"unicode"
 
 	"github.com/wellington/sass/ast"
@@ -624,6 +623,7 @@ func (p *parser) parseType() ast.Expr {
 
 	if typ == nil {
 		pos := p.pos
+		fmt.Println("boom")
 		p.errorExpected(pos, "type")
 		p.next() // make progress
 		return &ast.BadExpr{From: pos, To: p.pos}
@@ -692,14 +692,25 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 			Kind:     token.VAR,
 		}
 	default:
-		fmt.Println("binary time", p.tok)
 		// p.errorExpected(p.pos, "inferExpr match")
 		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
-	time.Sleep(100 * time.Millisecond)
 	// Always be steppin'
 	p.next()
 	return basic
+}
+
+func (p *parser) parseSassType() ast.Expr {
+	if p.trace {
+		defer un(trace(p, "SassType"))
+	}
+	expr := &ast.BasicLit{
+		ValuePos: p.pos,
+		Value:    p.lit,
+		Kind:     token.VAR,
+	}
+	p.next()
+	return expr
 }
 
 // If the result is an identifier, it is not resolved.
@@ -951,10 +962,7 @@ func (p *parser) parseSignature(scope *ast.Scope) (params, results *ast.FieldLis
 		defer un(trace(p, "Signature"))
 	}
 
-	params = p.parseParameters(scope, true)
-	results = p.parseResult(scope)
-
-	return
+	return p.parseParameters(scope, true), nil
 }
 
 func (p *parser) parseFuncType() (*ast.FuncType, *ast.Scope) {
@@ -1010,6 +1018,8 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	case token.FUNC:
 		typ, _ := p.parseFuncType()
 		return typ
+	case token.VAR:
+		return p.parseSassType()
 	case token.LPAREN:
 		lparen := p.pos
 		p.next()
@@ -2000,6 +2010,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		ident = p.parseIdent()
 	}
 
+	p.expect(token.IMPORT)
 	pos := p.pos
 	var path string
 	if p.tok == token.STRING || p.tok == token.QSTRING {
@@ -2011,6 +2022,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	} else {
 		p.expect(token.STRING) // use expect() error handling
 	}
+
 	p.expectSemi() // call before accessing p.linecomment
 
 	// collect imports
@@ -2021,7 +2033,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		Comment: p.lineComment,
 	}
 	p.imports = append(p.imports, spec)
-
+	fmt.Println("done spec")
 	return spec
 }
 
@@ -2053,7 +2065,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// if keyword == token.VAR {
 	p.next()
 	if p.tok == token.COLON {
-		fmt.Println("gobble colon")
 		lhs = true
 		p.next()
 	}
@@ -2086,7 +2097,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 
 func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, keyword.String()+"Spec"))
+		defer un(trace(p, keyword.String()+" parseValueSpec"))
 	}
 
 	pos := p.pos
@@ -2109,7 +2120,6 @@ func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			p.error(pos, "missing variable type or initialization")
 		}
 	}
-	fmt.Println("var value")
 	// Go spec: The scope of a constant or variable identifier declared inside
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
@@ -2194,7 +2204,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 	}
 	pos := p.pos
 	doc := p.leadComment
-	// pos := p.expect(keyword)
+
 	var lparen, rparen token.Pos
 	var list []ast.Spec
 	// TODO: can probably remove this
@@ -2254,14 +2264,10 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		switch p.tok {
 		case token.SELECTOR:
 			list = append(list, p.inferSelSpec(p.leadComment, p.tok, iota))
-			time.Sleep(100 * time.Millisecond)
 		default:
 			list = append(list, f(p.leadComment, p.tok, iota))
 		}
-
-		fmt.Println("endloop", p.tok)
 	}
-	fmt.Println("found semi", p.tok)
 	decl.Specs = list
 
 	return decl
@@ -2288,7 +2294,6 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	if p.tok == token.LBRACE {
 		body = p.parseBody(scope)
 	}
-	p.expectSemi()
 
 	decl := &ast.FuncDecl{
 		Doc: doc,
