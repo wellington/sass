@@ -55,6 +55,9 @@ type Scanner struct {
 	// Many things in Sass change on left or right side of colon
 	// rhs will track which side of the colon we are in.
 	rhs bool
+	// Track whether we are inside function params. If so, treat everything
+	// as whitespace delimited
+	inParams bool
 
 	file       *token.File
 	dir        string
@@ -184,7 +187,13 @@ scanAgain:
 		switch s.ch {
 		case '{':
 			tok = token.SELECTOR
-		case ',', '+', '>', '~', '.', '#', ']', '&':
+		case ',':
+			if s.inParams {
+				tok = token.IDENT
+				goto exitswitch
+			}
+			fallthrough
+		case '+', '>', '~', '.', '#', ']', '&':
 			s.next()
 			s.skipWhitespace()
 			goto selAgain
@@ -219,7 +228,7 @@ scanAgain:
 			lit = lit + ulit
 		}
 	}
-
+exitswitch:
 	if tok != token.ILLEGAL {
 		return
 	}
@@ -287,8 +296,10 @@ scanAgain:
 		tok = token.SEMICOLON
 		lit = ";"
 	case '(':
+		s.inParams = true
 		tok = token.LPAREN
 	case ')':
+		s.inParams = false
 		tok = token.RPAREN
 	case '[':
 		tok = token.LBRACK
@@ -338,6 +349,12 @@ func isText(ch rune, whitespace bool) bool {
 		return true
 	}
 	return false
+}
+
+// Special parsing of tokens while inside params to account for different
+// whitespace handling rules.
+func (s *Scanner) scanParams() string {
+	return ""
 }
 
 // ScanText is responsible for gobbling non-whitespace characters

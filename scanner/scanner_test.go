@@ -141,6 +141,18 @@ func TestScan_duel(t *testing.T) {
 	_ = tok
 }
 
+func TestScan_params(t *testing.T) {
+	testScan(t, []elt{
+		{token.IDENT, "foo"},
+		{token.LPAREN, "("},
+		{token.IDENT, "booga-booga"},
+		{token.COMMA, ","},
+		{token.VAR, "$a"},
+		{token.VAR, "$b"},
+		{token.RPAREN, ")"},
+	})
+}
+
 func testScan(t *testing.T, tokens []elt) {
 	whitespaceLinecount := newlineCount(whitespace)
 
