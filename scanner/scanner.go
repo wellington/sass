@@ -198,6 +198,8 @@ scanAgain:
 			} else {
 				tok = token.IDENT
 			}
+		case ')':
+			tok = token.IDENT
 		case ';':
 			s.rhs = false
 			tok = token.IDENT
