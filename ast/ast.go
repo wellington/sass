@@ -875,9 +875,18 @@ type (
 		Name *Ident
 		Decl *SelDecl
 	}
+
+	IncludeSpec struct {
+		Name   *Ident
+		Params *FieldList // (incoming) parameters; or nil
+	}
 )
 
 func (s *SelSpec) Pos() token.Pos {
+	return s.Name.Pos()
+}
+
+func (s *IncludeSpec) Pos() token.Pos {
 	return s.Name.Pos()
 }
 
@@ -894,6 +903,10 @@ func (s *ValueSpec) Pos() token.Pos { return s.Names[0].Pos() }
 func (s *TypeSpec) Pos() token.Pos  { return s.Name.Pos() }
 
 func (s *SelSpec) End() token.Pos {
+	return s.Name.End()
+}
+
+func (s *IncludeSpec) End() token.Pos {
 	return s.Name.End()
 }
 
@@ -918,10 +931,11 @@ func (s *TypeSpec) End() token.Pos { return s.Type.End() }
 // specNode() ensures that only spec nodes can be
 // assigned to a Spec.
 //
-func (*ImportSpec) specNode() {}
-func (*ValueSpec) specNode()  {}
-func (*TypeSpec) specNode()   {}
-func (*SelSpec) specNode()    {}
+func (*ImportSpec) specNode()  {}
+func (*ValueSpec) specNode()   {}
+func (*TypeSpec) specNode()    {}
+func (*SelSpec) specNode()     {}
+func (*IncludeSpec) specNode() {}
 
 // A declaration is represented by one of the following declaration nodes.
 //

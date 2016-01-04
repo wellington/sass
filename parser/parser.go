@@ -623,7 +623,6 @@ func (p *parser) parseType() ast.Expr {
 
 	if typ == nil {
 		pos := p.pos
-		fmt.Println("boom")
 		p.errorExpected(pos, "type")
 		p.next() // make progress
 		return &ast.BadExpr{From: pos, To: p.pos}
@@ -848,6 +847,15 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 			typ = &ast.BadExpr{From: pos, To: p.pos}
 		}
 		return &ast.Ellipsis{Ellipsis: pos, Elt: typ}
+	} else if isParam {
+		// p.next()
+		typ := p.tryIdentOrType()
+		if p.tok == token.COLON {
+			p.next()
+			fmt.Println("default param:", p.tok, p.lit)
+			p.next()
+		}
+		return typ
 	}
 	return p.tryIdentOrType()
 }
@@ -920,6 +928,7 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 		p.resolve(typ)
 		params[i] = &ast.Field{Type: typ}
 	}
+
 	return
 }
 
@@ -2033,7 +2042,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		Comment: p.lineComment,
 	}
 	p.imports = append(p.imports, spec)
-	fmt.Println("done spec")
 	return spec
 }
 
@@ -2055,7 +2063,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	}
 
 	name := p.lit
-
+	tok := p.tok
 	// Type has to be derived from the values being set
 	// typ := p.tryType()
 	// var typ ast.Expr
@@ -2068,9 +2076,15 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		lhs = true
 		p.next()
 	}
-	// }
+
+	switch tok {
+	case token.INCLUDE:
+		fmt.Println("include")
+		return p.parseIncludeSpec()
+	}
 
 	values = p.inferExprList(lhs)
+
 	p.expectSemi()
 	// Go spec: The scope of a constant or variable identifier declared inside
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
@@ -2272,6 +2286,25 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 
 	return decl
 
+}
+
+// @include foo(second, third);
+// @include foo($x: second, $y: third);
+func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
+	if p.trace {
+		defer un(trace(p, "IncludeSpec"))
+	}
+
+	ident := p.parseIdent()
+
+	params, _ := p.parseSignature(p.topScope)
+
+	spec := &ast.IncludeSpec{
+		Name:   ident,
+		Params: params,
+	}
+	p.expect(token.SEMICOLON)
+	return spec
 }
 
 // @mixin foo($x, $y) {

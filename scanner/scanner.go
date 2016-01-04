@@ -442,6 +442,8 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 		tok = token.EXTEND
 	case "@at-root":
 		tok = token.ATROOT
+	case "@include":
+		tok = token.INCLUDE
 	case "@debug":
 		tok = token.DEBUG
 	case "@warn":
