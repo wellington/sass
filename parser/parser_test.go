@@ -30,7 +30,6 @@ func TestParse_files(t *testing.T) {
 			t.Fatalf("ParseFile(%s): %v", name, err)
 		}
 	}
-	fmt.Println("done")
 }
 
 func TestParseDir(t *testing.T) {
