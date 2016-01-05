@@ -161,6 +161,9 @@ func (s *Scanner) skipWhitespace() {
 }
 
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
+	defer func() {
+		fmt.Println("Scan:", tok, lit)
+	}()
 scanAgain:
 	s.skipWhitespace()
 
