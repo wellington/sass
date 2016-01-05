@@ -182,6 +182,14 @@ scanAgain:
 		fallthrough
 		// ID and class selectors
 	case !s.rhs && (ch == '#' || ch == '.'):
+		s.next()
+		if s.ch == '{' {
+			tok, lit = s.scanInterp(s.offset - 1)
+			return
+		} else {
+
+		}
+		s.backup()
 		fallthrough
 	case isLetter(ch):
 		sels := 0
@@ -218,7 +226,20 @@ scanAgain:
 				goto exitswitch
 			}
 			fallthrough
-		case '+', '>', '~', '.', '#', ']', '&':
+		case '#':
+			s.next()
+			switch s.ch {
+			case '{':
+				// This is an interpolation, backup twice and report IDENT
+				s.backup()
+				tok = token.IDENT
+				lit = string(s.src[offs:s.offset])
+				return
+			default:
+				s.skipWhitespace()
+				goto selAgain
+			}
+		case '+', '>', '~', '.', ']', '&':
 			s.next()
 			s.skipWhitespace()
 			goto selAgain
@@ -424,7 +445,6 @@ func (s *Scanner) scanText(end rune, whitespace bool) string {
 	}
 
 	ss := string(s.src[offs:s.offset])
-	fmt.Println("gave up", ss, string(s.ch))
 	return ss
 }
 
