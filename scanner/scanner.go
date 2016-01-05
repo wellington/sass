@@ -203,7 +203,12 @@ scanAgain:
 				// FOREVER UNCLEAN!
 				lastchpos = s.offset
 			}
-			tok = token.SELECTOR
+			switch s.ch {
+			case '#':
+				tok = token.IDENT
+			default:
+				tok = token.SELECTOR
+			}
 		case ',':
 			if s.inParams {
 				tok = token.IDENT
