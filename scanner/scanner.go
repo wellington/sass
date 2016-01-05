@@ -389,9 +389,18 @@ func (s *Scanner) scanText(end rune, whitespace bool) string {
 	offs := s.offset - 1 // catch first quote
 
 	var ch rune
-	for s.ch == '\\' || isText(s.ch, whitespace) || s.ch == end {
+	for s.ch == '\\' || isText(s.ch, whitespace) ||
+		s.ch == '#' ||
+		// For now, just eat interpolations
+		s.ch == end {
 		ch = s.ch
 		s.next()
+
+		// For now, just eat interpolation
+		if ch == '#' {
+			// Verify introlation
+			s.scanInterp(s.offset)
+		}
 
 		if ch == '\\' {
 			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
@@ -412,6 +421,7 @@ func (s *Scanner) scanText(end rune, whitespace bool) string {
 	}
 
 	ss := string(s.src[offs:s.offset])
+	fmt.Println("gave up", ss, string(s.ch))
 	return ss
 }
 
