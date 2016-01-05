@@ -200,6 +200,8 @@ scanAgain:
 			// On the rhs, this is likely to be an interp call
 			if s.rhs {
 				s.backup()
+				// FOREVER UNCLEAN!
+				lastchpos = s.offset
 			}
 			tok = token.SELECTOR
 		case ',':
