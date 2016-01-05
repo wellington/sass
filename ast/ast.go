@@ -722,6 +722,11 @@ type (
 		Sel  token.Pos
 		Body *BlockStmt
 	}
+
+	// A IncludeStmt wraps an IncludeSpec
+	IncludeStmt struct {
+		Spec *IncludeSpec
+	}
 )
 
 // Pos and End implementations for statement nodes.
@@ -748,6 +753,7 @@ func (s *SelectStmt) Pos() token.Pos     { return s.Select }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
 func (s *SelStmt) Pos() token.Pos        { return s.Sel }
+func (s *IncludeStmt) Pos() token.Pos    { return s.Spec.Pos() }
 
 func (s *BadStmt) End() token.Pos  { return s.To }
 func (s *DeclStmt) End() token.Pos { return s.Decl.End() }
@@ -799,10 +805,11 @@ func (s *CommClause) End() token.Pos {
 	}
 	return s.Colon + 1
 }
-func (s *SelectStmt) End() token.Pos { return s.Body.End() }
-func (s *ForStmt) End() token.Pos    { return s.Body.End() }
-func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
-func (s *SelStmt) End() token.Pos    { return s.Body.End() }
+func (s *SelectStmt) End() token.Pos  { return s.Body.End() }
+func (s *ForStmt) End() token.Pos     { return s.Body.End() }
+func (s *RangeStmt) End() token.Pos   { return s.Body.End() }
+func (s *SelStmt) End() token.Pos     { return s.Body.End() }
+func (s *IncludeStmt) End() token.Pos { return s.Spec.End() }
 
 // stmtNode() ensures that only statement nodes can be
 // assigned to a Stmt.
@@ -829,6 +836,7 @@ func (*SelectStmt) stmtNode()     {}
 func (*ForStmt) stmtNode()        {}
 func (*RangeStmt) stmtNode()      {}
 func (*SelStmt) stmtNode()        {}
+func (*IncludeStmt) stmtNode()    {}
 
 // ----------------------------------------------------------------------------
 // Declarations

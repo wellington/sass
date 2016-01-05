@@ -26,6 +26,7 @@ const (
 	QSTRING  // "word"
 	QSSTRING // 'word'
 	COLOR    // #000
+	INTERP   // #{value}
 	literal_end
 
 	cssnums_beg
@@ -70,7 +71,6 @@ const (
 
 	AT     // @
 	DOLLAR // $
-	NUMBER // #
 	QUOTE  // "
 
 	LPAREN // (
@@ -139,6 +139,7 @@ var Tokens = [...]string{
 	QSTRING:  `"word"`,
 	QSSTRING: `'word'`,
 	COLOR:    "color",
+	INTERP:   "INTERPOLATION",
 
 	TEXT:     "text",
 	SELECTOR: "selector",
@@ -194,8 +195,7 @@ var Tokens = [...]string{
 	SEMICOLON: ";",
 	COLON:     ":",
 
-	NUMBER: "#",
-	QUOTE:  "\"",
+	QUOTE: "\"",
 
 	IF:      "@if",
 	ELSE:    "@else",

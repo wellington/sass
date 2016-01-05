@@ -61,17 +61,16 @@ func TestVarScope_quotes(t *testing.T) {
 	}
 
 	vals := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
-
 	if e := 1; len(vals) != e {
 		for _, v := range vals {
-			t.Logf("%s % #v\n", v.(*ast.BasicLit).Kind, v)
+			fmt.Printf("%s % #v\n", v.(*ast.Ident), v)
 		}
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
 	}
 
-	lit := vals[0].(*ast.BasicLit)
-	if e := token.QSSTRING; e != lit.Kind {
-		// t.Fatalf("got: %s wanted: %s", lit.Kind, e)
+	_, ok := vals[0].(*ast.Ident)
+	if !ok {
+		t.Fatal("IDENT not found")
 	}
 
 	f, err = ParseFile(token.NewFileSet(), "main.scss", `$zz : "word";`, 0)
@@ -84,7 +83,7 @@ func TestVarScope_quotes(t *testing.T) {
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
 	}
 
-	lit = vals[0].(*ast.BasicLit)
+	lit := vals[0].(*ast.BasicLit)
 	if e := token.QSTRING; e != lit.Kind {
 		t.Fatalf("got: %s wanted: %s", lit.Kind, e)
 	}

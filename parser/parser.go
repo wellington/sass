@@ -680,8 +680,14 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		basic.Kind = token.QSSTRING
 	case token.QSTRING:
 		basic.Kind = token.QSTRING
-	case token.IDENT:
-		basic.Kind = token.IDENT
+	// case token.IDENT:
+	// 	p.next()
+	// 	if p.tok != token.LPAREN {
+	// 		basic.Kind = token.IDENT
+	// 		return basic
+	// 	}
+	// 	fmt.Println("check for fn")
+	// 	return p.parseFuncTypeOrLit()
 	case token.RULE:
 		basic.Kind = token.RULE
 	case token.VAR:
@@ -970,7 +976,10 @@ func (p *parser) parseSignature(scope *ast.Scope) (params, results *ast.FieldLis
 	if p.trace {
 		defer un(trace(p, "Signature"))
 	}
-
+	// Short circuit if params are not available
+	if p.tok != token.LPAREN {
+		return
+	}
 	return p.parseParameters(scope, true), nil
 }
 
@@ -1035,8 +1044,19 @@ func (p *parser) tryIdentOrType() ast.Expr {
 		typ := p.parseType()
 		rparen := p.expect(token.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: typ, Rparen: rparen}
+	case token.RPAREN:
+		return nil
+	default:
+		// FIXME: we should verify types here, ie. UPX, INT, IDENT
+		expr := &ast.BasicLit{
+			ValuePos: p.pos,
+			Kind:     p.tok,
+			Value:    p.lit,
+		}
+		p.next()
+		return expr
 	}
-
+	// Unreachable
 	// no type found
 	return nil
 }
@@ -1967,6 +1987,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = p.parseForStmt()
 	case token.IMPORT:
 		s = &ast.DeclStmt{Decl: p.parseGenDecl("", token.IMPORT, p.parseImportSpec)}
+	case token.INCLUDE:
+		s = &ast.IncludeStmt{Spec: p.parseIncludeSpec()}
 	case token.SELECTOR:
 		s = p.parseSelStmt()
 	case token.SEMICOLON:
@@ -2070,17 +2092,15 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	var values []ast.Expr
 
 	var lhs bool
-	// if keyword == token.VAR {
-	p.next()
-	if p.tok == token.COLON {
-		lhs = true
-		p.next()
-	}
-
 	switch tok {
 	case token.INCLUDE:
-		fmt.Println("include")
 		return p.parseIncludeSpec()
+	default:
+		p.next()
+		if p.tok == token.COLON {
+			lhs = true
+			p.next()
+		}
 	}
 
 	values = p.inferExprList(lhs)
@@ -2288,15 +2308,18 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 
 }
 
+func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+	return p.parseIncludeSpec()
+}
+
 // @include foo(second, third);
 // @include foo($x: second, $y: third);
 func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
 	if p.trace {
 		defer un(trace(p, "IncludeSpec"))
 	}
-
+	p.expect(token.INCLUDE)
 	ident := p.parseIdent()
-
 	params, _ := p.parseSignature(p.topScope)
 
 	spec := &ast.IncludeSpec{
@@ -2418,6 +2441,8 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	case token.SELECTOR:
 		// Regular CSS
 		return p.parseSelDecl()
+	case token.INCLUDE:
+		return p.parseGenDecl("", token.INCLUDE, p.parseIncludeSpecFn)
 	case token.RULE, token.IDENT:
 		return p.parseRuleDecl()
 	case token.IMPORT:

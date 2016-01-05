@@ -100,6 +100,17 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 
 }
 
+// backup one rune
+func (s *Scanner) backup() {
+	w := utf8.RuneLen(s.ch)
+	s.rdOffset -= w
+
+	// Copy of slice, this is expensive
+	r, w := utf8.DecodeLastRune(s.src[:s.rdOffset])
+	s.offset = s.rdOffset - w
+	s.ch = r
+}
+
 func (s *Scanner) next() {
 
 	if s.rdOffset < len(s.src) {
@@ -186,6 +197,10 @@ scanAgain:
 		// look for special IDENT
 		switch s.ch {
 		case '{':
+			// On the rhs, this is likely to be an interp call
+			if s.rhs {
+				s.backup()
+			}
 			tok = token.SELECTOR
 		case ',':
 			if s.inParams {
@@ -201,8 +216,9 @@ scanAgain:
 			s.rhs = true
 			tok = token.RULE
 		case '(':
-			if string(s.src[offs:lastchpos]) == "rgb" {
-				tok, lit = s.scanRGB()
+			if string(s.src[offs:lastchpos]) == "rgb" ||
+				string(s.src[offs:lastchpos]) == "rgba" {
+				tok, lit = s.scanRGB(offs)
 				return
 			} else {
 				tok = token.IDENT
@@ -392,36 +408,38 @@ func (s *Scanner) scanText(end rune, whitespace bool) string {
 	return ss
 }
 
-func (s *Scanner) scanRGB() (tok token.Token, lit string) {
+func (s *Scanner) scanRGB(pos int) (tok token.Token, lit string) {
 	tok = token.COLOR
-	offs := s.offset - 3
+	offs := pos
 
 	if s.ch != '(' {
 		lit = string(s.src[offs:s.offset])
 		s.error(offs, "invalid rgb (: "+lit)
 	}
 
-	s.next()
-	ttok, num := s.scanNumber(false)
-	if ttok != token.INT {
-		s.error(s.offset, "invalid rgb int: "+num)
-	}
+	// s.next()
+	// ttok, num := s.scanNumber(false)
+	// if ttok != token.INT {
+	// 	s.error(s.offset, "invalid rgb int: "+num)
+	// }
 
-	for i := 0; i < 2; i++ {
-		if s.ch != ',' {
-			s.error(s.offset, "invalid rgb ,: "+string(s.ch))
-		}
+	// for i := 0; i < 2; i++ {
+	// 	if s.ch != ',' {
+	// 		s.error(s.offset, "invalid rgb ,: "+string(s.ch))
+	// 	}
+	// 	s.next()
+	// 	s.skipWhitespace()
+	// 	tok, num := s.scanNumber(false)
+	// 	if tok != token.INT {
+	// 		s.error(s.offset, "invalid rgb int: "+num)
+	// 	}
+	// }
+
+	for s.ch != ')' && s.ch != ';' {
 		s.next()
-		s.skipWhitespace()
-		tok, num := s.scanNumber(false)
-		if tok != token.INT {
-			s.error(s.offset, "invalid rgb int: "+num)
-		}
 	}
-
-	if s.ch != ')' {
-		s.error(offs, "invalid rgb(): "+lit)
-		tok = token.ILLEGAL
+	if s.ch == ';' {
+		s.error(offs, "invalid rgb: "+string(s.src[offs:s.offset]))
 	}
 	s.next()
 
@@ -429,8 +447,24 @@ func (s *Scanner) scanRGB() (tok token.Token, lit string) {
 	return
 }
 
+func (s *Scanner) scanInterp(offs int) (token.Token, string) {
+	// Should only be called after '#' is detected
+	if s.ch != '{' {
+		s.error(offs, "invalid interpolation missing {")
+	}
+	for s.ch != '}' {
+		s.next()
+	}
+	s.next()
+	return token.INTERP, string(s.src[offs:s.offset])
+
+}
+
 func (s *Scanner) scanColor() (tok token.Token, lit string) {
 	offs := s.offset - 1
+	if s.ch == '{' {
+		return s.scanInterp(offs)
+	}
 	for isLetter(s.ch) || isDigit(s.ch) {
 		s.next()
 	}
@@ -438,7 +472,7 @@ func (s *Scanner) scanColor() (tok token.Token, lit string) {
 	if len(lit) > 1 {
 		return token.COLOR, lit
 	}
-	return token.NUMBER, lit
+	return token.ILLEGAL, lit
 }
 
 // ScanDirective matches Sass directives http://sass-lang.com/documentation/file.SASS_REFERENCE.html#directives
