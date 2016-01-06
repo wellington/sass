@@ -160,6 +160,26 @@ func (s *Scanner) skipWhitespace() {
 	}
 }
 
+// Scan should differentiate between these cases
+// selector[,#=.+>] {}
+// :foo(ol) {}
+// [hey = 'ho'], a > b {}
+// c [hoo *= "ha" ] {}
+// div,, , span, ,, {}
+// a + b, c {}
+// d e, f ~ g + h, > i {}
+//
+// reference parent selector: &
+// function: @function h() {}
+// return: @return function-exists();
+// mixin: @mixin($var) {}
+// call or conversion: abs(-5);
+// $variable: $substitution
+// rule: value;
+// with #{} found anywhere in them
+// directives: @import
+// math 1 + 3 or (1 + 3)
+// New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
 		fmt.Println("Scan:", tok, lit)
@@ -174,14 +194,7 @@ scanAgain:
 		s.next()
 		lit = s.scanText(0, false)
 		tok = token.VAR
-	case ch == '&':
-		s.skipWhitespace()
-		fallthrough
-	case ch == '[':
-		// TODO: do more strict validation
-		fallthrough
-		// ID and class selectors
-	case !s.rhs && (ch == '#' || ch == '.'):
+	case ch == '#':
 		s.next()
 		if s.ch == '{' {
 			tok, lit = s.scanInterp(s.offset - 1)
@@ -190,7 +203,17 @@ scanAgain:
 
 		}
 		s.backup()
+		goto scanAgain
+	case ch == '&':
+		s.next()
+		goto scanAgain
+	case ch == '[':
+		// TODO: do more strict validation
 		fallthrough
+		// ID and class selectors
+	case ch == '.':
+		s.next()
+		goto scanAgain
 	case isLetter(ch):
 		sels := 0
 		offs := s.offset
@@ -328,9 +351,6 @@ exitswitch:
 		tok = s.switch2(token.GTR, token.GEQ)
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
-
-	case '$':
-		tok = token.DOLLAR
 	case '!':
 		tok = s.switch2(token.NOT, token.NEQ)
 	case ':':
@@ -490,7 +510,7 @@ func (s *Scanner) scanRGB(pos int) (tok token.Token, lit string) {
 func (s *Scanner) scanInterp(offs int) (token.Token, string) {
 	// Should only be called after '#' is detected
 	if s.ch != '{' {
-		s.error(offs, "invalid interpolation missing {")
+		return token.ILLEGAL, ""
 	}
 	for s.ch != '}' {
 		s.next()
@@ -548,8 +568,16 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 
 func (s *Scanner) scanRule() string {
 	offs := s.offset
+scanRule:
 	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
 		s.next()
+	}
+	if s.ch == '#' {
+		s.next()
+		tok, lit := s.scanInterp(s.offset)
+		if tok == token.ILLEGAL {
+			// Interpolation failed, bailout
+		}
 	}
 	ss := string(s.src[offs:s.offset])
 	return ss
