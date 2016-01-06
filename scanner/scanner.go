@@ -181,39 +181,33 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	defer func() {
-		fmt.Println("Scan:", tok, lit)
-	}()
-scanAgain:
 	s.skipWhitespace()
-
+scanAgain:
 	pos = s.file.Pos(s.offset)
 	ch := s.ch
 	switch {
+	case ch == '@':
+		tok, lit = s.scanDirective()
+		return
 	case ch == '$':
 		s.next()
 		lit = s.scanText(0, false)
 		tok = token.VAR
+		return
 	case ch == '#':
 		s.next()
 		if s.ch == '{' {
 			tok, lit = s.scanInterp(s.offset - 1)
-			return
-		} else {
-
+			goto exitswitch
 		}
-		s.backup()
-		goto scanAgain
-	case ch == '&':
-		s.next()
-		goto scanAgain
-	case ch == '[':
-		// TODO: do more strict validation
 		fallthrough
-		// ID and class selectors
+	case ch == '&':
+		fallthrough
+	case ch == '[':
+		fallthrough
 	case ch == '.':
-		s.next()
-		goto scanAgain
+		tok = token.RULE
+		lit = s.scanRule()
 	case isLetter(ch):
 		sels := 0
 		offs := s.offset
@@ -344,7 +338,6 @@ exitswitch:
 		tok, lit = s.scanColor()
 	case '&':
 		tok = token.AND
-
 	case '<':
 		tok = s.switch2(token.LSS, token.LEQ)
 	case '>':
