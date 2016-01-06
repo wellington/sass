@@ -191,16 +191,6 @@ scanAgain:
 		s.next()
 		lit = s.scanText(0, false)
 		tok = token.VAR
-	case ch == '#':
-		// # can be one of three things
-		// color:    #fff[000]
-		// selector: #a
-		// interp:   #{}
-		s.next()
-		if s.ch == '{' {
-			tok, lit = s.scanInterp(offs)
-		}
-		fallthrough
 	case ch == '&':
 		fallthrough
 	case ch == ':':
@@ -237,6 +227,16 @@ exitswitch:
 	case -1:
 		tok = token.EOF
 		// Look for quoted strings
+	case '#':
+		// # can be one of three things
+		// color:    #fff[000]
+		// selector: #a
+		// interp:   #{}
+		if s.ch != '{' {
+			// send back for color or selector decision
+			goto scanAgain
+		}
+		tok, lit = s.scanInterp(offs)
 	case '\'':
 		lit = s.scanText('\'', true)
 		tok = token.QSSTRING
