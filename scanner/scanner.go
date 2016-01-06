@@ -182,109 +182,42 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	s.skipWhitespace()
-scanAgain:
 	pos = s.file.Pos(s.offset)
+	offs := s.offset
 	ch := s.ch
+scanAgain:
 	switch {
-	case ch == '@':
-		tok, lit = s.scanDirective()
-		return
 	case ch == '$':
 		s.next()
 		lit = s.scanText(0, false)
 		tok = token.VAR
-		return
 	case ch == '#':
+		// # can be one of three things
+		// color:    #fff[000]
+		// selector: #a
+		// interp:   #{}
 		s.next()
 		if s.ch == '{' {
-			tok, lit = s.scanInterp(s.offset - 1)
-			goto exitswitch
+			tok, lit = s.scanInterp(offs)
 		}
 		fallthrough
 	case ch == '&':
 		fallthrough
+	case ch == ':':
+		fallthrough
 	case ch == '[':
 		fallthrough
 	case ch == '.':
-		tok = token.RULE
-		lit = s.scanRule()
+		fallthrough
 	case isLetter(ch):
-		sels := 0
-		offs := s.offset
-		tok = token.IDENT
-	selAgain:
-		if sels > 10 {
-			s.error(offs, "loop detected")
-			return
-		}
-		sels++
-		lit += s.scanRule()
-		lastchpos := s.offset
-		// Do some string analysis to determine token
-		s.skipWhitespace()
-		// look for special IDENT
-		switch s.ch {
-		case '{':
-			// On the rhs, this is likely to be an interp call
-			if s.rhs {
-				s.backup()
-				// FOREVER UNCLEAN!
-				lastchpos = s.offset
-			}
-			switch s.ch {
-			case '#':
-				tok = token.IDENT
-			default:
-				tok = token.SELECTOR
-			}
-		case ',':
-			if s.inParams {
-				tok = token.IDENT
-				goto exitswitch
-			}
-			fallthrough
-		case '#':
-			s.next()
-			switch s.ch {
-			case '{':
-				// This is an interpolation, backup twice and report IDENT
-				s.backup()
-				tok = token.IDENT
-				lit = string(s.src[offs:s.offset])
-				return
-			default:
-				s.skipWhitespace()
-				goto selAgain
-			}
-		case '+', '>', '~', '.', ']', '&':
-			s.next()
-			s.skipWhitespace()
-			goto selAgain
-		case ':':
-			s.rhs = true
-			tok = token.RULE
-		case '(':
-			if string(s.src[offs:lastchpos]) == "rgb" ||
-				string(s.src[offs:lastchpos]) == "rgba" {
-				tok, lit = s.scanRGB(offs)
-				return
-			} else {
-				tok = token.IDENT
-			}
-		case ')':
-			tok = token.IDENT
-		case ';':
-			s.rhs = false
-			tok = token.IDENT
-		case -1: // eof
-			// only for testing
-			tok = token.SELECTOR
-		default:
-			s.next()
-			goto selAgain
-		}
-		lit = string(s.src[offs:lastchpos])
+		// Scan until we find {};:
+		// For each, these rules apply
+		// { selector
+		// : rule
+		// ; or } value
+		tok, lit = s.scanRule()
 	case '0' <= ch && ch <= '9':
+		// This can not be a selector
 		tok, lit = s.scanNumber(false)
 		utok, ulit := s.scanUnit()
 		if utok != token.ILLEGAL {
@@ -292,16 +225,18 @@ scanAgain:
 			lit = lit + ulit
 		}
 	}
-exitswitch:
+
 	if tok != token.ILLEGAL {
 		return
 	}
 
 	// move forward
 	s.next()
+exitswitch:
 	switch ch {
 	case -1:
 		tok = token.EOF
+		// Look for quoted strings
 	case '\'':
 		lit = s.scanText('\'', true)
 		tok = token.QSSTRING
@@ -374,17 +309,6 @@ exitswitch:
 	case '+':
 		tok = token.ADD
 	case '-':
-		offs := s.offset - 1
-		if isLetter(s.ch) {
-			lit = "-" + s.scanRule()
-			// Do some string analysis to determine token
-			tok = token.RULE
-			s.skipWhitespace()
-			if s.ch != ':' {
-				s.error(offs, "invalid rule found starting with -")
-			}
-			return
-		}
 		tok = token.SUB
 	case '*':
 		tok = token.MUL
@@ -559,7 +483,7 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	return
 }
 
-func (s *Scanner) scanRule() string {
+func (s *Scanner) scanRule() (token.Token, string) {
 	offs := s.offset
 scanRule:
 	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
