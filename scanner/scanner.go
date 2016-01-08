@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -45,10 +46,19 @@ var eof = rune(0)
 //
 type ErrorHandler func(pos token.Position, msg string)
 
+type prefetch struct {
+	pos token.Pos
+	tok token.Token
+	lit string
+}
+
 type Scanner struct {
 	src    []byte
 	ch     rune
 	offset int
+
+	// hack use a channel as a queue, this is probably a terrible idea
+	queue chan prefetch
 
 	mode Mode
 
@@ -84,7 +94,9 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 	s.src = src
 	s.err = err
 	s.mode = mode
-
+	// There should never more than 2 in the queue, but buffer to 10
+	// just to be safe
+	s.queue = make(chan prefetch, 10)
 	s.rhs = false
 
 	s.ch = ' '
@@ -181,6 +193,16 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
+	// Check the queue, which may contain tokens that were fetched
+	// in a previous scan while determing ambiguious tokens.
+	select {
+	case pre := <-s.queue:
+		pos, tok, lit = pre.pos, pre.tok, pre.lit
+		return
+	default:
+		// If the queue is empty, do nothing
+	}
+
 	s.skipWhitespace()
 	pos = s.file.Pos(s.offset)
 	offs := s.offset
@@ -191,6 +213,12 @@ scanAgain:
 		s.next()
 		lit = s.scanText(0, false)
 		tok = token.VAR
+	case ch == '{':
+		tok = token.LPAREN
+	case ch == '}':
+		tok = token.RPAREN
+	case ch == ';':
+		tok = token.SEMICOLON
 	case ch == '&':
 		fallthrough
 	case ch == ':':
@@ -200,12 +228,11 @@ scanAgain:
 	case ch == '.':
 		fallthrough
 	case isLetter(ch):
-		// Scan until we find {};:
-		// For each, these rules apply
-		// { selector
-		// : rule
-		// ; or } value
-		tok, lit = s.scanRule()
+		// Scan until encountering {};
+		// selector: { termination
+		// rule:  IDENT followed by : it must then be followed by ; or }
+		// value: same as above but after the colon followed by ; or }
+		pos, tok, lit = s.scanDelim()
 	case '0' <= ch && ch <= '9':
 		// This can not be a selector
 		tok, lit = s.scanNumber(false)
@@ -222,7 +249,6 @@ scanAgain:
 
 	// move forward
 	s.next()
-exitswitch:
 	switch ch {
 	case -1:
 		tok = token.EOF
@@ -269,8 +295,8 @@ exitswitch:
 		tok, lit = s.scanDirective()
 	case '^':
 		tok = token.XOR
-	case '#':
-		tok, lit = s.scanColor()
+	// case '#':
+	// 	tok, lit = s.scanColor()
 	case '&':
 		tok = token.AND
 	case '<':
@@ -339,6 +365,49 @@ func isText(ch rune, whitespace bool) bool {
 // whitespace handling rules.
 func (s *Scanner) scanParams() string {
 	return ""
+}
+
+var colondelim = []byte(":")
+
+func (s *Scanner) scanDelim() (pos token.Pos, tok token.Token, lit string) {
+	offs := s.offset
+	pos = s.file.Pos(offs)
+	for !strings.ContainsRune(";{}", s.ch) {
+		s.next()
+	}
+
+	switch s.ch {
+	case eof:
+		return pos, token.EOF, ""
+	case '{':
+		return pos, token.SELECTOR, string(s.src[offs:s.offset])
+	}
+
+	sel := s.src[offs:s.offset]
+	// Do we have a rule or a value?
+	parts := bytes.Split(sel, colondelim)
+	first := parts[0]
+	l := len(first)
+	tok = token.VALUE
+	if len(parts) > 1 {
+		tok = token.RULE
+		lit = string(string(first))
+
+		s.queue <- prefetch{
+			pos: s.file.Pos(offs + l),
+			tok: token.COLON,
+			lit: ":",
+		}
+
+		s.queue <- prefetch{
+			pos: s.file.Pos(offs + l + 1),
+			tok: token.VALUE,
+			lit: string(parts[1]),
+		}
+	}
+
+	s.next()
+	return
 }
 
 // ScanText is responsible for gobbling non-whitespace characters
@@ -483,22 +552,22 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	return
 }
 
-func (s *Scanner) scanRule() (token.Token, string) {
-	offs := s.offset
-scanRule:
-	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
-		s.next()
-	}
-	if s.ch == '#' {
-		s.next()
-		tok, lit := s.scanInterp(s.offset)
-		if tok == token.ILLEGAL {
-			// Interpolation failed, bailout
-		}
-	}
-	ss := string(s.src[offs:s.offset])
-	return ss
-}
+// func (s *Scanner) scanRule() (token.Token, string) {
+// 	offs := s.offset
+// scanRule:
+// 	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
+// 		s.next()
+// 	}
+// 	if s.ch == '#' {
+// 		s.next()
+// 		tok, lit := s.scanInterp(s.offset)
+// 		if tok == token.ILLEGAL {
+// 			// Interpolation failed, bailout
+// 		}
+// 	}
+// 	ss := string(s.src[offs:s.offset])
+// 	return ss
+// }
 
 func (s *Scanner) scanIdent() string {
 	offs := s.offset
