@@ -198,6 +198,7 @@ func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	select {
 	case pre := <-s.queue:
 		pos, tok, lit = pre.pos, pre.tok, pre.lit
+		s.next()
 		return
 	default:
 		// If the queue is empty, do nothing
@@ -243,12 +244,12 @@ scanAgain:
 		}
 	}
 
+	// move forward
+	s.next()
 	if tok != token.ILLEGAL {
 		return
 	}
 
-	// move forward
-	s.next()
 	switch ch {
 	case -1:
 		tok = token.EOF
@@ -370,9 +371,10 @@ func (s *Scanner) scanParams() string {
 var colondelim = []byte(":")
 
 func (s *Scanner) scanDelim() (pos token.Pos, tok token.Token, lit string) {
+
 	offs := s.offset
 	pos = s.file.Pos(offs)
-	for !strings.ContainsRune(";{}", s.ch) {
+	for !strings.ContainsRune(";{}", s.ch) && s.ch != -1 {
 		s.next()
 	}
 
@@ -389,10 +391,11 @@ func (s *Scanner) scanDelim() (pos token.Pos, tok token.Token, lit string) {
 	first := parts[0]
 	l := len(first)
 	tok = token.VALUE
+	lit = string(sel)
+
 	if len(parts) > 1 {
 		tok = token.RULE
 		lit = string(string(first))
-
 		s.queue <- prefetch{
 			pos: s.file.Pos(offs + l),
 			tok: token.COLON,
