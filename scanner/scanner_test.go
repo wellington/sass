@@ -133,6 +133,22 @@ func TestScan_selectors(t *testing.T) {
 	})
 }
 
+func TestScan_nested(t *testing.T) {
+	testScan(t, []elt{
+		{token.SELECTOR, "&.goo"},
+		{token.LBRACE, "{"},
+		{token.SELECTOR, "div"},
+		{token.LBRACE, "{"},
+		{token.RULE, "color"},
+		{token.COLON, ":"},
+		{token.VALUE, "#fff"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+		{token.RBRACE, "}"},
+	})
+
+}
+
 func TestScan_duel(t *testing.T) {
 	tokens := []byte(`$color;`)
 
