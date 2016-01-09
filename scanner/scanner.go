@@ -210,10 +210,6 @@ func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	ch := s.ch
 scanAgain:
 	switch {
-	case ch == '$':
-		s.next()
-		lit = s.scanText(0, false)
-		tok = token.VAR
 	case ch == '&':
 		fallthrough
 	case ch == '[':
@@ -236,16 +232,20 @@ scanAgain:
 		}
 	}
 
-	// move forward
-	s.next()
 	if tok != token.ILLEGAL {
 		return
 	}
+
+	// move forward
+	s.next()
 
 	switch ch {
 	case -1:
 		tok = token.EOF
 		// Look for quoted strings
+	case '$':
+		lit = s.scanText(0, false)
+		tok = token.VAR
 	case '#':
 		// # can be one of three things
 		// color:    #fff[000]
@@ -377,7 +377,7 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	case eof:
 		return pos, token.EOF, ""
 	case '{':
-		return pos, token.SELECTOR, string(s.src[offs:s.offset])
+		return pos, token.SELECTOR, string(bytes.TrimSpace(s.src[offs:s.offset]))
 	}
 
 	sel := s.src[offs:s.offset]
