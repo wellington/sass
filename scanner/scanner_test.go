@@ -143,9 +143,7 @@ func TestScan_duel(t *testing.T) {
 
 func TestScan_params(t *testing.T) {
 	testScan(t, []elt{
-		{token.IDENT, "foo"},
 		{token.LPAREN, "("},
-		{token.IDENT, "booga-booga"},
 		{token.COMMA, ","},
 		{token.VAR, "$a"},
 		{token.VAR, "$b"},

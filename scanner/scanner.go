@@ -214,15 +214,7 @@ scanAgain:
 		s.next()
 		lit = s.scanText(0, false)
 		tok = token.VAR
-	case ch == '{':
-		tok = token.LPAREN
-	case ch == '}':
-		tok = token.RPAREN
-	case ch == ';':
-		tok = token.SEMICOLON
 	case ch == '&':
-		fallthrough
-	case ch == ':':
 		fallthrough
 	case ch == '[':
 		fallthrough
@@ -233,7 +225,7 @@ scanAgain:
 		// selector: { termination
 		// rule:  IDENT followed by : it must then be followed by ; or }
 		// value: same as above but after the colon followed by ; or }
-		pos, tok, lit = s.scanDelim()
+		pos, tok, lit = s.scanDelim(s.offset)
 	case '0' <= ch && ch <= '9':
 		// This can not be a selector
 		tok, lit = s.scanNumber(false)
@@ -259,11 +251,18 @@ scanAgain:
 		// color:    #fff[000]
 		// selector: #a
 		// interp:   #{}
-		if s.ch != '{' {
-			// send back for color or selector decision
-			goto scanAgain
+		if s.ch == '{' {
+			tok, lit = s.scanInterp(offs)
+
 		}
-		tok, lit = s.scanInterp(offs)
+		pos, tok, lit = s.scanDelim(offs)
+	case ':':
+		if isLetter(s.ch) {
+			pos, tok, lit = s.scanDelim(offs)
+		} else {
+			// s.rhs = true
+			tok = token.COLON
+		}
 	case '\'':
 		lit = s.scanText('\'', true)
 		tok = token.QSSTRING
@@ -308,13 +307,10 @@ scanAgain:
 		tok = s.switch2(token.ASSIGN, token.EQL)
 	case '!':
 		tok = s.switch2(token.NOT, token.NEQ)
-	case ':':
-		s.rhs = true
-		tok = token.COLON
 	case ',':
 		tok = token.COMMA
 	case ';':
-		s.rhs = false
+		// s.rhs = false
 		tok = token.SEMICOLON
 		lit = ";"
 	case '(':
@@ -370,9 +366,8 @@ func (s *Scanner) scanParams() string {
 
 var colondelim = []byte(":")
 
-func (s *Scanner) scanDelim() (pos token.Pos, tok token.Token, lit string) {
+func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
 
-	offs := s.offset
 	pos = s.file.Pos(offs)
 	for !strings.ContainsRune(";{}", s.ch) && s.ch != -1 {
 		s.next()
