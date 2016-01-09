@@ -37,8 +37,6 @@ func isAllowedRune(r rune) bool {
 		strings.ContainsRune(symbols, r)
 }
 
-var eof = rune(0)
-
 // An ErrorHandler may be provided to Scanner.Init. If a syntax error is
 // encountered and a handler was installed, the handler is called with a
 // position and an error message. The position points to the beginning of
@@ -193,12 +191,14 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
+	defer func() {
+		// fmt.Printf("scan tok: %s lit: %s\n", tok, lit)
+	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
 	case pre := <-s.queue:
 		pos, tok, lit = pre.pos, pre.tok, pre.lit
-		s.next()
 		return
 	default:
 		// If the queue is empty, do nothing
@@ -238,11 +238,11 @@ scanAgain:
 
 	// move forward
 	s.next()
-
 	switch ch {
 	case -1:
+		// Text expects EOF to be empty string
+		lit = ""
 		tok = token.EOF
-		// Look for quoted strings
 	case '$':
 		lit = s.scanText(0, false)
 		tok = token.VAR
@@ -374,10 +374,9 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	}
 
 	switch s.ch {
-	case eof:
-		return pos, token.EOF, ""
 	case '{':
-		return pos, token.SELECTOR, string(bytes.TrimSpace(s.src[offs:s.offset]))
+		return pos, token.SELECTOR,
+			string(bytes.TrimSpace(s.src[offs:s.offset]))
 	}
 
 	sel := s.src[offs:s.offset]
@@ -390,21 +389,22 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 
 	if len(parts) > 1 {
 		tok = token.RULE
-		lit = string(string(first))
+		lit = string(bytes.TrimSpace(first))
 		s.queue <- prefetch{
 			pos: s.file.Pos(offs + l),
 			tok: token.COLON,
-			lit: ":",
 		}
 
+		// Strip leading space to find start of value
+		trim := bytes.TrimLeftFunc(parts[1], isSpace)
+
 		s.queue <- prefetch{
-			pos: s.file.Pos(offs + l + 1),
+			pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
 			tok: token.VALUE,
-			lit: string(parts[1]),
+			lit: string(bytes.TrimSpace(parts[1])),
 		}
 	}
 
-	s.next()
 	return
 }
 

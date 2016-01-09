@@ -65,6 +65,7 @@ var elts = []elt{
 	{token.ATROOT, "@at-root"},
 	{token.DEBUG, "@debug"},
 	{token.ERROR, "@error"},
+	{token.VAR, "$color"},
 	// {token.COLOR, "#000"},
 	// {token.COLOR, "#abcabc"},
 	{token.MIXIN, "@mixin"},
@@ -124,9 +125,12 @@ func TestScan_selectors(t *testing.T) {
 	testScan(t, []elt{
 		{token.SELECTOR, "&.goo"},
 		{token.LBRACE, "{"},
+		{token.RULE, "color"},
+		{token.COLON, ":"},
+		{token.VALUE, "#fff"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
 	})
-
-	testScan(t, []elt{{token.VAR, "$color"}})
 }
 
 func TestScan_duel(t *testing.T) {
@@ -226,7 +230,8 @@ func testScan(t *testing.T, tokens []elt) {
 			}
 		}
 		if lit != elit {
-			t.Errorf("bad literal for %q: got %q, expected %q", lit, lit, elit)
+			t.Errorf("bad literal for %q: got %q, expected %q",
+				lit, lit, elit)
 		}
 
 		if tok == token.EOF {
