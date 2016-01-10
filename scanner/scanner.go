@@ -244,7 +244,7 @@ scanAgain:
 		lit = ""
 		tok = token.EOF
 	case '$':
-		lit = s.scanText(0, false)
+		lit = s.scanText(s.offset-1, 0, false)
 		tok = token.VAR
 	case '#':
 		// # can be one of three things
@@ -270,10 +270,10 @@ scanAgain:
 			tok = token.SUB
 		}
 	case '\'':
-		lit = s.scanText('\'', true)
+		lit = s.scanText(s.offset-1, '\'', true)
 		tok = token.QSSTRING
 	case '"':
-		lit = s.scanText('"', true)
+		lit = s.scanText(s.offset-1, '"', true)
 		tok = token.QSTRING
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
@@ -374,7 +374,11 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 
 	pos = s.file.Pos(offs)
 	for !strings.ContainsRune(";{}", s.ch) && s.ch != -1 {
-		s.next()
+		// runes not supported by scanText
+		if strings.ContainsRune("&>-:", s.ch) {
+			s.next()
+		}
+		s.scanText(offs, 0, true)
 	}
 
 	switch s.ch {
@@ -417,8 +421,8 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 // This should validate variable naming http://stackoverflow.com/a/17194994
 // a-zA-Z0-9_-
 // Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
-func (s *Scanner) scanText(end rune, whitespace bool) string {
-	offs := s.offset - 1 // catch first quote
+func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
+	// offs := s.offset - 1 // catch first quote
 
 	var ch rune
 	for s.ch == '\\' || isText(s.ch, whitespace) ||

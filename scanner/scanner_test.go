@@ -133,6 +133,15 @@ func TestScan_selectors(t *testing.T) {
 		{token.SEMICOLON, ";"},
 		{token.RBRACE, "}"},
 	})
+
+	testScan(t, []elt{
+		{token.SELECTOR, ".color"},
+		{token.LBRACE, "{"},
+		{token.RULE, "interp#{idx}"},
+		{token.COLON, ":"},
+		{token.VALUE, "blah"},
+		{token.RBRACE, "}"},
+	})
 }
 
 func TestScan_nested(t *testing.T) {
