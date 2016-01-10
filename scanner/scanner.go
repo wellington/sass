@@ -28,7 +28,7 @@ func isDigit(ch rune) bool {
 }
 
 const (
-	symbols = `/\.*-_`
+	symbols = `.*-_&>-:$%,+~[]=()`
 )
 
 func isAllowedRune(r rune) bool {
@@ -373,9 +373,16 @@ var colondelim = []byte(":")
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
 
 	pos = s.file.Pos(offs)
+	var loop int
 	for !strings.ContainsRune(";{}", s.ch) && s.ch != -1 {
+		loop++
+		if loop > 10 {
+			fmt.Println("loop detected:", string(s.ch))
+			return pos, token.ILLEGAL, string(s.src[offs:s.offset])
+		}
+
 		// runes not supported by scanText
-		if strings.ContainsRune("&>-:", s.ch) {
+		if isAllowedRune(s.ch) {
 			s.next()
 		}
 		s.scanText(offs, 0, true)

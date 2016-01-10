@@ -139,7 +139,7 @@ func TestScan_selectors(t *testing.T) {
 		{token.LBRACE, "{"},
 		{token.RULE, "interp#{idx}"},
 		{token.COLON, ":"},
-		{token.VALUE, "blah"},
+		{token.VALUE, "$blah"},
 		{token.RBRACE, "}"},
 	})
 }
