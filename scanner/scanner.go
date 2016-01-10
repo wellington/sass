@@ -191,9 +191,9 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	defer func() {
-		// fmt.Printf("scan tok: %s lit: %s\n", tok, lit)
-	}()
+	// defer func() {
+	// 	fmt.Printf("scan tok: %s lit: %s\n", tok, lit)
+	// }()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -263,6 +263,12 @@ scanAgain:
 			// s.rhs = true
 			tok = token.COLON
 		}
+	case '-':
+		if isLetter(s.ch) {
+			pos, tok, lit = s.scanDelim(offs)
+		} else {
+			tok = token.SUB
+		}
 	case '\'':
 		lit = s.scanText('\'', true)
 		tok = token.QSSTRING
@@ -331,8 +337,6 @@ scanAgain:
 		tok = token.REM
 	case '+':
 		tok = token.ADD
-	case '-':
-		tok = token.SUB
 	case '*':
 		tok = token.MUL
 	default:
@@ -718,7 +722,6 @@ func (s *Scanner) scanComment() string {
 			goto exit
 		}
 	}
-
 	s.error(offs, "comment not terminated")
 
 exit:

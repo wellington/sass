@@ -127,7 +127,7 @@ func TestScan_selectors(t *testing.T) {
 		{token.LBRACE, "{"},
 		{token.COMMENT, "// blah blah blah \n"},
 		{token.COMMENT, "/* hola */"},
-		{token.RULE, "color"},
+		{token.RULE, "-webkit-color"},
 		{token.COLON, ":"},
 		{token.VALUE, "#fff"},
 		{token.SEMICOLON, ";"},
