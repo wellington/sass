@@ -27,6 +27,7 @@ const (
 	QSSTRING // 'word'
 	COLOR    // #000
 	INTERP   // #{value}
+	VALUE    // value (rhs of rule)
 	literal_end
 
 	cssnums_beg
@@ -108,7 +109,6 @@ const (
 	keyword_end
 
 	CMDVAR
-	VALUE
 
 	cmd_beg
 	SPRITE

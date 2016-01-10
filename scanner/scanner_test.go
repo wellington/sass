@@ -65,11 +65,12 @@ var elts = []elt{
 	{token.ATROOT, "@at-root"},
 	{token.DEBUG, "@debug"},
 	{token.ERROR, "@error"},
-	{token.COLOR, "#000"},
-	{token.COLOR, "#abcabc"},
+	{token.VAR, "$color"},
+	// {token.COLOR, "#000"},
+	// {token.COLOR, "#abcabc"},
 	{token.MIXIN, "@mixin"},
 	// {token.SELECTOR, "foo($a,$b)"},
-	{token.COLOR, "rgb(10,10,10)"},
+	// {token.COLOR, "rgb(10,10,10)"},
 }
 
 var source = func(tokens []elt) []byte {
@@ -116,9 +117,38 @@ func TestScan(t *testing.T) {
 
 func TestScan_selectors(t *testing.T) {
 	// selectors are so flexible, that they must be tested in isolation
-	testScan(t, []elt{{token.SELECTOR, "& > boo"}})
-	testScan(t, []elt{{token.SELECTOR, "&.goo"}})
-	testScan(t, []elt{{token.VAR, "$color"}})
+	testScan(t, []elt{
+		{token.SELECTOR, "& > boo"},
+		{token.LBRACE, "{"},
+	})
+
+	testScan(t, []elt{
+		{token.SELECTOR, "&.goo"},
+		{token.LBRACE, "{"},
+		{token.COMMENT, "// blah blah blah \n"},
+		{token.COMMENT, "/* hola */"},
+		{token.RULE, "-webkit-color"},
+		{token.COLON, ":"},
+		{token.VALUE, "#fff"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+	})
+}
+
+func TestScan_nested(t *testing.T) {
+	testScan(t, []elt{
+		{token.SELECTOR, "&.goo"},
+		{token.LBRACE, "{"},
+		{token.SELECTOR, "div"},
+		{token.LBRACE, "{"},
+		{token.RULE, "color"},
+		{token.COLON, ":"},
+		{token.VALUE, "#fff"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+		{token.RBRACE, "}"},
+	})
+
 }
 
 func TestScan_duel(t *testing.T) {
@@ -135,17 +165,17 @@ func TestScan_duel(t *testing.T) {
 		t.Fatalf("got: %s wanted: %s", lit, e)
 	}
 	_, tok, lit = s.Scan()
+	if e := token.SEMICOLON; e != tok {
+		t.Fatalf("got: %s wanted: %s", tok, e)
+	}
 	if e := ";"; e != lit {
 		t.Fatalf("got: %s wanted: %s", lit, e)
 	}
-	_ = tok
 }
 
 func TestScan_params(t *testing.T) {
 	testScan(t, []elt{
-		{token.IDENT, "foo"},
 		{token.LPAREN, "("},
-		{token.IDENT, "booga-booga"},
 		{token.COMMA, ","},
 		{token.VAR, "$a"},
 		{token.VAR, "$b"},
@@ -218,7 +248,8 @@ func testScan(t *testing.T, tokens []elt) {
 			}
 		}
 		if lit != elit {
-			t.Errorf("bad literal for %q: got %q, expected %q", lit, lit, elit)
+			t.Errorf("bad literal for %q: got %q, expected %q",
+				lit, lit, elit)
 		}
 
 		if tok == token.EOF {

@@ -17,7 +17,7 @@ func TestParse_files(t *testing.T) {
 	}
 
 	mode := DeclarationErrors
-	mode = Trace
+	mode = Trace | ParseComments
 	for _, name := range inputs {
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {

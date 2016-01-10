@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"bytes"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -36,8 +37,6 @@ func isAllowedRune(r rune) bool {
 		strings.ContainsRune(symbols, r)
 }
 
-var eof = rune(0)
-
 // An ErrorHandler may be provided to Scanner.Init. If a syntax error is
 // encountered and a handler was installed, the handler is called with a
 // position and an error message. The position points to the beginning of
@@ -45,10 +44,19 @@ var eof = rune(0)
 //
 type ErrorHandler func(pos token.Position, msg string)
 
+type prefetch struct {
+	pos token.Pos
+	tok token.Token
+	lit string
+}
+
 type Scanner struct {
 	src    []byte
 	ch     rune
 	offset int
+
+	// hack use a channel as a queue, this is probably a terrible idea
+	queue chan prefetch
 
 	mode Mode
 
@@ -84,7 +92,9 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 	s.src = src
 	s.err = err
 	s.mode = mode
-
+	// There should never more than 2 in the queue, but buffer to 10
+	// just to be safe
+	s.queue = make(chan prefetch, 10)
 	s.rhs = false
 
 	s.ch = ' '
@@ -160,114 +170,60 @@ func (s *Scanner) skipWhitespace() {
 	}
 }
 
+// Scan should differentiate between these cases
+// selector[,#=.+>] {}
+// :foo(ol) {}
+// [hey = 'ho'], a > b {}
+// c [hoo *= "ha" ] {}
+// div,, , span, ,, {}
+// a + b, c {}
+// d e, f ~ g + h, > i {}
+//
+// reference parent selector: &
+// function: @function h() {}
+// return: @return function-exists();
+// mixin: @mixin($var) {}
+// call or conversion: abs(-5);
+// $variable: $substitution
+// rule: value;
+// with #{} found anywhere in them
+// directives: @import
+// math 1 + 3 or (1 + 3)
+// New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	defer func() {
-		fmt.Println("Scan:", tok, lit)
-	}()
-scanAgain:
-	s.skipWhitespace()
+	// defer func() {
+	// 	fmt.Printf("scan tok: %s lit: %s\n", tok, lit)
+	// }()
+	// Check the queue, which may contain tokens that were fetched
+	// in a previous scan while determing ambiguious tokens.
+	select {
+	case pre := <-s.queue:
+		pos, tok, lit = pre.pos, pre.tok, pre.lit
+		return
+	default:
+		// If the queue is empty, do nothing
+	}
 
+	s.skipWhitespace()
 	pos = s.file.Pos(s.offset)
+	offs := s.offset
 	ch := s.ch
+scanAgain:
 	switch {
-	case ch == '$':
-		s.next()
-		lit = s.scanText(0, false)
-		tok = token.VAR
 	case ch == '&':
-		s.skipWhitespace()
 		fallthrough
 	case ch == '[':
-		// TODO: do more strict validation
 		fallthrough
-		// ID and class selectors
-	case !s.rhs && (ch == '#' || ch == '.'):
-		s.next()
-		if s.ch == '{' {
-			tok, lit = s.scanInterp(s.offset - 1)
-			return
-		} else {
-
-		}
-		s.backup()
+	case ch == '.':
 		fallthrough
 	case isLetter(ch):
-		sels := 0
-		offs := s.offset
-		tok = token.IDENT
-	selAgain:
-		if sels > 10 {
-			s.error(offs, "loop detected")
-			return
-		}
-		sels++
-		lit += s.scanRule()
-		lastchpos := s.offset
-		// Do some string analysis to determine token
-		s.skipWhitespace()
-		// look for special IDENT
-		switch s.ch {
-		case '{':
-			// On the rhs, this is likely to be an interp call
-			if s.rhs {
-				s.backup()
-				// FOREVER UNCLEAN!
-				lastchpos = s.offset
-			}
-			switch s.ch {
-			case '#':
-				tok = token.IDENT
-			default:
-				tok = token.SELECTOR
-			}
-		case ',':
-			if s.inParams {
-				tok = token.IDENT
-				goto exitswitch
-			}
-			fallthrough
-		case '#':
-			s.next()
-			switch s.ch {
-			case '{':
-				// This is an interpolation, backup twice and report IDENT
-				s.backup()
-				tok = token.IDENT
-				lit = string(s.src[offs:s.offset])
-				return
-			default:
-				s.skipWhitespace()
-				goto selAgain
-			}
-		case '+', '>', '~', '.', ']', '&':
-			s.next()
-			s.skipWhitespace()
-			goto selAgain
-		case ':':
-			s.rhs = true
-			tok = token.RULE
-		case '(':
-			if string(s.src[offs:lastchpos]) == "rgb" ||
-				string(s.src[offs:lastchpos]) == "rgba" {
-				tok, lit = s.scanRGB(offs)
-				return
-			} else {
-				tok = token.IDENT
-			}
-		case ')':
-			tok = token.IDENT
-		case ';':
-			s.rhs = false
-			tok = token.IDENT
-		case -1: // eof
-			// only for testing
-			tok = token.SELECTOR
-		default:
-			s.next()
-			goto selAgain
-		}
-		lit = string(s.src[offs:lastchpos])
+		// Scan until encountering {};
+		// selector: { termination
+		// rule:  IDENT followed by : it must then be followed by ; or }
+		// value: same as above but after the colon followed by ; or }
+		pos, tok, lit = s.scanDelim(s.offset)
 	case '0' <= ch && ch <= '9':
+		// This can not be a selector
 		tok, lit = s.scanNumber(false)
 		utok, ulit := s.scanUnit()
 		if utok != token.ILLEGAL {
@@ -275,7 +231,7 @@ scanAgain:
 			lit = lit + ulit
 		}
 	}
-exitswitch:
+
 	if tok != token.ILLEGAL {
 		return
 	}
@@ -284,7 +240,35 @@ exitswitch:
 	s.next()
 	switch ch {
 	case -1:
+		// Text expects EOF to be empty string
+		lit = ""
 		tok = token.EOF
+	case '$':
+		lit = s.scanText(0, false)
+		tok = token.VAR
+	case '#':
+		// # can be one of three things
+		// color:    #fff[000]
+		// selector: #a
+		// interp:   #{}
+		if s.ch == '{' {
+			tok, lit = s.scanInterp(offs)
+
+		}
+		pos, tok, lit = s.scanDelim(offs)
+	case ':':
+		if isLetter(s.ch) {
+			pos, tok, lit = s.scanDelim(offs)
+		} else {
+			// s.rhs = true
+			tok = token.COLON
+		}
+	case '-':
+		if isLetter(s.ch) {
+			pos, tok, lit = s.scanDelim(offs)
+		} else {
+			tok = token.SUB
+		}
 	case '\'':
 		lit = s.scanText('\'', true)
 		tok = token.QSSTRING
@@ -317,29 +301,22 @@ exitswitch:
 		tok, lit = s.scanDirective()
 	case '^':
 		tok = token.XOR
-	case '#':
-		tok, lit = s.scanColor()
+	// case '#':
+	// 	tok, lit = s.scanColor()
 	case '&':
 		tok = token.AND
-
 	case '<':
 		tok = s.switch2(token.LSS, token.LEQ)
 	case '>':
 		tok = s.switch2(token.GTR, token.GEQ)
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
-
-	case '$':
-		tok = token.DOLLAR
 	case '!':
 		tok = s.switch2(token.NOT, token.NEQ)
-	case ':':
-		s.rhs = true
-		tok = token.COLON
 	case ',':
 		tok = token.COMMA
 	case ';':
-		s.rhs = false
+		// s.rhs = false
 		tok = token.SEMICOLON
 		lit = ";"
 	case '(':
@@ -360,19 +337,6 @@ exitswitch:
 		tok = token.REM
 	case '+':
 		tok = token.ADD
-	case '-':
-		offs := s.offset - 1
-		if isLetter(s.ch) {
-			lit = "-" + s.scanRule()
-			// Do some string analysis to determine token
-			tok = token.RULE
-			s.skipWhitespace()
-			if s.ch != ':' {
-				s.error(offs, "invalid rule found starting with -")
-			}
-			return
-		}
-		tok = token.SUB
 	case '*':
 		tok = token.MUL
 	default:
@@ -402,6 +366,50 @@ func isText(ch rune, whitespace bool) bool {
 // whitespace handling rules.
 func (s *Scanner) scanParams() string {
 	return ""
+}
+
+var colondelim = []byte(":")
+
+func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
+
+	pos = s.file.Pos(offs)
+	for !strings.ContainsRune(";{}", s.ch) && s.ch != -1 {
+		s.next()
+	}
+
+	switch s.ch {
+	case '{':
+		return pos, token.SELECTOR,
+			string(bytes.TrimSpace(s.src[offs:s.offset]))
+	}
+
+	sel := s.src[offs:s.offset]
+	// Do we have a rule or a value?
+	parts := bytes.Split(sel, colondelim)
+	first := parts[0]
+	l := len(first)
+	tok = token.VALUE
+	lit = string(sel)
+
+	if len(parts) > 1 {
+		tok = token.RULE
+		lit = string(bytes.TrimSpace(first))
+		s.queue <- prefetch{
+			pos: s.file.Pos(offs + l),
+			tok: token.COLON,
+		}
+
+		// Strip leading space to find start of value
+		trim := bytes.TrimLeftFunc(parts[1], isSpace)
+
+		s.queue <- prefetch{
+			pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
+			tok: token.VALUE,
+			lit: string(bytes.TrimSpace(parts[1])),
+		}
+	}
+
+	return
 }
 
 // ScanText is responsible for gobbling non-whitespace characters
@@ -490,7 +498,7 @@ func (s *Scanner) scanRGB(pos int) (tok token.Token, lit string) {
 func (s *Scanner) scanInterp(offs int) (token.Token, string) {
 	// Should only be called after '#' is detected
 	if s.ch != '{' {
-		s.error(offs, "invalid interpolation missing {")
+		return token.ILLEGAL, ""
 	}
 	for s.ch != '}' {
 		s.next()
@@ -546,14 +554,22 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	return
 }
 
-func (s *Scanner) scanRule() string {
-	offs := s.offset
-	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
-		s.next()
-	}
-	ss := string(s.src[offs:s.offset])
-	return ss
-}
+// func (s *Scanner) scanRule() (token.Token, string) {
+// 	offs := s.offset
+// scanRule:
+// 	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
+// 		s.next()
+// 	}
+// 	if s.ch == '#' {
+// 		s.next()
+// 		tok, lit := s.scanInterp(s.offset)
+// 		if tok == token.ILLEGAL {
+// 			// Interpolation failed, bailout
+// 		}
+// 	}
+// 	ss := string(s.src[offs:s.offset])
+// 	return ss
+// }
 
 func (s *Scanner) scanIdent() string {
 	offs := s.offset
@@ -706,7 +722,6 @@ func (s *Scanner) scanComment() string {
 			goto exit
 		}
 	}
-
 	s.error(offs, "comment not terminated")
 
 exit:
