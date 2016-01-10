@@ -125,6 +125,8 @@ func TestScan_selectors(t *testing.T) {
 	testScan(t, []elt{
 		{token.SELECTOR, "&.goo"},
 		{token.LBRACE, "{"},
+		{token.COMMENT, "// blah blah blah \n"},
+		{token.COMMENT, "/* hola */"},
 		{token.RULE, "color"},
 		{token.COLON, ":"},
 		{token.VALUE, "#fff"},
