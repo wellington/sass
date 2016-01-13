@@ -55,7 +55,7 @@ type Scanner struct {
 	ch     rune
 	offset int
 
-	// hack use a channel as a queue, this is probably a terrible idea
+	// hack use a channel as a FIFO queue, this is probably a terrible idea
 	queue chan prefetch
 
 	mode Mode
@@ -191,9 +191,9 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	// defer func() {
-	// 	fmt.Printf("scan tok: %s lit: %s\n", tok, lit)
-	// }()
+	defer func() {
+		fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
+	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -370,11 +370,16 @@ func (s *Scanner) scanParams() string {
 
 var colondelim = []byte(":")
 
+// scanDelim looks through ambiguous text (selectors, rules, functions)
+// and returns a properly parsed set.
+//
+// a#id { // 'a#id'
+// { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
 
 	pos = s.file.Pos(offs)
 	var loop int
-	for !strings.ContainsRune(";{}", s.ch) && s.ch != -1 {
+	for !strings.ContainsRune(";{}()", s.ch) && s.ch != -1 {
 		loop++
 		if loop > 10 {
 			fmt.Println("loop detected:", string(s.ch))
@@ -388,13 +393,19 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 		s.scanText(offs, 0, true)
 	}
 
-	switch s.ch {
+	sel := s.src[offs:s.offset]
+	ch := s.ch
+	switch ch {
+	case '(':
+		tok = token.FUNC
+		// return pos, token.FUNC, string(bytes.TrimSpace(sel))
 	case '{':
 		return pos, token.SELECTOR,
-			string(bytes.TrimSpace(s.src[offs:s.offset]))
+			string(bytes.TrimSpace(sel))
+	default:
+		tok = token.VALUE
 	}
 
-	sel := s.src[offs:s.offset]
 	// Do we have a rule or a value?
 	parts := bytes.Split(sel, colondelim)
 	first := parts[0]
@@ -415,7 +426,7 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 
 		s.queue <- prefetch{
 			pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
-			tok: token.VALUE,
+			tok: tok,
 			lit: string(bytes.TrimSpace(parts[1])),
 		}
 	}
