@@ -110,6 +110,16 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 
 }
 
+// rewind resets the scanner to a previous position
+// DANGER: You should only use this if you know what you are doing.
+//
+// When rewinding newlines, it will cause incorrect line numbers
+// to be reported.
+func (s *Scanner) rewind(offs int) {
+	s.rdOffset = offs
+	s.next()
+}
+
 // backup one rune
 func (s *Scanner) backup() {
 	w := utf8.RuneLen(s.ch)
