@@ -113,8 +113,6 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 // rewind resets the scanner to a previous position
 // DANGER: You should only use this if you know what you are doing.
 //
-// When rewinding newlines, it will cause incorrect line numbers
-// to be reported.
 func (s *Scanner) rewind(offs int) {
 	s.rdOffset = offs
 	s.next()
@@ -257,15 +255,13 @@ scanAgain:
 		lit = s.scanText(s.offset-1, 0, false)
 		tok = token.VAR
 	case '#':
-		// # can be one of three things
 		// color:    #fff[000]
-		// selector: #a
 		// interp:   #{}
 		if s.ch == '{' {
 			tok, lit = s.scanInterp(offs)
-
+		} else {
+			tok, lit = s.scanColor()
 		}
-		pos, tok, lit = s.scanDelim(offs)
 	case ':':
 		if isLetter(s.ch) {
 			pos, tok, lit = s.scanDelim(offs)
@@ -275,7 +271,7 @@ scanAgain:
 		}
 	case '-':
 		if isLetter(s.ch) {
-			pos, tok, lit = s.scanDelim(offs)
+			pos, tok, lit = s.scanRule(offs)
 		} else {
 			tok = token.SUB
 		}
@@ -350,7 +346,16 @@ scanAgain:
 	case '*':
 		tok = token.MUL
 	default:
-		fmt.Printf("Illegal %q\n", ch)
+		pos, tok, lit = s.scanRule(offs)
+
+		// if isLetter(s.ch) {
+		// 	// Try a rule, failing go to IDENT
+
+		// 	// tok = token.IDENT
+		// 	// lit = s.scanText(offs-1, 0, false)
+		// } else {
+		// 	fmt.Printf("Illegal %q\n", ch)
+		// }
 	}
 
 	// item = Item{Type: ItemILLEGAL, Value: string(ch)}
@@ -405,45 +410,54 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 
 	sel := s.src[offs:s.offset]
 	ch := s.ch
+
 	switch ch {
-	case '(':
-		// Detected function, bail
-		tok = token.IDENT
-		lit = string(sel)
-		return
-		// return pos, token.FUNC, string(bytes.TrimSpace(sel))
 	case '{':
 		return pos, token.SELECTOR,
 			string(bytes.TrimSpace(sel))
-	default:
-		tok = token.VALUE
 	}
 
-	// Do we have a rule or a value?
-	parts := bytes.Split(sel, colondelim)
-	first := parts[0]
-	l := len(first)
-	tok = token.VALUE
-	lit = string(sel)
-
-	if len(parts) > 1 {
-		tok = token.RULE
-		lit = string(bytes.TrimSpace(first))
-		s.queue <- prefetch{
-			pos: s.file.Pos(offs + l),
-			tok: token.COLON,
-		}
-
-		// Strip leading space to find start of value
-		trim := bytes.TrimLeftFunc(parts[1], isSpace)
-		s.queue <- prefetch{
-			pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
-			tok: token.VALUE,
-			lit: string(bytes.TrimSpace(parts[1])),
-		}
-	}
-
+	s.rewind(offs)
 	return
+	// case '(':
+	// 	tok = token.IDENT
+	// default:
+	// 	tok = token.VALUE
+	// }
+
+	// // Do we have a rule or a value?
+	// parts := bytes.Split(sel, colondelim)
+	// first := parts[0]
+	// l := len(first)
+	// lit = string(sel)
+
+	// if len(parts) > 1 {
+	// 	tok = token.RULE
+	// 	lit = string(bytes.TrimSpace(first))
+
+	// 	switch s.ch {
+	// 	case '(':
+	// 		for s.ch != ':' {
+	// 			s.backup()
+	// 		}
+	// 		return
+	// 	}
+
+	// 	s.queue <- prefetch{
+	// 		pos: s.file.Pos(offs + l),
+	// 		tok: token.COLON,
+	// 	}
+
+	// 	// Strip leading space to find start of value
+	// 	trim := bytes.TrimLeftFunc(parts[1], isSpace)
+	// 	s.queue <- prefetch{
+	// 		pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
+	// 		tok: token.VALUE,
+	// 		lit: string(bytes.TrimSpace(parts[1])),
+	// 	}
+	// }
+
+	// return
 }
 
 // ScanText is responsible for gobbling non-whitespace characters
@@ -544,10 +558,8 @@ func (s *Scanner) scanInterp(offs int) (token.Token, string) {
 
 func (s *Scanner) scanColor() (tok token.Token, lit string) {
 	offs := s.offset - 1
-	if s.ch == '{' {
-		return s.scanInterp(offs)
-	}
-	for isLetter(s.ch) || isDigit(s.ch) {
+	for (s.ch >= 'a' && s.ch <= 'f') ||
+		(s.ch >= 'A' && s.ch <= 'F') || isDigit(s.ch) {
 		s.next()
 	}
 	lit = string(s.src[offs:s.offset])
@@ -585,6 +597,28 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 		tok = token.ERROR
 	}
 
+	return
+}
+
+func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string) {
+
+	pos = s.file.Pos(offs)
+	for !strings.ContainsRune(":();{},$", s.ch) {
+		s.next()
+	}
+	lit = string(s.src[offs:s.offset])
+	switch s.ch {
+	case ':':
+		tok = token.RULE
+	case '(':
+		// mixin or func ident
+		// IDENT()
+		tok = token.IDENT
+	default:
+		// Not sure, this requires more specifics
+		fmt.Println("fallback", lit)
+		tok = token.IDENT
+	}
 	return
 }
 
