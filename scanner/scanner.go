@@ -201,9 +201,9 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	defer func() {
-		fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
-	}()
+	// defer func() {
+	// 	fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
+	// }()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -386,7 +386,7 @@ var colondelim = []byte(":")
 // a#id { // 'a#id'
 // { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
-
+	tok = token.ILLEGAL
 	pos = s.file.Pos(offs)
 	var loop int
 	for !strings.ContainsRune(";{}()", s.ch) && s.ch != -1 {
@@ -407,7 +407,10 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	ch := s.ch
 	switch ch {
 	case '(':
-		tok = token.FUNC
+		// Detected function, bail
+		tok = token.IDENT
+		lit = string(sel)
+		return
 		// return pos, token.FUNC, string(bytes.TrimSpace(sel))
 	case '{':
 		return pos, token.SELECTOR,
@@ -433,10 +436,9 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 
 		// Strip leading space to find start of value
 		trim := bytes.TrimLeftFunc(parts[1], isSpace)
-
 		s.queue <- prefetch{
 			pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
-			tok: tok,
+			tok: token.VALUE,
 			lit: string(bytes.TrimSpace(parts[1])),
 		}
 	}
