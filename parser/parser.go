@@ -859,7 +859,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 		typ := p.tryIdentOrType()
 		if p.tok == token.COLON {
 			p.next()
-			fmt.Println("default param:", p.tok, p.lit)
+
 			p.next()
 		}
 		return typ
@@ -1268,7 +1268,12 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	var ellipsis token.Pos
 	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
 		list = append(list, p.parseRhsOrType()) // builtins may expect a type: make(some type, ...)
-		if p.tok == token.ELLIPSIS {
+		switch p.tok {
+		case token.COLON:
+			p.next()
+			// Next one is default value
+			list = append(list, p.parseRhsOrType())
+		case token.ELLIPSIS:
 			ellipsis = p.pos
 			p.next()
 		}
@@ -2096,15 +2101,20 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	switch tok {
 	case token.INCLUDE:
 		return p.parseIncludeSpec()
-	default:
-		p.next()
-		if p.tok == token.COLON {
-			lhs = true
-			p.next()
-		}
 	}
 
-	values = p.inferExprList(lhs)
+	p.next()
+	switch p.tok {
+	case token.LPAREN:
+		values = append(values, p.parseCallOrConversion(p.checkExprOrType(
+			&ast.BasicLit{ValuePos: p.pos, Kind: tok, Value: name})))
+	case token.COLON:
+		lhs = true
+		p.next()
+		fallthrough
+	default:
+		values = p.inferExprList(lhs)
+	}
 
 	// p.expectSemi()
 	// Go spec: The scope of a constant or variable identifier declared inside
