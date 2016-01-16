@@ -419,7 +419,7 @@ func (p *parser) atComma(context string, follow token.Token) bool {
 		if p.tok == token.SEMICOLON && p.lit == "\n" {
 			msg += " before newline"
 		}
-		p.error(p.pos, msg+" in "+context)
+		p.error(p.pos, msg+" in "+context+" expected: "+follow.String()+" got: "+p.tok.String())
 		return true // "insert" comma and continue
 	}
 	return false
@@ -501,6 +501,13 @@ func (p *parser) safePos(pos token.Pos) (res token.Pos) {
 
 // ----------------------------------------------------------------------------
 // Identifiers
+
+func (p *parser) parseInterp() *ast.Interp {
+	pos := p.pos
+	name := "_"
+	p.expect(token.INTERP)
+	return &ast.Interp{NamePos: pos, Name: name}
+}
 
 func (p *parser) parseIdent() *ast.Ident {
 	pos := p.pos
@@ -1151,6 +1158,8 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 			p.resolve(x)
 		}
 		return x
+	case token.INTERP:
+		return p.parseInterp()
 	case
 		token.COLOR,
 		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,
@@ -1484,6 +1493,9 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 L:
 	for {
 		switch p.tok {
+		case token.INTERP:
+			p.next()
+			p.resolve(x)
 		case token.PERIOD:
 			p.next()
 			if lhs {

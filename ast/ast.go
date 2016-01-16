@@ -242,6 +242,14 @@ type (
 		Obj     *Object   // denoted object; or nil
 	}
 
+	// An Interp node represents a string that can be replaced like a
+	// variable
+	Interp struct {
+		NamePos token.Pos
+		Name    string
+		Obj     *Object
+	}
+
 	// An Ellipsis node stands for the "..." type in a
 	// parameter list or the "..." length in an array type.
 	//
@@ -428,6 +436,7 @@ type (
 //
 func (x *BadExpr) Pos() token.Pos  { return x.From }
 func (x *Ident) Pos() token.Pos    { return x.NamePos }
+func (x *Interp) Pos() token.Pos   { return x.NamePos }
 func (x *Ellipsis) Pos() token.Pos { return x.Ellipsis }
 func (x *BasicLit) Pos() token.Pos { return x.ValuePos }
 func (x *FuncLit) Pos() token.Pos  { return x.Type.Pos() }
@@ -464,6 +473,7 @@ func (x *ChanType) Pos() token.Pos      { return x.Begin }
 
 func (x *BadExpr) End() token.Pos { return x.To }
 func (x *Ident) End() token.Pos   { return token.Pos(int(x.NamePos) + len(x.Name)) }
+func (x *Interp) End() token.Pos  { return token.Pos(int(x.NamePos) + len(x.Name)) }
 func (x *Ellipsis) End() token.Pos {
 	if x.Elt != nil {
 		return x.Elt.End()
@@ -500,6 +510,7 @@ func (x *ChanType) End() token.Pos      { return x.Value.End() }
 //
 func (*BadExpr) exprNode()        {}
 func (*Ident) exprNode()          {}
+func (*Interp) exprNode()         {}
 func (*Ellipsis) exprNode()       {}
 func (*BasicLit) exprNode()       {}
 func (*FuncLit) exprNode()        {}
