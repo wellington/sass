@@ -649,6 +649,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
+		p.tok != token.RPAREN &&
 		p.tok != token.EOF {
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
@@ -2054,7 +2055,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		p.expect(token.STRING) // use expect() error handling
 	}
 
-	p.expectSemi() // call before accessing p.linecomment
+	// p.expectSemi() // call before accessing p.linecomment
 
 	// collect imports
 	spec := &ast.ImportSpec{
@@ -2105,7 +2106,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 
 	values = p.inferExprList(lhs)
 
-	p.expectSemi()
+	// p.expectSemi()
 	// Go spec: The scope of a constant or variable identifier declared inside
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
@@ -2249,10 +2250,10 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 			list = append(list, f(p.leadComment, keyword, iota))
 		}
 		rparen = p.expect(token.RPAREN)
-		p.expectSemi()
 	} else {
 		list = append(list, f(nil, keyword, 0))
 	}
+	p.expectSemi()
 	return &ast.GenDecl{
 		Doc:    doc,
 		TokPos: pos,
@@ -2293,9 +2294,13 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	f := p.inferValueSpec
 	for iota := 0; p.tok != token.SEMICOLON &&
 		p.tok != token.RBRACE &&
+		p.tok != token.RULE &&
 		p.tok != token.EOF; iota++ {
 
 		switch p.tok {
+		case token.LPAREN:
+			list = append(list, f(p.leadComment, p.tok, iota))
+			p.expect(token.RPAREN)
 		case token.SELECTOR:
 			list = append(list, p.inferSelSpec(p.leadComment, p.tok, iota))
 		default:
@@ -2303,6 +2308,7 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		}
 	}
 	decl.Specs = list
+	p.expectSemi()
 
 	return decl
 
@@ -2326,7 +2332,7 @@ func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
 		Name:   ident,
 		Params: params,
 	}
-	p.expect(token.SEMICOLON)
+
 	return spec
 }
 
