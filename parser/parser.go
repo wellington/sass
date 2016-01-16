@@ -509,11 +509,23 @@ func (p *parser) parseInterp() *ast.Interp {
 	return &ast.Interp{NamePos: pos, Name: name}
 }
 
+func (p *parser) parseDirective() *ast.Ident {
+	pos := p.pos
+	name := "_"
+	switch p.tok {
+	case token.MEDIA:
+		name = "MEDIA"
+	}
+
+	return &ast.Ident{NamePos: pos, Name: name}
+}
+
 func (p *parser) parseIdent() *ast.Ident {
 	pos := p.pos
 	name := "_"
 	// FIXME: parseIdent should not be responding with non-IDENT
-	if p.tok == token.IDENT || p.tok == token.RULE || p.tok == token.SELECTOR {
+	if p.tok == token.IDENT || p.tok == token.RULE ||
+		p.tok == token.SELECTOR {
 		name = p.lit
 		p.next()
 	} else {
@@ -1119,6 +1131,22 @@ func (p *parser) parseBlockStmt() *ast.BlockStmt {
 	rbrace := p.expect(token.RBRACE)
 
 	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
+}
+
+func (p *parser) parseMediaStmt() *ast.MediaStmt {
+	if p.trace {
+		defer un(trace(p, "MediaStmt"))
+	}
+
+	pos := p.expect(token.MEDIA)
+
+	return &ast.MediaStmt{
+		Spec: &ast.MediaSpec{
+			Name: &ast.Ident{
+				NamePos: pos,
+			},
+			Sel: p.parseSelDecl(),
+		}}
 }
 
 // ----------------------------------------------------------------------------
@@ -1996,6 +2024,8 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		}
 	case token.RETURN:
 		s = p.parseReturnStmt()
+	case token.MEDIA:
+		s = p.parseMediaStmt()
 	case token.LBRACE:
 		s = p.parseBlockStmt()
 		p.expectSemi()
