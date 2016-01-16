@@ -129,7 +129,7 @@ func TestScan_selectors(t *testing.T) {
 		{token.COMMENT, "/* hola */"},
 		{token.RULE, "-webkit-color"},
 		{token.COLON, ":"},
-		{token.VALUE, "#fff"},
+		{token.COLOR, "#fff"},
 		{token.SEMICOLON, ";"},
 		{token.RBRACE, "}"},
 	})
@@ -152,12 +152,20 @@ func TestScan_nested(t *testing.T) {
 		{token.LBRACE, "{"},
 		{token.RULE, "color"},
 		{token.COLON, ":"},
-		{token.VALUE, "#fff"},
+		{token.COLOR, "#fff"},
 		{token.SEMICOLON, ";"},
 		{token.RBRACE, "}"},
 		{token.RBRACE, "}"},
 	})
 
+}
+
+func TestScan_media(t *testing.T) {
+	testScan(t, []elt{
+		{token.MEDIA, "@media"},
+		{token.SELECTOR, "print and (foo: 1 2 3)"},
+		{token.LBRACE, "{"},
+	})
 }
 
 func TestScan_duel(t *testing.T) {

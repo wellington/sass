@@ -513,24 +513,6 @@ func (s *Scanner) scanRGB(pos int) (tok token.Token, lit string) {
 		s.error(offs, "invalid rgb (: "+lit)
 	}
 
-	// s.next()
-	// ttok, num := s.scanNumber(false)
-	// if ttok != token.INT {
-	// 	s.error(s.offset, "invalid rgb int: "+num)
-	// }
-
-	// for i := 0; i < 2; i++ {
-	// 	if s.ch != ',' {
-	// 		s.error(s.offset, "invalid rgb ,: "+string(s.ch))
-	// 	}
-	// 	s.next()
-	// 	s.skipWhitespace()
-	// 	tok, num := s.scanNumber(false)
-	// 	if tok != token.INT {
-	// 		s.error(s.offset, "invalid rgb int: "+num)
-	// 	}
-	// }
-
 	for s.ch != ')' && s.ch != ';' {
 		s.next()
 	}
@@ -581,6 +563,18 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 		tok = token.IMPORT
 	case "@media":
 		tok = token.MEDIA
+		s.skipWhitespace()
+		// media queries have a lot of runes, eat until the first {
+		offs := s.offset
+		for s.ch != '{' {
+			s.next()
+		}
+		lit := s.src[offs:s.offset]
+		s.queue <- prefetch{
+			pos: s.file.Pos(offs),
+			tok: token.SELECTOR,
+			lit: string(bytes.TrimSpace(lit)),
+		}
 	case "@mixin":
 		tok = token.MIXIN
 	case "@extend":
@@ -606,7 +600,7 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 	for !strings.ContainsRune(":();{},$", s.ch) {
 		s.next()
 	}
-	lit = string(s.src[offs:s.offset])
+	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	switch s.ch {
 	case ':':
 		tok = token.RULE
