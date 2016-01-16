@@ -63,6 +63,8 @@ To help, check out [parser](https://github.com/wellington/sass/tree/master/parse
   - [ ] @each
     - [ ] Multiple Assignment
   - [ ] @while
+  - [ ] url(/local/path)
+  - [ ] url(http://remote/path)
 - Mixin Directives
   - [x] Defining a Mixin: @mixin
   - [ ] Including a Mixin: @include
