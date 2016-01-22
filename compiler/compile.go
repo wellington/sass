@@ -13,6 +13,7 @@ import (
 type Context struct {
 	buf      *bytes.Buffer
 	fileName *ast.Ident
+	level    int
 	printers map[ast.Node]func(*Context, ast.Node)
 }
 
@@ -26,17 +27,26 @@ func (ctx *Context) Run(path string) (string, error) {
 	}
 
 	ast.Walk(ctx, pf)
+	fmt.Fprintf(ctx.buf, "\n")
 	// ctx.printSels(pf.Decls)
 	return ctx.buf.String(), nil
+}
+
+func (ctx *Context) out(v interface{}) {
+	ws := []byte("                                              ")
+	format := append(ws[:ctx.level*2], "%s"...)
+	fmt.Fprintf(ctx.buf, string(format), v)
 }
 
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	switch v := node.(type) {
 	case *ast.BlockStmt:
 		fmt.Fprintf(ctx.buf, "{\n")
+		ctx.level = ctx.level + 1
 		for _, node := range v.List {
 			ast.Walk(ctx, node)
 		}
+		ctx.level = ctx.level - 1
 		fmt.Fprintf(ctx.buf, " }")
 		// ast.Walk(ctx, v.List)
 		// fmt.Fprintf(ctx.buf, "}")
@@ -96,7 +106,8 @@ func printSelDecl(ctx *Context, n ast.Node) {
 
 func printRuleSpec(ctx *Context, n ast.Node) {
 	spec := n.(*ast.RuleSpec)
-	fmt.Fprintf(ctx.buf, "%s:", spec.Name)
+	ctx.out(spec.Name.String() + ": ")
+	// fmt.Fprintf(ctx.buf, "%s:", spec.Name)
 }
 
 func printValueSpec(ctx *Context, n ast.Node) {
