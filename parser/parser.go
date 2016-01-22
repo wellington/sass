@@ -2320,10 +2320,15 @@ func (p *parser) parseSelDecl() *ast.SelDecl {
 	if p.trace {
 		defer un(trace(p, "SelDecl"))
 	}
+	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	scope := ast.NewScope(p.topScope)
 	decl := &ast.SelDecl{
 		TokPos: pos,
+		Name: &ast.Ident{
+			NamePos: pos,
+			Name:    lit,
+		},
 	}
 	decl.Tok = p.tok
 	body := p.parseBody(scope)
@@ -2336,13 +2341,18 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	if p.trace {
 		defer un(trace(p, "RuleDecl"))
 	}
+	var list []ast.Spec
+	list = append(list, &ast.RuleSpec{
+		Name: &ast.Ident{
+			Name: p.lit,
+		},
+	})
 	pos := p.expect(token.RULE)
 	decl := &ast.GenDecl{
 		TokPos: pos,
 		Tok:    p.tok,
 	}
 	p.expect(token.COLON)
-	var list []ast.Spec
 	f := p.inferValueSpec
 	for iota := 0; p.tok != token.SEMICOLON &&
 		p.tok != token.RBRACE &&
@@ -2360,6 +2370,7 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		}
 	}
 	decl.Specs = list
+	fmt.Println("WUT", decl.Specs)
 	p.expectSemi()
 
 	return decl

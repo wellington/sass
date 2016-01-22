@@ -903,6 +903,10 @@ type (
 		Decl *SelDecl
 	}
 
+	RuleSpec struct {
+		Name *Ident
+	}
+
 	IncludeSpec struct {
 		Name   *Ident
 		Params *FieldList // (incoming) parameters; or nil
@@ -919,6 +923,10 @@ func (s *MediaSpec) Pos() token.Pos {
 }
 
 func (s *SelSpec) Pos() token.Pos {
+	return s.Name.Pos()
+}
+
+func (s *RuleSpec) Pos() token.Pos {
 	return s.Name.Pos()
 }
 
@@ -940,6 +948,10 @@ func (s *TypeSpec) Pos() token.Pos  { return s.Name.Pos() }
 
 func (s *MediaSpec) End() token.Pos { return s.Name.End() }
 func (s *SelSpec) End() token.Pos {
+	return s.Name.End()
+}
+
+func (s *RuleSpec) End() token.Pos {
 	return s.Name.End()
 }
 
@@ -974,6 +986,7 @@ func (*TypeSpec) specNode()    {}
 func (*SelSpec) specNode()     {}
 func (*IncludeSpec) specNode() {}
 func (*MediaSpec) specNode()   {}
+func (*RuleSpec) specNode()    {}
 
 // A declaration is represented by one of the following declaration nodes.
 //
@@ -1019,6 +1032,7 @@ type (
 	//
 	// As a shortcut, RULE are identified as token.IDENT
 	SelDecl struct {
+		Name   *Ident
 		Doc    *CommentGroup
 		TokPos token.Pos
 		Tok    token.Token

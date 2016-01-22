@@ -20,9 +20,9 @@ func TestParse_files(t *testing.T) {
 	mode = Trace | ParseComments
 	for _, name := range inputs {
 
-		// if !strings.Contains(name, "23_") {
-		// 	continue
-		// }
+		if !strings.Contains(name, "01_") {
+			// continue
+		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {
 			continue
