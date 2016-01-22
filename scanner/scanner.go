@@ -399,7 +399,9 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	tok = token.ILLEGAL
 	pos = s.file.Pos(offs)
 	var loop int
-	for !strings.ContainsRune(";{}()", s.ch) && s.ch != -1 {
+
+	for !strings.ContainsRune(";#{}()", s.ch) && s.ch != -1 {
+
 		loop++
 		if loop > 10 {
 			fmt.Println("loop detected:", string(s.ch))
@@ -415,13 +417,17 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 
 	sel := s.src[offs:s.offset]
 	ch := s.ch
-
+	// This is where we should evaluate the next rune and then kick back up
+	// for more scanning
 	switch ch {
 	case '{':
 		return pos, token.SELECTOR,
 			string(bytes.TrimSpace(sel))
+	case ':':
+		return pos, token.RULE,
+			string(bytes.TrimSpace(sel))
 	}
-
+	fmt.Println("rewinding", string(sel))
 	s.rewind(offs)
 	return
 	// case '(':
@@ -478,6 +484,7 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 		s.ch == '#' ||
 		// For now, just eat interpolations
 		s.ch == end {
+
 		ch = s.ch
 		s.next()
 
@@ -615,7 +622,7 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 		tok = token.IDENT
 	default:
 		// Not sure, this requires more specifics
-		fmt.Println("fallback", lit)
+		fmt.Printf("fallback because %q: %s\n", string(s.ch), lit)
 		tok = token.IDENT
 	}
 	return

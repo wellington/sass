@@ -142,9 +142,9 @@ func TestScan_selectors(t *testing.T) {
 	testScan(t, []elt{
 		{token.SELECTOR, ".color"},
 		{token.LBRACE, "{"},
-		{token.RULE, "interp#{idx}"},
+		{token.RULE, "color"},
 		{token.COLON, ":"},
-		{token.VALUE, "$blah"},
+		{token.VAR, "$blah"},
 		{token.RBRACE, "}"},
 	})
 }
