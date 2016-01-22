@@ -730,6 +730,7 @@ type (
 
 	// A SelectorStmt represents a selector "a" + block "{}"
 	SelStmt struct {
+		Name *Ident
 		Sel  token.Pos
 		Body *BlockStmt
 	}

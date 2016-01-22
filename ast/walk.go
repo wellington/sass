@@ -366,6 +366,9 @@ func Walk(v Visitor, node Node) {
 			Walk(v, n.Body)
 		}
 
+	case *SelStmt:
+		Walk(v, n.Body)
+
 	default:
 		log.Fatal(fmt.Sprintf("ast.Walk: unexpected node type %T", n))
 	}

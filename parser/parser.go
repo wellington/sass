@@ -1912,13 +1912,16 @@ func (p *parser) parseSelStmt() ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "SelStmt"))
 	}
-
+	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	scope := ast.NewScope(p.topScope)
 	body := p.parseBody(scope)
 
 	return &ast.SelStmt{
-		Sel:  pos,
+		Sel: pos,
+		Name: &ast.Ident{
+			Name: lit,
+		},
 		Body: body,
 	}
 }
@@ -2370,7 +2373,6 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		}
 	}
 	decl.Specs = list
-	fmt.Println("WUT", decl.Specs)
 	p.expectSemi()
 
 	return decl

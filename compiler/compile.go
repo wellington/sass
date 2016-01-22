@@ -3,6 +3,7 @@ package compiler
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/wellington/sass/ast"
@@ -17,6 +18,16 @@ type Context struct {
 	printers map[ast.Node]func(*Context, ast.Node)
 }
 
+func fileRun(path string) (string, error) {
+	ctx := &Context{}
+	ctx.Init()
+	out, err := ctx.Run(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return out, err
+}
+
 // Run takes a single Sass file and compiles it
 func (ctx *Context) Run(path string) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
@@ -27,7 +38,9 @@ func (ctx *Context) Run(path string) (string, error) {
 	}
 
 	ast.Walk(ctx, pf)
-	fmt.Fprintf(ctx.buf, "\n")
+	if ctx.buf.Len() > 0 {
+		ctx.out("\n")
+	}
 	// ctx.printSels(pf.Decls)
 	return ctx.buf.String(), nil
 }
@@ -71,6 +84,11 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		ctx.printers[valueSpec](ctx, v)
 	case *ast.RuleSpec:
 		ctx.printers[ruleSpec](ctx, v)
+	case *ast.SelStmt:
+		// We will need to combine parent selectors
+		// while printing these
+		ctx.printers[selStmt](ctx, v)
+		// Nothing to do
 	case nil:
 
 	default:
@@ -86,6 +104,7 @@ var (
 	valueSpec *ast.ValueSpec
 	ruleSpec  *ast.RuleSpec
 	selDecl   *ast.SelDecl
+	selStmt   *ast.SelStmt
 )
 
 func (ctx *Context) Init() {
@@ -96,12 +115,18 @@ func (ctx *Context) Init() {
 	ctx.printers[valueSpec] = printValueSpec
 	ctx.printers[ruleSpec] = printRuleSpec
 	ctx.printers[selDecl] = printSelDecl
+	ctx.printers[selStmt] = printSelStmt
 	// assign printers
+}
+
+func printSelStmt(ctx *Context, n ast.Node) {
+	stmt := n.(*ast.SelStmt)
+	ctx.out(stmt.Name.String() + " ")
 }
 
 func printSelDecl(ctx *Context, n ast.Node) {
 	decl := n.(*ast.SelDecl)
-	fmt.Fprintf(ctx.buf, "%s ", decl.Name)
+	ctx.out(decl.Name.String() + " ")
 }
 
 func printRuleSpec(ctx *Context, n ast.Node) {
@@ -126,62 +151,4 @@ func printDecl(ctx *Context, ident ast.Node) {
 func printIdent(ctx *Context, ident ast.Node) {
 	fmt.Printf("% #v\n", ident)
 	fmt.Fprintf(ctx.buf, "%s", ident)
-}
-
-func (ctx *Context) printSels(decls []ast.Decl) {
-	for _, decl := range decls {
-		switch v := decl.(type) {
-		case *ast.SelDecl:
-			fmt.Fprint(ctx.buf, v.Name, " ")
-			fmt.Fprint(ctx.buf, "{")
-			// fmt.Printf("body: % #v\n", v.Body)
-			ctx.printStmts(v.Body.List)
-			fmt.Fprintln(ctx.buf, " }")
-		default:
-			fmt.Printf("type: %s % #v\n", v, decl)
-		}
-	}
-}
-
-func (ctx *Context) printStmts(stmts []ast.Stmt) {
-	for _, stmt := range stmts {
-		fmt.Fprint(ctx.buf, "\n  ")
-		switch v := stmt.(type) {
-		case *ast.DeclStmt:
-			ctx.printDecl(v.Decl)
-		default:
-			fmt.Printf("defaul stmts: % #v\n", v)
-		}
-	}
-}
-
-func (ctx *Context) printDecl(decl ast.Decl) {
-	switch v := decl.(type) {
-	case *ast.GenDecl:
-		// fmt.Printf("gendecl: % #v\n", v)
-		ctx.printSpecs(v.Specs)
-	default:
-		fmt.Printf("default: % #v\n", v)
-	}
-}
-
-func (ctx *Context) printSpecs(specs []ast.Spec) {
-	for _, spec := range specs {
-		switch v := spec.(type) {
-		case *ast.RuleSpec:
-			ctx.printIdents([]*ast.Ident{v.Name})
-			fmt.Fprint(ctx.buf, ": ")
-		case *ast.ValueSpec:
-			ctx.printIdents(v.Names)
-			fmt.Fprintf(ctx.buf, ";")
-		default:
-			fmt.Printf("printSpecs: % #v\n", v)
-		}
-	}
-}
-
-func (ctx *Context) printIdents(idents []*ast.Ident) {
-	for _, ident := range idents {
-		fmt.Fprint(ctx.buf, ident.Name)
-	}
 }
