@@ -4,7 +4,10 @@
 
 package ast
 
-import "fmt"
+import (
+	"fmt"
+	"log"
+)
 
 // A Visitor's Visit method is invoked for each node encountered by Walk.
 // If the result visitor w is not nil, Walk visits each of the children
@@ -297,6 +300,8 @@ func Walk(v Visitor, node Node) {
 			Walk(v, n.Comment)
 		}
 
+	case *RuleSpec:
+
 	case *ValueSpec:
 		if n.Doc != nil {
 			Walk(v, n.Doc)
@@ -355,13 +360,14 @@ func Walk(v Visitor, node Node) {
 		// visited already through the individual
 		// nodes
 
-	case *Package:
-		for _, f := range n.Files {
-			Walk(v, f)
+		// Sass here we go
+	case *SelDecl:
+		if n.Body != nil {
+			Walk(v, n.Body)
 		}
 
 	default:
-		panic(fmt.Sprintf("ast.Walk: unexpected node type %T", n))
+		log.Fatal(fmt.Sprintf("ast.Walk: unexpected node type %T", n))
 	}
 
 	v.Visit(nil)
