@@ -19,7 +19,7 @@ type Context struct {
 	// Each time a selector is encountered, increase
 	// by one. Each time a block is exited, remove
 	// the last selector
-	sels      []string
+	sels      [][]*ast.Ident
 	firstRule bool
 	level     int
 	printers  map[ast.Node]func(*Context, ast.Node)
@@ -147,8 +147,33 @@ func (ctx *Context) blockIntro() {
 	}
 
 	// Will probably need better logic around this
-	sels := strings.Join(ctx.sels, " ")
+	sels := strings.Join(ctx.combineSels(), ", ")
 	ctx.out(fmt.Sprintf("%s {\n", sels))
+}
+
+func (ctx *Context) combineSels() []string {
+	fmt.Println("walking", ctx.sels)
+	return walkSelectors(ctx.sels)
+}
+
+func walkSelectors(in [][]*ast.Ident) []string {
+	if len(in) == 1 {
+		ret := make([]string, len(in[0]))
+		for i, ident := range in[0] {
+			ret[i] = ident.String()
+		}
+		return ret
+	}
+
+	d := in[0]
+	w := walkSelectors(in[1:])
+	var ret []string
+	for i := 0; i < len(d); i++ {
+		for j := 0; j < len(w); j++ {
+			ret = append(ret, d[i].String()+" "+w[j])
+		}
+	}
+	return ret
 }
 
 func (ctx *Context) blockOutro() {
@@ -292,14 +317,25 @@ func printExpr(ctx *Context, n ast.Node) {
 	}
 }
 
+func (ctx *Context) storeSelector(idents []*ast.Ident) {
+	fmt.Printf("storeselector %q\n", idents)
+	ctx.sels = append(ctx.sels, idents)
+	// if ctx.level >= len(ctx.sels) {
+	// 	ctx.sels = append(ctx.sels, []*ast.Ident{})
+	// }
+	//
+	// ctx.sels[ctx.level] = idents
+}
+
 func printSelStmt(ctx *Context, n ast.Node) {
 	stmt := n.(*ast.SelStmt)
-	ctx.sels = append(ctx.sels, stmt.Name.String())
+	ctx.storeSelector(stmt.Names)
 }
 
 func printSelDecl(ctx *Context, n ast.Node) {
 	decl := n.(*ast.SelDecl)
-	ctx.sels = append(ctx.sels, decl.Name.String())
+	fmt.Printf("selDecl %s\n", decl.Names)
+	ctx.storeSelector(decl.Names)
 }
 
 func printRuleSpec(ctx *Context, n ast.Node) {

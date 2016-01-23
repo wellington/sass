@@ -1,10 +1,12 @@
 package parser
 
 import (
+	"bytes"
 	"fmt"
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/scanner"
@@ -1926,10 +1928,14 @@ func (p *parser) parseSelStmt() ast.Stmt {
 	scope := ast.NewScope(p.topScope)
 	body := p.parseBody(scope)
 
+	idents := parseSelectors(lit, pos)
+
 	return &ast.SelStmt{
-		Sel: pos,
+		NamePos: pos,
+		Names:   idents,
 		Name: &ast.Ident{
-			Name: lit,
+			Name:    lit,
+			NamePos: pos,
 		},
 		Body: body,
 	}
@@ -2347,6 +2353,29 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 	}
 }
 
+// Takes an input selector and splits along separate entries
+// "a, b" => ["a", "b"]
+func parseSelectors(lit string, pos token.Pos) []*ast.Ident {
+
+	lits := strings.SplitAfter(lit, ",")
+	idents := make([]*ast.Ident, len(lits))
+	var l int
+	for i, olit := range lits {
+		lit := []byte(olit)
+		if lr, _ := utf8.DecodeLastRune(lit); lr == ',' {
+			lit = lit[:len(lit)-1]
+		}
+		lit = bytes.TrimSpace(lit)
+		idents[i] = &ast.Ident{
+			// TODO: NamePos will point to whitespace following ,
+			NamePos: pos + token.Pos(l),
+			Name:    string(lit),
+		}
+		l = l + len(olit)
+	}
+	return idents
+}
+
 func (p *parser) parseSelDecl() *ast.SelDecl {
 	if p.trace {
 		defer un(trace(p, "SelDecl"))
@@ -2355,9 +2384,12 @@ func (p *parser) parseSelDecl() *ast.SelDecl {
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	scope := ast.NewScope(p.topScope)
+	idents := parseSelectors(lit, pos)
+
 	decl := &ast.SelDecl{
+		Names:  idents,
 		TokPos: pos,
-		Name: &ast.Ident{
+		Raw: &ast.Ident{
 			NamePos: pos,
 			Name:    lit,
 		},

@@ -730,9 +730,10 @@ type (
 
 	// A SelectorStmt represents a selector "a" + block "{}"
 	SelStmt struct {
-		Name *Ident
-		Sel  token.Pos
-		Body *BlockStmt
+		Name    *Ident
+		NamePos token.Pos
+		Names   []*Ident
+		Body    *BlockStmt
 	}
 
 	// A IncludeStmt wraps an IncludeSpec
@@ -769,7 +770,7 @@ func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
-func (s *SelStmt) Pos() token.Pos        { return s.Sel }
+func (s *SelStmt) Pos() token.Pos        { return s.NamePos }
 func (s *IncludeStmt) Pos() token.Pos    { return s.Spec.Pos() }
 func (s *MediaStmt) Pos() token.Pos      { return s.Spec.Pos() }
 
@@ -1045,9 +1046,10 @@ type (
 	//
 	// As a shortcut, RULE are identified as token.IDENT
 	SelDecl struct {
-		Name   *Ident
-		Doc    *CommentGroup
+		Raw    *Ident
+		Names  []*Ident
 		TokPos token.Pos
+		Doc    *CommentGroup
 		Tok    token.Token
 		Body   *BlockStmt
 	}
