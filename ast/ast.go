@@ -891,6 +891,11 @@ type (
 		Comment *CommentGroup // line comments; or nil
 	}
 
+	// Represents rhs of : rule
+	PropValueSpec struct {
+		Name *Ident
+	}
+
 	// A TypeSpec node represents a type declaration (TypeSpec production).
 	TypeSpec struct {
 		Doc     *CommentGroup // associated documentation; or nil
@@ -944,8 +949,9 @@ func (s *ImportSpec) Pos() token.Pos {
 	return s.Path.Pos()
 }
 
-func (s *ValueSpec) Pos() token.Pos { return s.Names[0].Pos() }
-func (s *TypeSpec) Pos() token.Pos  { return s.Name.Pos() }
+func (s *ValueSpec) Pos() token.Pos     { return s.Names[0].Pos() }
+func (s *PropValueSpec) Pos() token.Pos { return s.Name.Pos() }
+func (s *TypeSpec) Pos() token.Pos      { return s.Name.Pos() }
 
 func (s *MediaSpec) End() token.Pos { return s.Name.End() }
 func (s *SelSpec) End() token.Pos {
@@ -967,6 +973,10 @@ func (s *ImportSpec) End() token.Pos {
 	return s.Path.End()
 }
 
+func (s *PropValueSpec) End() token.Pos {
+	return s.Name.End()
+}
+
 func (s *ValueSpec) End() token.Pos {
 	if n := len(s.Values); n > 0 {
 		return s.Values[n-1].End()
@@ -981,13 +991,14 @@ func (s *TypeSpec) End() token.Pos { return s.Type.End() }
 // specNode() ensures that only spec nodes can be
 // assigned to a Spec.
 //
-func (*ImportSpec) specNode()  {}
-func (*ValueSpec) specNode()   {}
-func (*TypeSpec) specNode()    {}
-func (*SelSpec) specNode()     {}
-func (*IncludeSpec) specNode() {}
-func (*MediaSpec) specNode()   {}
-func (*RuleSpec) specNode()    {}
+func (*ImportSpec) specNode()    {}
+func (*ValueSpec) specNode()     {}
+func (*PropValueSpec) specNode() {}
+func (*TypeSpec) specNode()      {}
+func (*SelSpec) specNode()       {}
+func (*IncludeSpec) specNode()   {}
+func (*MediaSpec) specNode()     {}
+func (*RuleSpec) specNode()      {}
 
 // A declaration is represented by one of the following declaration nodes.
 //

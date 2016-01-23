@@ -39,16 +39,19 @@ func findPaths() []file {
 
 func TestRun(t *testing.T) {
 	files := findPaths()
-
-	for _, file := range files {
-		fmt.Println("reading", file.input)
-		out, err := fileRun(file.input)
+	var f file
+	defer func() {
+		fmt.Println("exited on: ", f.input)
+	}()
+	for _, f = range files {
+		fmt.Println("reading", f.input)
+		out, err := fileRun(f.input)
 		if err != nil {
-			log.Println("failed to compile", file.input, err)
+			log.Println("failed to compile", f.input, err)
 		}
 
-		if e := string(file.expect); e != out {
-			t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+		if e := string(f.expect); e != out {
+			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 		}
 	}
 

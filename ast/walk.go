@@ -302,6 +302,9 @@ func Walk(v Visitor, node Node) {
 
 	case *RuleSpec:
 
+	case *PropValueSpec:
+		Walk(v, n.Name)
+
 	case *ValueSpec:
 		if n.Doc != nil {
 			Walk(v, n.Doc)

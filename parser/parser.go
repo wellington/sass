@@ -2166,21 +2166,38 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
-	idents := []*ast.Ident{&ast.Ident{
+	ident := &ast.Ident{
 		Name: name,
-	}}
-	spec := &ast.ValueSpec{
-		Doc:   doc,
-		Names: idents,
-		// Type:    values[0],
-		Values:  values,
-		Comment: p.lineComment,
+	}
+	var spec ast.Spec
+	switch keyword {
+	case token.VAR:
+		if lhs {
+			spec = &ast.ValueSpec{
+				Doc:     doc,
+				Names:   []*ast.Ident{ident},
+				Comment: p.lineComment,
+				Values:  values,
+			}
+		} else {
+			spec = &ast.ValueSpec{
+				Doc:   doc,
+				Names: []*ast.Ident{ident},
+				// Type:    values[0],
+				// Values:  values,
+				Comment: p.lineComment,
+			}
+		}
+	default:
+		spec = &ast.PropValueSpec{
+			Name: ident,
+		}
 	}
 	kind := ast.Con
 	if keyword == token.VAR {
 		kind = ast.Var
 	}
-	p.declare(spec, iota, p.topScope, kind, idents...)
+	p.declare(spec, iota, p.topScope, kind, ident)
 	return spec
 
 }
