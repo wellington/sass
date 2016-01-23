@@ -24,16 +24,19 @@ type Context struct {
 	level     int
 	printers  map[ast.Node]func(*Context, ast.Node)
 
-	typ Typ
+	typ Scope
 }
 
 // stores types and values with scoping. To remove a scope
 // use CloseScope(), to open a new Scope use OpenScope().
-type Typ interface {
+type Scope interface {
 	// OpenScope() Typ
 	// CloseScope() Typ
 	Get(string) interface{}
 	Set(string, interface{})
+	// Number of Rules in this scope
+	RuleAdd(*ast.RuleSpec)
+	RuleLen() int
 }
 
 var (
@@ -48,33 +51,50 @@ func (*emptyTyp) Get(name string) interface{} {
 
 func (*emptyTyp) Set(name string, _ interface{}) {}
 
-type valueTyp struct {
-	Typ
-	m map[string]interface{}
+func (*emptyTyp) RuleLen() int { return 0 }
+
+func (*emptyTyp) RuleAdd(*ast.RuleSpec) {}
+
+type valueScope struct {
+	Scope
+	rules []*ast.RuleSpec
+	m     map[string]interface{}
 }
 
-func (t *valueTyp) Get(name string) interface{} {
-	return t.m[name]
+func (t *valueScope) RuleAdd(rule *ast.RuleSpec) {
+	t.rules = append(t.rules, rule)
 }
 
-func (t *valueTyp) Set(name string, v interface{} /* should this just be string? */) {
+func (t *valueScope) RuleLen() int {
+	return len(t.rules)
+}
+
+func (t *valueScope) Get(name string) interface{} {
+	val, ok := t.m[name]
+	if ok {
+		return val
+	}
+	return t.Scope.Get(name)
+}
+
+func (t *valueScope) Set(name string, v interface{} /* should this just be string? */) {
 	t.m[name] = v
 }
 
-func NewTyp() Typ {
-	return &valueTyp{Typ: empty, m: make(map[string]interface{})}
+func NewTyp() Scope {
+	return &valueScope{Scope: empty, m: make(map[string]interface{})}
 }
 
-func NewScope(typ Typ) Typ {
-	return &valueTyp{Typ: typ, m: make(map[string]interface{})}
+func NewScope(s Scope) Scope {
+	return &valueScope{Scope: s, m: make(map[string]interface{})}
 }
 
-func CloseScope(typ Typ) Typ {
-	s, ok := typ.(*valueTyp)
+func CloseScope(typ Scope) Scope {
+	s, ok := typ.(*valueScope)
 	if !ok {
 		return typ
 	}
-	return s.Typ
+	return s.Scope
 }
 
 func fileRun(path string) (string, error) {
@@ -108,46 +128,70 @@ func (ctx *Context) Run(path string) (string, error) {
 
 // out prints with the appropriate indention, selectors always have indent
 // 0
-func (ctx *Context) out(v interface{}) {
-	// ws := []byte("                                              ")
-	// format := append(ws[:ctx.level*2], "%s"...)
-	fmt.Fprintf(ctx.buf, "%s", v)
+func (ctx *Context) out(v string) {
+	fr, _ := utf8.DecodeRuneInString(v)
+	if fr == '\n' {
+		fmt.Fprintf(ctx.buf, v)
+		return
+	}
+	ws := []byte("                                              ")
+	format := append(ws[:ctx.level*2], "%s"...)
+	fmt.Fprintf(ctx.buf, string(format), v)
 }
 
 func (ctx *Context) blockIntro() {
-	if !ctx.firstRule {
-		panic("intro twice")
-	}
+
 	ctx.firstRule = false
+	if ctx.buf.Len() > 0 && ctx.level == 0 {
+		ctx.out("\n\n")
+	}
+
 	// Will probably need better logic around this
 	sels := strings.Join(ctx.sels, " ")
-	fmt.Fprintf(ctx.buf, "%s {\n", sels)
+	ctx.out(fmt.Sprintf("%s {\n", sels))
 }
 
 func (ctx *Context) blockOutro() {
+	var skipParen bool
+	if len(ctx.sels) > 0 {
+		ctx.sels = ctx.sels[:len(ctx.sels)-1]
+	}
 	if ctx.firstRule {
 		return
-		fmt.Println("empty rule?")
 	}
+
 	ctx.firstRule = true
-	ctx.sels = ctx.sels[:len(ctx.sels)-1]
-	if len(ctx.sels) != ctx.level {
-		panic(fmt.Sprintf("level mismatch lvl:%d sels:%d",
-			ctx.level,
-			len(ctx.sels)))
+	// if len(ctx.sels) != ctx.level {
+	// 	panic(fmt.Sprintf("level mismatch lvl:%d sels:%d",
+	// 		ctx.level,
+	// 		len(ctx.sels)))
+	// }
+	if !skipParen {
+		fmt.Fprintf(ctx.buf, " }")
+		// ctx.out(" }")
 	}
-	fmt.Fprintf(ctx.buf, " }\n")
+	// fmt.Fprintf(ctx.buf, " }")
 }
 
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		ctx.level = ctx.level + 1
+		if ctx.typ.RuleLen() > 0 {
+			ctx.level = ctx.level + 1
+
+			// fmt.Println("closing because of", ctx.typ.(*valueScope).rules)
+			// Close the previous spec if any rules exist in it
+			fmt.Fprintf(ctx.buf, " }\n")
+		}
+		ctx.typ = NewScope(ctx.typ)
 		ctx.firstRule = true
 		for _, node := range v.List {
 			ast.Walk(ctx, node)
 		}
-		ctx.level = ctx.level - 1
+		if ctx.level > 0 {
+			ctx.level = ctx.level - 1
+		}
+		ctx.typ = CloseScope(ctx.typ)
 		ctx.blockOutro()
 		ctx.firstRule = true
 		// ast.Walk(ctx, v.List)
@@ -223,6 +267,8 @@ func (ctx *Context) Init() {
 func printExpr(ctx *Context, n ast.Node) {
 	switch v := n.(type) {
 	case *ast.BasicLit:
+		return
+		fmt.Println("basic lit", v.Value)
 		ctx.out(v.Value)
 	}
 }
@@ -243,14 +289,17 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 	// so selectors don't get printed twice
 	if ctx.firstRule {
 		ctx.blockIntro()
+	} else {
+		ctx.out("\n")
 	}
 	spec := n.(*ast.RuleSpec)
+	ctx.typ.RuleAdd(spec)
 	ctx.out(fmt.Sprintf("  %s: ", spec.Name))
 }
 
 func printPropValueSpec(ctx *Context, n ast.Node) {
 	spec := n.(*ast.PropValueSpec)
-	ctx.out(spec.Name.String() + ";")
+	fmt.Fprintf(ctx.buf, spec.Name.String()+";")
 }
 
 // Variable declarations
@@ -263,26 +312,39 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 	}
 
 	if len(spec.Values) > 0 {
-		ctx.typ.Set(names[0], simplifyExprs(spec.Values))
+		ctx.typ.Set(names[0], simplifyExprs(ctx, spec.Values))
 	} else {
 		ctx.out(fmt.Sprintf("%s;", ctx.typ.Get(names[0])))
 	}
 	// ctx.out(fmt.Sprintf("%s;", strings.Join(names, " ")))
 }
 
-func simplifyExprs(exprs []ast.Expr) string {
-	var sum string
+func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
+	var sums []string
 	for _, expr := range exprs {
+		// fmt.Printf("expr: % #v\n", expr)
 		switch v := expr.(type) {
 		case *ast.Ident:
-			sum += v.Name
+			if v.Obj == nil {
+				sums = append(sums, v.Name)
+				continue
+			}
+			switch v.Obj.Kind {
+			case ast.Var:
+				s, ok := ctx.typ.Get(v.Obj.Name).(string)
+				if ok {
+					sums = append(sums, s)
+				}
+			default:
+				fmt.Println("unsupported obj kind")
+			}
 		case *ast.BasicLit:
-			sum += v.Value
+			sums = append(sums, v.Value)
 		default:
 			log.Fatalf("unhandled expr: % #v\n", v)
 		}
 	}
-	return sum
+	return strings.Join(sums, " ")
 }
 
 func printDecl(ctx *Context, ident ast.Node) {
@@ -290,6 +352,5 @@ func printDecl(ctx *Context, ident ast.Node) {
 }
 
 func printIdent(ctx *Context, ident ast.Node) {
-	fmt.Printf("% #v\n", ident)
-	fmt.Fprintf(ctx.buf, "%s", ident)
+	ctx.out(ident.(*ast.Ident).String())
 }

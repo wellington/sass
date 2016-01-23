@@ -694,7 +694,9 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "inferExpr"))
 	}
+	var expr ast.Expr
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
+	expr = basic
 	switch p.tok {
 	case token.QSSTRING:
 		basic.Kind = token.QSSTRING
@@ -711,18 +713,23 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	case token.RULE:
 		basic.Kind = token.RULE
 	case token.VAR:
-		basic = &ast.BasicLit{
-			ValuePos: p.pos,
-			Value:    p.lit,
-			Kind:     token.VAR,
+		expr = &ast.Ident{
+			NamePos: p.pos,
+			Name:    p.lit,
+			Obj:     ast.NewObj(ast.Var, p.lit),
 		}
+		// basic = &ast.BasicLit{
+		// 	ValuePos: p.pos,
+		// 	Value:    p.lit,
+		// 	Kind:     token.VAR,
+		// }
 	default:
 		// p.errorExpected(p.pos, "inferExpr match")
 		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
 	// Always be steppin'
 	p.next()
-	return basic
+	return expr
 }
 
 func (p *parser) parseSassType() ast.Expr {

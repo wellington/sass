@@ -20,8 +20,12 @@ func findPaths() []file {
 		log.Fatal(err)
 	}
 
-	files := make([]file, len(inputs))
-	for i, input := range inputs {
+	var files []file
+	// files := make([]file, len(inputs))
+	for _, input := range inputs {
+		if !strings.Contains(input, "05_") {
+			// continue
+		}
 		exp, err := ioutil.ReadFile(strings.Replace(input,
 			"input.scss", "expected_output.css", 1))
 		if err != nil {
@@ -29,10 +33,10 @@ func findPaths() []file {
 			continue
 		}
 
-		files[i] = file{
+		files = append(files, file{
 			input:  input,
 			expect: exp,
-		}
+		})
 	}
 	return files
 }
@@ -46,11 +50,12 @@ func TestRun(t *testing.T) {
 	for _, f = range files {
 		fmt.Println("reading", f.input)
 		out, err := fileRun(f.input)
+		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
 			log.Println("failed to compile", f.input, err)
 		}
 
-		if e := string(f.expect); e != out {
+		if e := string(f.expect); e != sout {
 			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 		}
 	}
