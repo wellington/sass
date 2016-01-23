@@ -161,11 +161,6 @@ func (ctx *Context) blockOutro() {
 	}
 
 	ctx.firstRule = true
-	// if len(ctx.sels) != ctx.level {
-	// 	panic(fmt.Sprintf("level mismatch lvl:%d sels:%d",
-	// 		ctx.level,
-	// 		len(ctx.sels)))
-	// }
 	if !skipParen {
 		fmt.Fprintf(ctx.buf, " }")
 		// ctx.out(" }")
@@ -174,6 +169,8 @@ func (ctx *Context) blockOutro() {
 }
 
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
+
+	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
 		if ctx.typ.RuleLen() > 0 {
@@ -224,6 +221,10 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		// while printing these
 		ctx.printers[selStmt](ctx, v)
 		// Nothing to do
+	case *ast.CommentGroup:
+		key = comments
+	case *ast.Comment:
+		key = comment
 	case *ast.BasicLit:
 		ctx.printers[expr](ctx, v)
 	case nil:
@@ -232,6 +233,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
 	}
+	ctx.printers[key](ctx, node)
 	return ctx
 }
 
@@ -245,6 +247,8 @@ var (
 	selStmt   *ast.SelStmt
 	propSpec  *ast.PropValueSpec
 	typeSpec  *ast.TypeSpec
+	comments  *ast.CommentGroup
+	comment   *ast.Comment
 )
 
 func (ctx *Context) Init() {
@@ -259,9 +263,24 @@ func (ctx *Context) Init() {
 	ctx.printers[selStmt] = printSelStmt
 	ctx.printers[propSpec] = printPropValueSpec
 	ctx.printers[expr] = printExpr
+	ctx.printers[comments] = printComments
+	ctx.printers[comment] = printComment
 	ctx.typ = NewScope(empty)
 	// ctx.printers[typeSpec] = visitTypeSpec
 	// assign printers
+}
+
+func printComments(ctx *Context, n ast.Node) {
+	cmts := n.(*ast.CommentGroup)
+
+	for _, cmt := range cmts.List {
+		printComment(ctx, cmt)
+	}
+}
+
+func printComment(ctx *Context, n ast.Node) {
+	cmt := n.(*ast.Comment)
+	ctx.out(cmt.Text)
 }
 
 func printExpr(ctx *Context, n ast.Node) {

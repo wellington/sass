@@ -63,6 +63,7 @@ func Walk(v Visitor, node Node) {
 	// Comments and fields
 	case *Comment:
 		// nothing to do
+		// fmt.Printf("comment! % #v\n", n)
 
 	case *CommentGroup:
 		for _, c := range n.List {
@@ -301,7 +302,9 @@ func Walk(v Visitor, node Node) {
 		}
 
 	case *RuleSpec:
-
+		if n.Comment != nil {
+			Walk(v, n.Comment)
+		}
 	case *PropValueSpec:
 		Walk(v, n.Name)
 
@@ -365,6 +368,9 @@ func Walk(v Visitor, node Node) {
 
 		// Sass here we go
 	case *SelDecl:
+		if n.Doc != nil {
+			Walk(v, n.Doc)
+		}
 		if n.Body != nil {
 			Walk(v, n.Body)
 		}

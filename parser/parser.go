@@ -23,9 +23,10 @@ type parser struct {
 	indent int  // indentation used for tracing output
 
 	// Comments
-	comments    []*ast.CommentGroup
-	leadComment *ast.CommentGroup // last lead comment
-	lineComment *ast.CommentGroup // last line comment
+	attachComment []*ast.CommentGroup // Comments to attach to decl/spec
+	comments      []*ast.CommentGroup
+	leadComment   *ast.CommentGroup // last lead comment
+	lineComment   *ast.CommentGroup // last line comment
 
 	// Next token
 	pos token.Pos   // token position
@@ -257,6 +258,7 @@ func (p *parser) consumeComment() (comment *ast.Comment, endline int) {
 	}
 
 	comment = &ast.Comment{Slash: p.pos, Text: p.lit}
+	fmt.Printf("comment % #v\n", comment)
 	p.next0()
 
 	return
@@ -1234,9 +1236,9 @@ func (p *parser) parseSelector(x ast.Expr) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "Selector"))
 	}
-
+	fmt.Println("parse ident", p.comments)
 	sel := p.parseIdent()
-
+	fmt.Println("selector comment", p.comments)
 	return &ast.SelectorExpr{X: x, Sel: sel}
 }
 
@@ -2129,7 +2131,7 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 	if p.trace {
 		defer un(trace(p, keyword.String()+"InferSelSpec"))
 	}
-
+	fmt.Println("inferSel", p.lineComment)
 	decl := p.parseSelDecl()
 
 	return &ast.SelSpec{
@@ -2141,7 +2143,8 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	if p.trace {
 		defer un(trace(p, keyword.String()+"InferValueSpec"))
 	}
-
+	fmt.Println("INFER LINE COMMENT", p.lineComment)
+	fmt.Println("INFER COMMENT!", p.comments)
 	name := p.lit
 	tok := p.tok
 	// Type has to be derived from the values being set
@@ -2174,7 +2177,8 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// the end of the innermost containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
 	ident := &ast.Ident{
-		Name: name,
+		Name:    name,
+		NamePos: p.pos,
 	}
 	var spec ast.Spec
 	switch keyword {
@@ -2347,6 +2351,7 @@ func (p *parser) parseSelDecl() *ast.SelDecl {
 	if p.trace {
 		defer un(trace(p, "SelDecl"))
 	}
+
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	scope := ast.NewScope(p.topScope)
@@ -2370,8 +2375,11 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	}
 	var list []ast.Spec
 	list = append(list, &ast.RuleSpec{
+		Comment: p.lineComment,
 		Name: &ast.Ident{
-			Name: p.lit,
+			NamePos: p.pos,
+			Name:    p.lit,
+			// Comment: p.comments,
 		},
 	})
 	pos := p.expect(token.RULE)
@@ -2526,7 +2534,8 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	if p.trace {
 		defer un(trace(p, "Declaration"))
 	}
-
+	fmt.Println("decl comment", p.comments)
+	fmt.Println("decl commentLine", p.lineComment)
 	var f parseSpecFunction
 	switch p.tok {
 	case token.VAR:
@@ -2593,7 +2602,7 @@ func (p *parser) parseFile() *ast.File {
 	// 	for p.tok == token.IMPORT {
 	// 		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
 	// 	}
-
+	fmt.Println("lineComment", p.lineComment)
 	if p.mode&ImportsOnly == 0 {
 		// rest of package body
 		for p.tok != token.EOF {

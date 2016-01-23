@@ -910,7 +910,8 @@ type (
 	}
 
 	RuleSpec struct {
-		Name *Ident
+		Name    *Ident
+		Comment *CommentGroup
 	}
 
 	IncludeSpec struct {
