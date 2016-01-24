@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
@@ -538,7 +539,11 @@ func (p *parser) parseIdent() *ast.Ident {
 	} else {
 		p.expect(token.IDENT) // use expect() error handling
 	}
-	return &ast.Ident{NamePos: pos, Name: name}
+
+	return &ast.Ident{
+		NamePos: pos,
+		Name:    name,
+	}
 }
 
 func (p *parser) parseIdentList() (list []*ast.Ident) {
@@ -1252,9 +1257,8 @@ func (p *parser) parseSelector(x ast.Expr) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "Selector"))
 	}
-	fmt.Println("parse ident", p.comments)
 	sel := p.parseIdent()
-	fmt.Println("selector comment", p.comments)
+
 	return &ast.SelectorExpr{X: x, Sel: sel}
 }
 
@@ -2354,7 +2358,28 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 	}
 }
 
-// Takes an input selector and splits along separate entries
+var regWs = regexp.MustCompile("\\s+").ReplaceAllLiteral
+var regEql = regexp.MustCompile("\\s*(\\*?=)\\s*").ReplaceAll
+var regBkt = regexp.MustCompile("\\s*(\\[)\\s*(\\S+)\\s*(\\])").ReplaceAll
+
+// Applies unique spacing rules to selectors
+// a  +  b => a + b
+// [hey = 'ho'] => [hey='ho']
+func trimSelSpace(lit []byte) []byte {
+	// Regexps are the worst way to do this
+
+	// Remove extra spaces
+	lit = regWs(lit, []byte(" "))
+	fmt.Println(string(lit))
+	lit = regEql(lit, []byte("$1"))
+	lit = regBkt(lit, []byte("$1$2$3"))
+	fmt.Println("after", string(lit))
+	// Remove spaces around '=' blocks
+
+	return lit
+}
+
+// Breaks selectors into individual groups
 // "a, b" => ["a", "b"]
 func parseSelectors(lit string, pos token.Pos) []*ast.Ident {
 
@@ -2370,7 +2395,7 @@ func parseSelectors(lit string, pos token.Pos) []*ast.Ident {
 		idents[i] = &ast.Ident{
 			// TODO: NamePos will point to whitespace following ,
 			NamePos: pos + token.Pos(l),
-			Name:    string(lit),
+			Name:    string(trimSelSpace(lit)),
 		}
 		l = l + len(olit)
 	}
