@@ -152,7 +152,6 @@ func (ctx *Context) blockIntro() {
 }
 
 func (ctx *Context) combineSels() []string {
-	fmt.Println("walking", ctx.sels)
 	return walkSelectors(ctx.sels)
 }
 
@@ -220,40 +219,34 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		// fmt.Fprintf(ctx.buf, "}")
 		return nil
 	case *ast.SelDecl:
-		ctx.printers[selDecl](ctx, v)
-	case *ast.File:
+		key = selDecl
+	case *ast.File, *ast.GenDecl, *ast.Value:
 		// Nothing to print for these
-	case *ast.GenDecl:
-
 	case *ast.Ident:
 		// The first IDENT is always the filename, just preserve
 		// it somewhere
-		if ctx.fileName == nil {
-			ctx.fileName = ident
-			return ctx
-		}
-		ctx.printers[ident](ctx, v)
+		key = ident
 	case *ast.PropValueSpec:
-		ctx.printers[propSpec](ctx, v)
+		key = propSpec
 	case *ast.DeclStmt:
-		ctx.printers[declStmt](ctx, v)
+		key = declStmt
 	case *ast.ValueSpec:
-		ctx.printers[valueSpec](ctx, v)
+		key = valueSpec
 	case *ast.RuleSpec:
-		ctx.printers[ruleSpec](ctx, v)
+		key = ruleSpec
 	case *ast.SelStmt:
 		// We will need to combine parent selectors
 		// while printing these
-		ctx.printers[selStmt](ctx, v)
+		key = selStmt
 		// Nothing to do
 	case *ast.CommentGroup:
 		key = comments
 	case *ast.Comment:
 		key = comment
 	case *ast.BasicLit:
-		ctx.printers[expr](ctx, v)
+		key = expr
 	case nil:
-
+		return ctx
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
@@ -310,10 +303,12 @@ func printComment(ctx *Context, n ast.Node) {
 
 func printExpr(ctx *Context, n ast.Node) {
 	switch v := n.(type) {
+	case *ast.File:
 	case *ast.BasicLit:
-		return
-		fmt.Println("basic lit", v.Value)
-		ctx.out(v.Value)
+		ctx.out(v.Value + ";")
+	case *ast.Value:
+	default:
+		// fmt.Printf("unmatched expr %T: % #v\n", v, v)
 	}
 }
 
@@ -334,7 +329,6 @@ func printSelStmt(ctx *Context, n ast.Node) {
 
 func printSelDecl(ctx *Context, n ast.Node) {
 	decl := n.(*ast.SelDecl)
-	fmt.Printf("selDecl %s\n", decl.Names)
 	ctx.storeSelector(decl.Names)
 }
 
@@ -367,7 +361,9 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 	}
 
 	if len(spec.Values) > 0 {
-		ctx.typ.Set(names[0], simplifyExprs(ctx, spec.Values))
+		expr := simplifyExprs(ctx, spec.Values)
+		fmt.Printf("setting %12s: %-10v\n", names[0], expr)
+		ctx.typ.Set(names[0], expr)
 	} else {
 		ctx.out(fmt.Sprintf("%s;", ctx.typ.Get(names[0])))
 	}
@@ -379,7 +375,27 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 	for _, expr := range exprs {
 		// fmt.Printf("expr: % #v\n", expr)
 		switch v := expr.(type) {
+		case *ast.Value:
+			// if v.Obj == nil {
+			s, ok := ctx.typ.Get(v.Name).(string)
+			if ok {
+				sums = append(sums, s)
+			} else {
+				sums = append(sums, v.Name)
+			}
+			continue
+			// }
+			// switch v.Obj.Kind {
+			// case ast.Var:
+			// 	s, ok := ctx.typ.Get(v.Obj.Name).(string)
+			// 	if ok {
+			// 		sums = append(sums, s)
+			// 	}
+			// default:
+			// 	fmt.Println("unsupported obj kind")
+			// }
 		case *ast.Ident:
+			fmt.Printf("Ident % #v\n", v)
 			if v.Obj == nil {
 				sums = append(sums, v.Name)
 				continue
@@ -394,7 +410,16 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				fmt.Println("unsupported obj kind")
 			}
 		case *ast.BasicLit:
-			sums = append(sums, v.Value)
+			fmt.Printf("BasicLit % #v\n", v)
+			switch v.Kind {
+			case token.VAR:
+				s, ok := ctx.typ.Get(v.Value).(string)
+				if ok {
+					sums = append(sums, s)
+				}
+			default:
+				sums = append(sums, v.Value)
+			}
 		default:
 			log.Fatalf("unhandled expr: % #v\n", v)
 		}
@@ -402,10 +427,17 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 	return strings.Join(sums, " ")
 }
 
-func printDecl(ctx *Context, ident ast.Node) {
+func printDecl(ctx *Context, node ast.Node) {
 	// I think... nothing to print we'll see
 }
 
-func printIdent(ctx *Context, ident ast.Node) {
-	ctx.out(ident.(*ast.Ident).String())
+func printIdent(ctx *Context, node ast.Node) {
+	// don't print these
+	ident := node.(*ast.Ident)
+	resolved := ctx.typ.Get(ident.String())
+	if resolved != nil {
+		ctx.out(resolved.(string) + ";")
+	} else {
+		ctx.out(ident.String() + ";")
+	}
 }

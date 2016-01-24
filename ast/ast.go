@@ -242,6 +242,13 @@ type (
 		Obj     *Object   // denoted object; or nil
 	}
 
+	Value struct {
+		NamePos token.Pos
+		Name    string
+		Obj     *Object
+		Kind    token.Token
+	}
+
 	// An Interp node represents a string that can be replaced like a
 	// variable
 	Interp struct {
@@ -436,6 +443,7 @@ type (
 //
 func (x *BadExpr) Pos() token.Pos  { return x.From }
 func (x *Ident) Pos() token.Pos    { return x.NamePos }
+func (x *Value) Pos() token.Pos    { return x.NamePos }
 func (x *Interp) Pos() token.Pos   { return x.NamePos }
 func (x *Ellipsis) Pos() token.Pos { return x.Ellipsis }
 func (x *BasicLit) Pos() token.Pos { return x.ValuePos }
@@ -473,6 +481,7 @@ func (x *ChanType) Pos() token.Pos      { return x.Begin }
 
 func (x *BadExpr) End() token.Pos { return x.To }
 func (x *Ident) End() token.Pos   { return token.Pos(int(x.NamePos) + len(x.Name)) }
+func (x *Value) End() token.Pos   { return token.Pos(int(x.NamePos) + len(x.Name)) }
 func (x *Interp) End() token.Pos  { return token.Pos(int(x.NamePos) + len(x.Name)) }
 func (x *Ellipsis) End() token.Pos {
 	if x.Elt != nil {
@@ -510,6 +519,7 @@ func (x *ChanType) End() token.Pos      { return x.Value.End() }
 //
 func (*BadExpr) exprNode()        {}
 func (*Ident) exprNode()          {}
+func (*Value) exprNode()          {}
 func (*Interp) exprNode()         {}
 func (*Ellipsis) exprNode()       {}
 func (*BasicLit) exprNode()       {}
@@ -913,6 +923,7 @@ type (
 	RuleSpec struct {
 		Name    *Ident
 		Comment *CommentGroup
+		Values  []Expr
 	}
 
 	IncludeSpec struct {

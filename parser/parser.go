@@ -525,6 +525,9 @@ func (p *parser) parseDirective() *ast.Ident {
 }
 
 func (p *parser) parseIdent() *ast.Ident {
+	if p.trace {
+		defer un(trace(p, "ParseIdent"))
+	}
 	pos := p.pos
 	name := "_"
 	// FIXME: parseIdent should not be responding with non-IDENT
@@ -668,7 +671,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		defer un(trace(p, "InferExprList"))
 	}
 
-	// list = append(list, p.inferExpr(lhs))
+	list = append(list, p.inferExpr(lhs))
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
@@ -2147,30 +2150,51 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 
 func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, keyword.String()+"InferValueSpec"))
+		defer un(trace(p, keyword.String()+"Spec"))
 	}
-	fmt.Println("INFER LINE COMMENT", p.lineComment)
-	fmt.Println("INFER COMMENT!", p.comments)
-	name := p.lit
-	tok := p.tok
+
+	lit := p.lit
+
+	// Move this out of inferValueSpec
+	switch p.tok {
+	case token.INCLUDE:
+		return p.parseIncludeSpec()
+	}
+
+	name := &ast.Ident{
+		Name:    lit,
+		NamePos: p.pos,
+		// Obj:     obj,
+	}
+
+	// var obj *ast.Object
+	switch p.tok {
+	case token.RULE:
+		// obj = ast.NewObj(ast.Rul, name)
+	case token.VAR:
+		// obj = ast.NewObj(ast.Var, name)
+	default:
+
+	}
+
 	// Type has to be derived from the values being set
 	// typ := p.tryType()
 	// var typ ast.Expr
 	var values []ast.Expr
 
-	var lhs bool
-	switch tok {
-	case token.INCLUDE:
-		return p.parseIncludeSpec()
-	}
+	lhs := true
 
 	p.next()
 	switch p.tok {
 	case token.LPAREN:
 		values = append(values, p.parseCallOrConversion(p.checkExprOrType(
-			&ast.BasicLit{ValuePos: p.pos, Kind: tok, Value: name})))
+			&ast.BasicLit{
+				ValuePos: p.pos,
+				Kind:     p.tok,
+				Value:    lit,
+			})))
 	case token.COLON:
-		lhs = true
+		lhs = false
 		p.next()
 		fallthrough
 	default:
@@ -2182,86 +2206,50 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// a function begins at the end of the ConstSpec or VarSpec and ends at
 	// the end of the innermost containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
-	ident := &ast.Ident{
-		Name:    name,
-		NamePos: p.pos,
-	}
 	var spec ast.Spec
 	switch keyword {
 	case token.VAR:
-		if lhs {
-			spec = &ast.ValueSpec{
-				Doc:     doc,
-				Names:   []*ast.Ident{ident},
-				Comment: p.lineComment,
-				Values:  values,
-			}
-		} else {
-			spec = &ast.ValueSpec{
-				Doc:   doc,
-				Names: []*ast.Ident{ident},
-				// Type:    values[0],
-				// Values:  values,
-				Comment: p.lineComment,
+
+		// So, to prevent printing of Var expr, change its
+		// type away from Ident
+		for i, v := range values {
+			switch vv := v.(type) {
+			case *ast.Ident:
+				values[i] = &ast.Value{
+					Name:    vv.Name,
+					NamePos: vv.NamePos,
+				}
+			case *ast.BasicLit:
+				values[i] = &ast.Value{
+					Name:    vv.Value,
+					NamePos: vv.ValuePos,
+					Kind:    vv.Kind,
+				}
 			}
 		}
+
+		spec = &ast.ValueSpec{
+			Doc:   doc,
+			Names: []*ast.Ident{name},
+			// Type:    values[0],
+			Comment: p.lineComment,
+			Values:  values,
+		}
+
 	default:
-		spec = &ast.PropValueSpec{
-			Name: ident,
+		spec = &ast.RuleSpec{
+			Name:    name,
+			Comment: p.lineComment,
+			Values:  values,
 		}
 	}
 	kind := ast.Con
 	if keyword == token.VAR {
 		kind = ast.Var
 	}
-	p.declare(spec, iota, p.topScope, kind, ident)
+	p.declare(spec, iota, p.topScope, kind, name)
 	return spec
 
-}
-
-func (p *parser) parseValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
-	if p.trace {
-		defer un(trace(p, keyword.String()+" parseValueSpec"))
-	}
-
-	pos := p.pos
-	idents := p.parseIdentList()
-
-	// Type has to be derived from the values being set
-	// typ := p.tryType()
-	// var typ ast.Expr
-	var values []ast.Expr
-	// always permit optional initialization for more tolerant parsing
-	if p.tok == token.COLON {
-		p.next()
-		values = p.inferRhsList()
-	}
-	p.expectSemi() // call before accessing p.linecomment
-
-	switch keyword {
-	case token.VAR:
-		if /*typ == nil &&*/ values == nil {
-			p.error(pos, "missing variable type or initialization")
-		}
-	}
-	// Go spec: The scope of a constant or variable identifier declared inside
-	// a function begins at the end of the ConstSpec or VarSpec and ends at
-	// the end of the innermost containing block.
-	// (Global identifiers are resolved in a separate phase after parsing.)
-	spec := &ast.ValueSpec{
-		Doc:     doc,
-		Names:   idents,
-		Type:    values[0],
-		Values:  values,
-		Comment: p.lineComment,
-	}
-	kind := ast.Con
-	if keyword == token.VAR {
-		kind = ast.Var
-	}
-	p.declare(spec, iota, p.topScope, kind) //, idents...)
-
-	return spec
 }
 
 func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
@@ -2272,6 +2260,7 @@ func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota 
 
 	var values []ast.Expr
 	pos := p.pos
+
 	switch keyword {
 	case token.VAR:
 		values = p.inferRhsList()
@@ -2342,6 +2331,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 	} else {
 		list = append(list, f(nil, keyword, 0))
 	}
+
 	p.expectSemi()
 	return &ast.GenDecl{
 		Doc:    doc,
@@ -2406,24 +2396,21 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		defer un(trace(p, "RuleDecl"))
 	}
 	var list []ast.Spec
-	list = append(list, &ast.RuleSpec{
-		Comment: p.lineComment,
-		Name: &ast.Ident{
-			NamePos: p.pos,
-			Name:    p.lit,
-			// Comment: p.comments,
-		},
-	})
-	pos := p.expect(token.RULE)
-	decl := &ast.GenDecl{
-		TokPos: pos,
-		Tok:    p.tok,
-	}
-	p.expect(token.COLON)
+	// list = append(list, &ast.RuleSpec{
+	// 	Comment: p.lineComment,
+	// 	Name: &ast.Ident{
+	// 		NamePos: p.pos,
+	// 		Name:    p.lit,
+	// 		// Comment: p.comments,
+	// 	},
+	// })
+	// pos := p.expect(token.RULE)
+	// p.expect(token.COLON)
+
 	f := p.inferValueSpec
 	for iota := 0; p.tok != token.SEMICOLON &&
 		p.tok != token.RBRACE &&
-		p.tok != token.RULE &&
+		// p.tok != token.RULE &&
 		p.tok != token.EOF; iota++ {
 
 		switch p.tok {
@@ -2431,15 +2418,19 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 			list = append(list, f(p.leadComment, p.tok, iota))
 			p.expect(token.RPAREN)
 		case token.SELECTOR:
-			list = append(list, p.inferSelSpec(p.leadComment, p.tok, iota))
+			f = p.inferSelSpec
+			list = append(list, f(p.leadComment, p.tok, iota))
 		default:
 			list = append(list, f(p.leadComment, p.tok, iota))
 		}
 	}
-	decl.Specs = list
 	p.expectSemi()
 
-	return decl
+	return &ast.GenDecl{
+		// TokPos: pos,
+		Tok:   p.tok,
+		Specs: list,
+	}
 
 }
 
@@ -2566,8 +2557,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 	if p.trace {
 		defer un(trace(p, "Declaration"))
 	}
-	fmt.Println("decl comment", p.comments)
-	fmt.Println("decl commentLine", p.lineComment)
+
 	var f parseSpecFunction
 	switch p.tok {
 	case token.VAR:
@@ -2634,7 +2624,7 @@ func (p *parser) parseFile() *ast.File {
 	// 	for p.tok == token.IMPORT {
 	// 		decls = append(decls, p.parseGenDecl(token.IMPORT, p.parseImportSpec))
 	// 	}
-	fmt.Println("lineComment", p.lineComment)
+
 	if p.mode&ImportsOnly == 0 {
 		// rest of package body
 		for p.tok != token.EOF {

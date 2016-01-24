@@ -89,8 +89,12 @@ func Walk(v Visitor, node Node) {
 		}
 
 	// Expressions
-	case *BadExpr, *Ident, *BasicLit:
+	case *BadExpr, *BasicLit:
 		// nothing to do
+
+	case *Ident:
+
+	case *Value:
 
 	case *Ellipsis:
 		if n.Elt != nil {
@@ -305,6 +309,10 @@ func Walk(v Visitor, node Node) {
 		if n.Comment != nil {
 			Walk(v, n.Comment)
 		}
+		if n.Values != nil {
+			walkExprList(v, n.Values)
+		}
+
 	case *PropValueSpec:
 		Walk(v, n.Name)
 
@@ -312,7 +320,7 @@ func Walk(v Visitor, node Node) {
 		if n.Doc != nil {
 			Walk(v, n.Doc)
 		}
-		walkIdentList(v, n.Names)
+		// walkIdentList(v, n.Names)
 		if n.Type != nil {
 			Walk(v, n.Type)
 		}
@@ -360,13 +368,12 @@ func Walk(v Visitor, node Node) {
 		if n.Doc != nil {
 			Walk(v, n.Doc)
 		}
-		Walk(v, n.Name)
+		// Walk(v, n.Name)
 		walkDeclList(v, n.Decls)
 		// don't walk n.Comments - they have been
 		// visited already through the individual
 		// nodes
 
-		// Sass here we go
 	case *SelDecl:
 		if n.Doc != nil {
 			Walk(v, n.Doc)
