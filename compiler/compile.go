@@ -405,13 +405,16 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				continue
 			}
 			switch v.Obj.Kind {
-			case ast.Var:
-				s, ok := ctx.typ.Get(v.Obj.Name).(string)
+			case ast.Var, ast.Con:
+				name := v.Obj.Name
+				s, ok := ctx.typ.Get(name).(string)
 				if ok {
 					sums = append(sums, s)
+				} else {
+					sums = append(sums, name)
 				}
 			default:
-				fmt.Println("unsupported obj kind")
+				fmt.Printf("unsupported obj kind: %s\n", v.Obj.Kind)
 			}
 		case *ast.BasicLit:
 			switch v.Kind {
@@ -427,6 +430,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 			log.Fatalf("unhandled expr: % #v\n", v)
 		}
 	}
+
 	return strings.Join(sums, " ")
 }
 
