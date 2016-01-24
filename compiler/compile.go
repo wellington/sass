@@ -256,7 +256,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.Comment:
 		key = comment
 	case *ast.BasicLit:
-		key = expr
+		return ctx
 	case nil:
 		return ctx
 	default:

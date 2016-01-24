@@ -30,6 +30,10 @@ func findPaths() []file {
 		if strings.Contains(input, "06_") {
 			continue
 		}
+		if strings.Contains(input, "13_") {
+			continue
+		}
+
 		exp, err := ioutil.ReadFile(strings.Replace(input,
 			"input.scss", "expected_output.css", 1))
 		if err != nil {
