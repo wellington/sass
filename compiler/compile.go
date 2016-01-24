@@ -135,7 +135,11 @@ func (ctx *Context) out(v string) {
 		return
 	}
 	ws := []byte("                                              ")
-	format := append(ws[:ctx.level*2], "%s"...)
+	lvl := ctx.level
+	if lvl > 1 {
+		lvl = 1
+	}
+	format := append(ws[:lvl*2], "%s"...)
 	fmt.Fprintf(ctx.buf, string(format), v)
 }
 
@@ -305,7 +309,7 @@ func printExpr(ctx *Context, n ast.Node) {
 	switch v := n.(type) {
 	case *ast.File:
 	case *ast.BasicLit:
-		ctx.out(v.Value + ";")
+		fmt.Fprintf(ctx.buf, "%s;", v.Value)
 	case *ast.Value:
 	default:
 		// fmt.Printf("unmatched expr %T: % #v\n", v, v)
@@ -315,11 +319,6 @@ func printExpr(ctx *Context, n ast.Node) {
 func (ctx *Context) storeSelector(idents []*ast.Ident) {
 	fmt.Printf("storeselector %q\n", idents)
 	ctx.sels = append(ctx.sels, idents)
-	// if ctx.level >= len(ctx.sels) {
-	// 	ctx.sels = append(ctx.sels, []*ast.Ident{})
-	// }
-	//
-	// ctx.sels[ctx.level] = idents
 }
 
 func printSelStmt(ctx *Context, n ast.Node) {
@@ -365,9 +364,8 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 		fmt.Printf("setting %12s: %-10v\n", names[0], expr)
 		ctx.typ.Set(names[0], expr)
 	} else {
-		ctx.out(fmt.Sprintf("%s;", ctx.typ.Get(names[0])))
+		fmt.Fprintf(ctx.buf, "%s;", ctx.typ.Get(names[0]))
 	}
-	// ctx.out(fmt.Sprintf("%s;", strings.Join(names, " ")))
 }
 
 func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
@@ -436,8 +434,8 @@ func printIdent(ctx *Context, node ast.Node) {
 	ident := node.(*ast.Ident)
 	resolved := ctx.typ.Get(ident.String())
 	if resolved != nil {
-		ctx.out(resolved.(string) + ";")
+		fmt.Fprint(ctx.buf, resolved.(string), ";")
 	} else {
-		ctx.out(ident.String() + ";")
+		fmt.Fprint(ctx.buf, ident, ";")
 	}
 }
