@@ -136,23 +136,49 @@ func (ctx *Context) out(v string) {
 	}
 	ws := []byte("                                              ")
 	lvl := ctx.level
-	if lvl > 1 {
-		lvl = 1
-	}
+
 	format := append(ws[:lvl*2], "%s"...)
 	fmt.Fprintf(ctx.buf, string(format), v)
 }
 
 func (ctx *Context) blockIntro() {
 
+	// this isn't a new block
+	if !ctx.firstRule {
+		fmt.Fprint(ctx.buf, "\n")
+		return
+	}
+
 	ctx.firstRule = false
-	if ctx.buf.Len() > 0 && ctx.level == 0 {
-		ctx.out("\n\n")
+
+	// Only print newlines if there is text in the buffer
+	if ctx.buf.Len() > 0 {
+		if ctx.level == 0 {
+			fmt.Fprint(ctx.buf, "\n")
+		} else {
+
+		}
 	}
 
 	// Will probably need better logic around this
 	sels := strings.Join(ctx.combineSels(), ", ")
 	ctx.out(fmt.Sprintf("%s {\n", sels))
+}
+
+func (ctx *Context) blockOutro() {
+	// Remove the innermost selector scope
+	if len(ctx.sels) > 0 {
+		ctx.sels = ctx.sels[:len(ctx.sels)-1]
+	}
+	// Don't print } if there are no rules at this level
+	if ctx.firstRule {
+		return
+	}
+
+	ctx.firstRule = true
+	// if !skipParen {
+	fmt.Fprintf(ctx.buf, " }\n")
+	// }
 }
 
 func (ctx *Context) combineSels() []string {
@@ -179,29 +205,16 @@ func walkSelectors(in [][]*ast.Ident) []string {
 	return ret
 }
 
-func (ctx *Context) blockOutro() {
-	var skipParen bool
-	if len(ctx.sels) > 0 {
-		ctx.sels = ctx.sels[:len(ctx.sels)-1]
-	}
-	if ctx.firstRule {
-		return
-	}
-	_ = skipParen
-	ctx.firstRule = true
-	// if !skipParen {
-	fmt.Fprintf(ctx.buf, " }")
-	// }
-}
-
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		if ctx.typ.RuleLen() > 0 && !ctx.firstRule {
+		if ctx.typ.RuleLen() > 0 {
 			ctx.level = ctx.level + 1
-			fmt.Fprintf(ctx.buf, " }\n")
+			if !ctx.firstRule {
+				fmt.Fprintf(ctx.buf, " }\n")
+			}
 		}
 		ctx.typ = NewScope(ctx.typ)
 		ctx.firstRule = true
@@ -328,13 +341,10 @@ func printSelDecl(ctx *Context, n ast.Node) {
 
 func printRuleSpec(ctx *Context, n ast.Node) {
 	// Inspect the sel buffer and dump it
-	// We'll also need to track what level was last dumped
+	// Also need to track what level was last dumped
 	// so selectors don't get printed twice
-	if ctx.firstRule {
-		ctx.blockIntro()
-	} else {
-		ctx.out("\n")
-	}
+	ctx.blockIntro()
+
 	spec := n.(*ast.RuleSpec)
 	ctx.typ.RuleAdd(spec)
 	ctx.out(fmt.Sprintf("  %s: ", spec.Name))
