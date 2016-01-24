@@ -187,13 +187,11 @@ func (ctx *Context) blockOutro() {
 	if ctx.firstRule {
 		return
 	}
-
+	_ = skipParen
 	ctx.firstRule = true
-	if !skipParen {
-		fmt.Fprintf(ctx.buf, " }")
-		// ctx.out(" }")
-	}
-	// fmt.Fprintf(ctx.buf, " }")
+	// if !skipParen {
+	fmt.Fprintf(ctx.buf, " }")
+	// }
 }
 
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
@@ -201,11 +199,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		if ctx.typ.RuleLen() > 0 {
+		if ctx.typ.RuleLen() > 0 && !ctx.firstRule {
 			ctx.level = ctx.level + 1
-
-			// fmt.Println("closing because of", ctx.typ.(*valueScope).rules)
-			// Close the previous spec if any rules exist in it
 			fmt.Fprintf(ctx.buf, " }\n")
 		}
 		ctx.typ = NewScope(ctx.typ)
