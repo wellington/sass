@@ -348,6 +348,7 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 	spec := n.(*ast.RuleSpec)
 	ctx.typ.RuleAdd(spec)
 	ctx.out(fmt.Sprintf("  %s: ", spec.Name))
+	fmt.Fprintf(ctx.buf, "%s;", simplifyExprs(ctx, spec.Values))
 }
 
 func printPropValueSpec(ctx *Context, n ast.Node) {
@@ -374,6 +375,7 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 }
 
 func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
+
 	var sums []string
 	for _, expr := range exprs {
 		// fmt.Printf("expr: % #v\n", expr)
@@ -398,7 +400,6 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 			// 	fmt.Println("unsupported obj kind")
 			// }
 		case *ast.Ident:
-			fmt.Printf("Ident % #v\n", v)
 			if v.Obj == nil {
 				sums = append(sums, v.Name)
 				continue
@@ -413,7 +414,6 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				fmt.Println("unsupported obj kind")
 			}
 		case *ast.BasicLit:
-			fmt.Printf("BasicLit % #v\n", v)
 			switch v.Kind {
 			case token.VAR:
 				s, ok := ctx.typ.Get(v.Value).(string)

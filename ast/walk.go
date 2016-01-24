@@ -309,9 +309,9 @@ func Walk(v Visitor, node Node) {
 		if n.Comment != nil {
 			Walk(v, n.Comment)
 		}
-		if n.Values != nil {
-			walkExprList(v, n.Values)
-		}
+		// if n.Values != nil {
+		// 	walkExprList(v, n.Values)
+		// }
 
 	case *PropValueSpec:
 		Walk(v, n.Name)
