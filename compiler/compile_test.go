@@ -33,6 +33,17 @@ func findPaths() []file {
 		if strings.Contains(input, "13_") {
 			continue
 		}
+		if strings.Contains(input, "14_") {
+			continue
+		}
+
+		// parser skips
+		if strings.Contains(input, "15_") {
+			continue
+		}
+		if strings.Contains(input, "24_") {
+			continue
+		}
 
 		exp, err := ioutil.ReadFile(strings.Replace(input,
 			"input.scss", "expected_output.css", 1))
