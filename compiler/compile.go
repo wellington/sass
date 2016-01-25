@@ -386,10 +386,6 @@ func exprString(expr ast.Expr) string {
 	return ""
 }
 
-func calcColor(tok token.Token, x, y *ast.BasicLit) (z *ast.BasicLit) {
-	return x.Op(tok, y)
-}
-
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
 	x := bin.X
 	y := bin.Y
@@ -410,10 +406,21 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
 
 	bx := x.(*ast.BasicLit)
 	by := y.(*ast.BasicLit)
+	// Attempt color math
+	if bx.Kind == token.COLOR {
+		z := bx.Op(bin.Op, by)
+		if z == nil {
+			panic(fmt.Sprintf("invalid return op: %q x: % #v y: % #v",
+				bin.Op, bx, by,
+			))
+		}
+		return z.Value
+	}
 
-	if bx.Kind == token.COLOR || by.Kind == token.COLOR {
-		rx := calcColor(bin.Op, bx, by)
-		return rx.Value
+	// We're looking at INT and non-INT, treat as strings
+	if bx.Kind == token.INT && by.Kind != token.INT {
+		// Treat everything as strings
+		return bx.Value + bin.Op.String() + by.Value
 	}
 
 	// BasicLit from here on, right?

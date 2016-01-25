@@ -23,7 +23,7 @@ var cssColors map[string]string = map[string]string{
 	"#800000": "maroon",
 	"#ff0000": "red",
 	"#800080": "purple",
-	"#ff00ff": "fuchsia",
+	"#ff00ff": "magenta",
 	"#008000": "green",
 	"#00ff00": "lime",
 	"#808000": "olive",
@@ -254,9 +254,12 @@ func overflowMath(tok token.Token, a, b uint8) uint8 {
 		}
 	case token.SUB:
 		c = uint(uint8(a) - uint8(b))
-		if uint(c) == uint(maxUint8) {
+		// If result is greater than a, then overflow happend
+		if c > uint(a) {
 			return 0
 		}
+	case token.QUO:
+		c = uint(a / b)
 	}
 
 	return uint8(c)
@@ -269,12 +272,13 @@ func colorOpInt(tok token.Token, c *BasicLit, i *BasicLit) (*BasicLit, error) {
 		return nil, err
 	}
 
-	col.R = overflowMath(token.ADD, col.R, uint8(j))
-	col.G = overflowMath(token.ADD, col.G, uint8(j))
-	col.B = overflowMath(token.ADD, col.B, uint8(j))
+	col.R = overflowMath(tok, col.R, uint8(j))
+	col.G = overflowMath(tok, col.G, uint8(j))
+	col.B = overflowMath(tok, col.B, uint8(j))
 
 	s := "#" + colorToHex(col)
 
+	fmt.Println(c.Value, tok, i.Value, "=", lookupColor(s))
 	return &BasicLit{
 		Kind:  token.COLOR,
 		Value: lookupColor(s),
