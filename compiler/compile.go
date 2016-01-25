@@ -374,6 +374,56 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 	}
 }
 
+func exprString(expr ast.Expr) string {
+	switch v := (expr).(type) {
+	case *ast.Ident:
+		return v.String()
+	case *ast.BasicLit:
+		return v.Value
+	default:
+		panic(fmt.Sprintf("exprString: %T", v))
+	}
+	return ""
+}
+
+func calcColor(tok token.Token, x, y *ast.BasicLit) (z *ast.BasicLit) {
+	return x.Op(tok, y)
+}
+
+func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
+	x := bin.X
+	y := bin.Y
+
+	// If X or Y are Ident, append as strings
+	_, xok := x.(*ast.Ident)
+	_, yok := y.(*ast.Ident)
+	if xok || yok {
+		var s string
+		switch bin.Op {
+		case token.ADD:
+			s = exprString(x) + exprString(y)
+		default:
+			s = exprString(x) + bin.Op.String() + exprString(y)
+		}
+		return s
+	}
+
+	bx := x.(*ast.BasicLit)
+	by := y.(*ast.BasicLit)
+
+	if bx.Kind == token.COLOR || by.Kind == token.COLOR {
+		rx := calcColor(bin.Op, bx, by)
+		return rx.Value
+	}
+
+	// BasicLit from here on, right?
+	fmt.Printf("x %s: %s\n", bx.Kind, bx.Value)
+	fmt.Printf("y %s: %s\n", by.Kind, by.Value)
+	// Now look for colors
+	// xc, xok := x.(*ast.Co)
+	return ""
+}
+
 func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 
 	var sums []string
@@ -399,6 +449,10 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 			// default:
 			// 	fmt.Println("unsupported obj kind")
 			// }
+		case *ast.BinaryExpr:
+			sums = append(sums, calculateExprs(ctx, v))
+		case *ast.ParenExpr:
+			sums = append(sums, simplifyExprs(ctx, []ast.Expr{v.X}))
 		case *ast.Ident:
 			if v.Obj == nil {
 				sums = append(sums, v.Name)
@@ -427,7 +481,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				sums = append(sums, v.Value)
 			}
 		default:
-			log.Fatalf("unhandled expr: % #v\n", v)
+			panic(fmt.Sprintf("unhandled expr: % #v\n", v))
 		}
 	}
 

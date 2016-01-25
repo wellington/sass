@@ -1695,7 +1695,12 @@ func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
 				lhs = false
 			}
 			y := p.parseBinaryExpr(false, prec+1)
-			x = &ast.BinaryExpr{X: p.checkExpr(x), OpPos: pos, Op: op, Y: p.checkExpr(y)}
+			x = &ast.BinaryExpr{
+				X:     p.checkExpr(x),
+				OpPos: pos,
+				Op:    op,
+				Y:     p.checkExpr(y),
+			}
 		}
 	}
 

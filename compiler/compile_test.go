@@ -20,9 +20,15 @@ func findPaths() []file {
 		log.Fatal(err)
 	}
 
+	var input string
+	defer func() {
+		if r := recover(); r != nil {
+			log.Fatal("Recovered from", input)
+		}
+	}()
 	var files []file
 	// files := make([]file, len(inputs))
-	for _, input := range inputs {
+	for _, input = range inputs {
 		// Comments are lost right now
 		if !strings.Contains(input, "07_") {
 			// continue
