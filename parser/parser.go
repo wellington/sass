@@ -1106,11 +1106,15 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 	// sort statements so rules move to the top of selector blocks
 	rules := make([]ast.Stmt, 0, len(list))
 	notrules := make([]ast.Stmt, 0, len(list))
+
 	for _, stmt := range list {
-		// DeclStmt is only used for Rules... so far
-		if _, ok := stmt.(*ast.DeclStmt); ok {
+		switch stmt.(type) {
+		case *ast.DeclStmt:
+			// Rule
 			rules = append(rules, stmt)
-		} else {
+		case *ast.IncludeStmt:
+			rules = append(rules, stmt)
+		default:
 			notrules = append(notrules, stmt)
 		}
 	}

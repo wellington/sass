@@ -24,7 +24,7 @@ func printInclude(ctx *Context, n ast.Node) {
 	}
 	fmt.Println("========\ninclude", name)
 	ctx.scope = NewScope(ctx.scope)
-	fmt.Printf("% #v\n\n\n", mix.fn.Type.Params.List[0].Type)
+
 	mixargs := mix.fn.Type.Params.List
 	for i := range mixargs {
 		// Param passed by include
