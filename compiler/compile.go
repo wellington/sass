@@ -71,6 +71,7 @@ func (ctx *Context) out(v string) {
 	fmt.Fprintf(ctx.buf, string(format), v)
 }
 
+// This needs a new name, it prints on every stmt
 func (ctx *Context) blockIntro() {
 
 	// this isn't a new block
@@ -183,8 +184,6 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		// while printing these
 		key = selStmt
 		// Nothing to do
-	case *ast.CommentGroup:
-		key = comments
 	case *ast.Comment:
 		key = comment
 	case *ast.FuncDecl:
@@ -214,7 +213,6 @@ var (
 	selStmt     *ast.SelStmt
 	propSpec    *ast.PropValueSpec
 	typeSpec    *ast.TypeSpec
-	comments    *ast.CommentGroup
 	comment     *ast.Comment
 	funcDecl    *ast.FuncDecl
 	includeStmt *ast.IncludeStmt
@@ -234,24 +232,17 @@ func (ctx *Context) Init() {
 	ctx.printers[selStmt] = printSelStmt
 	ctx.printers[propSpec] = printPropValueSpec
 	ctx.printers[expr] = printExpr
-	ctx.printers[comments] = printComments
 	ctx.printers[comment] = printComment
 	ctx.scope = NewScope(empty)
 	// ctx.printers[typeSpec] = visitTypeSpec
 	// assign printers
 }
 
-func printComments(ctx *Context, n ast.Node) {
-	cmts := n.(*ast.CommentGroup)
-
-	for _, cmt := range cmts.List {
-		printComment(ctx, cmt)
-	}
-}
-
 func printComment(ctx *Context, n ast.Node) {
+	ctx.blockIntro()
 	cmt := n.(*ast.Comment)
-	ctx.out(cmt.Text)
+	// These additional spaces should be handled by out()
+	ctx.out("  " + cmt.Text)
 }
 
 func printExpr(ctx *Context, n ast.Node) {
@@ -260,13 +251,14 @@ func printExpr(ctx *Context, n ast.Node) {
 	case *ast.BasicLit:
 		fmt.Fprintf(ctx.buf, "%s;", v.Value)
 	case *ast.Value:
+	case *ast.GenDecl:
+		// Ignoring these for some reason
 	default:
 		// fmt.Printf("unmatched expr %T: % #v\n", v, v)
 	}
 }
 
 func (ctx *Context) storeSelector(idents []*ast.Ident) {
-	fmt.Printf("storeselector %q\n", idents)
 	ctx.sels = append(ctx.sels, idents)
 }
 

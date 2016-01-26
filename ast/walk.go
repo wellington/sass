@@ -167,7 +167,8 @@ func Walk(v Visitor, node Node) {
 
 	case *StructType:
 		Walk(v, n.Fields)
-
+	case *CommStmt:
+		Walk(v, n.Group)
 	case *FuncType:
 		if n.Params != nil {
 			Walk(v, n.Params)

@@ -644,6 +644,11 @@ type (
 		Call *CallExpr
 	}
 
+	// Comment statement wraps a CommentGroup
+	CommStmt struct {
+		Group *CommentGroup
+	}
+
 	// A DeferStmt node represents a defer statement.
 	DeferStmt struct {
 		Defer token.Pos // position of "defer" keyword
@@ -772,6 +777,7 @@ func (s *DeferStmt) Pos() token.Pos      { return s.Defer }
 func (s *ReturnStmt) Pos() token.Pos     { return s.Return }
 func (s *BranchStmt) Pos() token.Pos     { return s.TokPos }
 func (s *BlockStmt) Pos() token.Pos      { return s.Lbrace }
+func (s *CommStmt) Pos() token.Pos       { return s.Group.Pos() }
 func (s *IfStmt) Pos() token.Pos         { return s.If }
 func (s *CaseClause) Pos() token.Pos     { return s.Case }
 func (s *SwitchStmt) Pos() token.Pos     { return s.Switch }
@@ -813,6 +819,7 @@ func (s *BranchStmt) End() token.Pos {
 	}
 	return token.Pos(int(s.TokPos) + len(s.Tok.String()))
 }
+func (s *CommStmt) End() token.Pos  { return s.Group.End() }
 func (s *BlockStmt) End() token.Pos { return s.Rbrace + 1 }
 func (s *IfStmt) End() token.Pos {
 	if s.Else != nil {
@@ -857,6 +864,7 @@ func (*DeferStmt) stmtNode()      {}
 func (*ReturnStmt) stmtNode()     {}
 func (*BranchStmt) stmtNode()     {}
 func (*BlockStmt) stmtNode()      {}
+func (*CommStmt) stmtNode()       {}
 func (*IfStmt) stmtNode()         {}
 func (*CaseClause) stmtNode()     {}
 func (*SwitchStmt) stmtNode()     {}

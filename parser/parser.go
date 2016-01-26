@@ -1101,6 +1101,11 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 
 	for p.tok != token.RBRACE && p.tok != token.EOF {
 		list = append(list, p.parseStmt())
+		if p.leadComment != nil {
+			list = append(list, &ast.CommStmt{
+				Group: p.leadComment,
+			})
+		}
 	}
 
 	// sort statements so rules move to the top of selector blocks
@@ -1112,7 +1117,7 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 		case *ast.DeclStmt:
 			// Rule
 			rules = append(rules, stmt)
-		case *ast.IncludeStmt:
+		case *ast.IncludeStmt, *ast.CommStmt:
 			rules = append(rules, stmt)
 		default:
 			notrules = append(notrules, stmt)
@@ -1126,9 +1131,16 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 		defer un(trace(p, "Body"))
 	}
 	lbrace := p.expect(token.LBRACE)
+	var list []ast.Stmt
+	if p.leadComment != nil {
+		list = append(list, &ast.CommStmt{
+			Group: p.leadComment,
+		})
+	}
+
 	p.topScope = scope // open function scope
 	p.openLabelScope()
-	list := p.parseStmtList()
+	list = append(list, p.parseStmtList()...)
 	p.closeLabelScope()
 	p.closeScope()
 	rbrace := p.expect(token.RBRACE)
@@ -2362,10 +2374,8 @@ func trimSelSpace(lit []byte) []byte {
 
 	// Remove extra spaces
 	lit = regWs(lit, []byte(" "))
-	fmt.Println(string(lit))
 	lit = regEql(lit, []byte("$1"))
 	lit = regBkt(lit, []byte("$1$2$3"))
-	fmt.Println("after", string(lit))
 	// Remove spaces around '=' blocks
 
 	return lit
