@@ -1,6 +1,8 @@
 package compiler
 
 import (
+	"fmt"
+
 	"github.com/wellington/sass/ast"
 )
 
@@ -64,6 +66,7 @@ func (t *valueScope) Get(name string) interface{} {
 }
 
 func (t *valueScope) Set(name string, v interface{} /* should this just be string? */) {
+	fmt.Printf("setting %12s: %-10v\n", name, v)
 	t.m[name] = v
 }
 

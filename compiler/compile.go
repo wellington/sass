@@ -168,7 +168,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.Ident:
 		// The first IDENT is always the filename, just preserve
 		// it somewhere
-		key = ident
+		// key = ident
 	case *ast.PropValueSpec:
 		key = propSpec
 	case *ast.DeclStmt:
@@ -197,6 +197,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case nil:
 		return ctx
 	case *ast.EmptyStmt:
+	case *ast.AssignStmt:
+		key = assignStmt
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
@@ -209,6 +211,7 @@ var (
 	ident       *ast.Ident
 	expr        ast.Expr
 	declStmt    *ast.DeclStmt
+	assignStmt  *ast.AssignStmt
 	valueSpec   *ast.ValueSpec
 	ruleSpec    *ast.RuleSpec
 	selDecl     *ast.SelDecl
@@ -225,6 +228,7 @@ func (ctx *Context) Init() {
 	ctx.printers = make(map[ast.Node]func(*Context, ast.Node))
 	ctx.printers[valueSpec] = visitValueSpec
 	ctx.printers[funcDecl] = visitFunc
+	ctx.printers[assignStmt] = visitAssignStmt
 
 	ctx.printers[ident] = printIdent
 	ctx.printers[includeStmt] = printInclude
@@ -291,6 +295,28 @@ func printPropValueSpec(ctx *Context, n ast.Node) {
 	fmt.Fprintf(ctx.buf, spec.Name.String()+";")
 }
 
+// Variable assignments inside blocks ie. mixins
+func visitAssignStmt(ctx *Context, n ast.Node) {
+	stmt := n.(*ast.AssignStmt)
+	var key, val *ast.Ident
+
+	switch v := stmt.Lhs[0].(type) {
+	case *ast.Ident:
+		key = v
+	default:
+		log.Fatalf("unsupported key: % #v", v)
+	}
+
+	switch v := stmt.Rhs[0].(type) {
+	case *ast.Ident:
+		val = v
+	default:
+		log.Fatalf("unsupported key: % #v", v)
+	}
+
+	ctx.scope.Set(key.Name, val.Name)
+}
+
 // Variable declarations
 func visitValueSpec(ctx *Context, n ast.Node) {
 	spec := n.(*ast.ValueSpec)
@@ -302,7 +328,6 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 
 	if len(spec.Values) > 0 {
 		expr := simplifyExprs(ctx, spec.Values)
-		fmt.Printf("setting %12s: %-10v\n", names[0], expr)
 		ctx.scope.Set(names[0], expr)
 	} else {
 		fmt.Fprintf(ctx.buf, "%s;", ctx.scope.Get(names[0]))
@@ -461,6 +486,7 @@ func printDecl(ctx *Context, node ast.Node) {
 
 func printIdent(ctx *Context, node ast.Node) {
 	// don't print these
+	return
 	ident := node.(*ast.Ident)
 	resolved := ctx.scope.Get(ident.String())
 	if resolved != nil {

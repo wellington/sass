@@ -31,6 +31,9 @@ func findPaths() []file {
 	for _, input = range inputs {
 		// Comments are lost right now
 		if !strings.Contains(input, "17_") {
+			// continue
+		}
+		if strings.Contains(input, "17_") {
 			continue
 		}
 		if strings.Contains(input, "06_") {
