@@ -38,7 +38,9 @@ func (s *valueScope) RegisterMixin(name string, numargs int, fn *MixFn) {
 func (s *valueScope) Mixin(name string, numargs int) (*MixFn, error) {
 	mixs, ok := mixins[name]
 	if !ok {
-		return nil, ErrMixinNotFound
+		// If name isn't found at all, attempt scope lookup but don't
+		// do for variadic funcs
+		return s.Scope.Mixin(name, numargs)
 	}
 
 	mix, ok := mixs[numargs]
