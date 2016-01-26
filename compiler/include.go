@@ -18,7 +18,7 @@ func printInclude(ctx *Context, n ast.Node) {
 	}
 	numargs := stmt.Spec.Params.NumFields()
 
-	mix, err := Mixin(name, numargs)
+	mix, err := ctx.typ.Mixin(name, numargs)
 	if err != nil {
 		log.Fatal(err)
 	}

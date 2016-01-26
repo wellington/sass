@@ -20,7 +20,7 @@ func visitFunc(ctx *Context, n ast.Node) {
 		// 	ast.Walk(&mixctx, l)
 		// }
 
-		RegisterMixin(fn.Name.String(),
+		ctx.typ.RegisterMixin(fn.Name.String(),
 			fn.Type.Params.NumFields(),
 			&MixFn{
 				minArgs: fn.Type.Params.NumFields(),

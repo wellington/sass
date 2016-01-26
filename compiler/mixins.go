@@ -23,7 +23,7 @@ type MixFn struct {
 
 var mixins = map[string]map[int]*MixFn{}
 
-func RegisterMixin(name string, numargs int, fn *MixFn) {
+func (s *valueScope) RegisterMixin(name string, numargs int, fn *MixFn) {
 	if mix, ok := mixins[name]; ok {
 		if _, ok := mix[numargs]; ok {
 			panic(fmt.Sprintf("already registered mixin: %s(%d)",
@@ -35,7 +35,7 @@ func RegisterMixin(name string, numargs int, fn *MixFn) {
 	mixins[name][numargs] = fn
 }
 
-func Mixin(name string, numargs int) (*MixFn, error) {
+func (s *valueScope) Mixin(name string, numargs int) (*MixFn, error) {
 	mixs, ok := mixins[name]
 	if !ok {
 		return nil, ErrMixinNotFound

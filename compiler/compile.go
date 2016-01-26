@@ -37,6 +37,9 @@ type Scope interface {
 	// Number of Rules in this scope
 	RuleAdd(*ast.RuleSpec)
 	RuleLen() int
+
+	RegisterMixin(string, int, *MixFn)
+	Mixin(string, int) (*MixFn, error)
 }
 
 var (
@@ -47,6 +50,12 @@ type emptyTyp struct{}
 
 func (*emptyTyp) Get(name string) interface{} {
 	return nil
+}
+
+func (*emptyTyp) RegisterMixin(_ string, _ int, _ *MixFn) {}
+
+func (*emptyTyp) Mixin(_ string, _ int) (*MixFn, error) {
+	return nil, ErrMixinNotFound
 }
 
 func (*emptyTyp) Set(name string, _ interface{}) {}
