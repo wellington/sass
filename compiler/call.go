@@ -37,7 +37,6 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	if !ok {
 		return nil, ErrNotFound
 	}
-
 	return fn(expr.Args)
 }
 
@@ -46,7 +45,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 func rgb(args []ast.Expr) (*ast.BasicLit, error) {
 	if len(args) != 3 {
 		return nil,
-			fmt.Errorf("invalid number of args received expected 3")
+			fmt.Errorf("rgb() invalid arg count found: %d", len(args))
 	}
 
 	lits := make([]*ast.BasicLit, 3)

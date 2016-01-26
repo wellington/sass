@@ -441,7 +441,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 		case *ast.CallExpr:
 			s, err := evaluateCall(v)
 			if err != nil {
-				log.Fatal(err)
+				log.Fatalf("failed to call '%s': %s", v.Fun, err)
 			}
 			sums = append(sums, s.Value)
 		case *ast.ParenExpr:

@@ -1323,6 +1323,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		case token.LPAREN:
 			typ = p.parseCallOrConversion(typ)
 		case token.COLON:
+			panic("this should never happen")
 			p.next()
 			// Next one is default value
 			list = append(list, p.parseRhsOrType())
@@ -1330,10 +1331,10 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 			ellipsis = p.pos
 			p.next()
 		}
+		list = append(list, typ)
 		if !p.atComma("argument list", token.RPAREN) {
 			break
 		}
-		list = append(list, typ)
 		p.next()
 	}
 	p.exprLev--
