@@ -900,7 +900,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 		if p.tok == token.COLON {
 			// Default arg found!
 			pos := p.expect(token.COLON)
-			val := p.parseIdent()
+			val := p.tryIdentOrType()
 			return &ast.KeyValueExpr{
 				Key:   typ,
 				Colon: pos,
