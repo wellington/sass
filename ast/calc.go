@@ -221,9 +221,16 @@ func colorFromHex(in []byte) color.RGBA {
 
 func colorToHex(c color.Color) string {
 	r, g, b, _ := c.RGBA()
-	return hex.EncodeToString([]byte{uint8(r)}) +
+	return "#" + hex.EncodeToString([]byte{uint8(r)}) +
 		hex.EncodeToString([]byte{uint8(g)}) +
 		hex.EncodeToString([]byte{uint8(b)})
+}
+
+func BasicLitFromColor(c color.Color) *BasicLit {
+	return &BasicLit{
+		Kind:  token.COLOR,
+		Value: colorToHex(c),
+	}
 }
 
 func colorOpColor(tok token.Token, x *BasicLit, y *BasicLit) (*BasicLit, error) {
@@ -235,7 +242,7 @@ func colorOpColor(tok token.Token, x *BasicLit, y *BasicLit) (*BasicLit, error) 
 	z.G = overflowMath(tok, colX.G, colY.G)
 	z.B = overflowMath(tok, colX.B, colY.B)
 
-	s := "#" + colorToHex(z)
+	s := colorToHex(z)
 	return &BasicLit{
 		Kind:  token.COLOR,
 		Value: lookupColor(s),
@@ -276,7 +283,7 @@ func colorOpInt(tok token.Token, c *BasicLit, i *BasicLit) (*BasicLit, error) {
 	col.G = overflowMath(tok, col.G, uint8(j))
 	col.B = overflowMath(tok, col.B, uint8(j))
 
-	s := "#" + colorToHex(col)
+	s := colorToHex(col)
 
 	fmt.Println(c.Value, tok, i.Value, "=", lookupColor(s))
 	return &BasicLit{

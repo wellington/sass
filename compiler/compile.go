@@ -386,7 +386,7 @@ func exprString(expr ast.Expr) string {
 	return ""
 }
 
-func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
+func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 	x := bin.X
 	y := bin.Y
 
@@ -401,7 +401,28 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
 		default:
 			s = exprString(x) + bin.Op.String() + exprString(y)
 		}
-		return s
+		return s, nil
+	}
+
+	var err error
+	// Convert CallExpr to BasicLit
+	if cx, ok := x.(*ast.CallExpr); ok {
+		x, err = evaluateCall(cx)
+		if err != nil {
+			return "", fmt.Errorf("error execing %s: %s",
+				cx.Fun, err)
+		}
+	}
+	if cy, ok := y.(*ast.CallExpr); ok {
+		y, err = evaluateCall(cy)
+		if err != nil {
+			return "", fmt.Errorf("error execing %s: %s",
+				cy.Fun, err)
+		}
+	}
+
+	if err != nil {
+		return "", err
 	}
 
 	bx := x.(*ast.BasicLit)
@@ -414,13 +435,13 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
 				bin.Op, bx, by,
 			))
 		}
-		return z.Value
+		return z.Value, nil
 	}
 
 	// We're looking at INT and non-INT, treat as strings
 	if bx.Kind == token.INT && by.Kind != token.INT {
 		// Treat everything as strings
-		return bx.Value + bin.Op.String() + by.Value
+		return bx.Value + bin.Op.String() + by.Value, nil
 	}
 
 	// BasicLit from here on, right?
@@ -428,7 +449,7 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) string {
 	fmt.Printf("y %s: %s\n", by.Kind, by.Value)
 	// Now look for colors
 	// xc, xok := x.(*ast.Co)
-	return ""
+	return "", nil
 }
 
 func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
@@ -457,7 +478,11 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 			// 	fmt.Println("unsupported obj kind")
 			// }
 		case *ast.BinaryExpr:
-			sums = append(sums, calculateExprs(ctx, v))
+			s, err := calculateExprs(ctx, v)
+			if err != nil {
+				log.Fatal(err)
+			}
+			sums = append(sums, s)
 		case *ast.ParenExpr:
 			sums = append(sums, simplifyExprs(ctx, []ast.Expr{v.X}))
 		case *ast.Ident:
