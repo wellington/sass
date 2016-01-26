@@ -255,6 +255,10 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = comments
 	case *ast.Comment:
 		key = comment
+	case *ast.FuncDecl:
+		ctx.printers[funcDecl](ctx, node)
+		// Do not traverse mixins in the regular context
+		return nil
 	case *ast.BasicLit:
 		return ctx
 	case nil:
@@ -279,12 +283,14 @@ var (
 	typeSpec  *ast.TypeSpec
 	comments  *ast.CommentGroup
 	comment   *ast.Comment
+	funcDecl  *ast.FuncDecl
 )
 
 func (ctx *Context) Init() {
 	ctx.buf = bytes.NewBuffer(nil)
 	ctx.printers = make(map[ast.Node]func(*Context, ast.Node))
 	ctx.printers[valueSpec] = visitValueSpec
+	ctx.printers[funcDecl] = visitFunc
 
 	ctx.printers[ident] = printIdent
 	ctx.printers[declStmt] = printDecl

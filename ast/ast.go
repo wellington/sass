@@ -1048,9 +1048,10 @@ type (
 	FuncDecl struct {
 		Doc  *CommentGroup // associated documentation; or nil
 		Recv *FieldList    // receiver (methods); or nil (functions)
-		Name *Ident        // function/method name
-		Type *FuncType     // function signature: parameters, results, and position of "func" keyword
-		Body *BlockStmt    // function body; or nil (forward declaration)
+		Tok  token.Token
+		Name *Ident     // function/method name
+		Type *FuncType  // function signature: parameters, results, and position of "func" keyword
+		Body *BlockStmt // function body; or nil (forward declaration)
 	}
 
 	// A SelDecl node represents a standard CSS declaration

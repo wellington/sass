@@ -2521,6 +2521,7 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	decl := &ast.FuncDecl{
 		Doc: doc,
 		// Recv: recv,
+		Tok:  token.MIXIN,
 		Name: ident,
 		Type: &ast.FuncType{
 			Func:    pos,
@@ -2571,6 +2572,7 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	decl := &ast.FuncDecl{
 		Doc:  doc,
 		Recv: recv,
+		Tok:  token.FUNC,
 		Name: ident,
 		Type: &ast.FuncType{
 			Func:    pos,
