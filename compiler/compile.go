@@ -242,6 +242,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = propSpec
 	case *ast.DeclStmt:
 		key = declStmt
+	case *ast.IncludeStmt:
+		key = includeStmt
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:
@@ -272,18 +274,19 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 }
 
 var (
-	ident     *ast.Ident
-	expr      ast.Expr
-	declStmt  *ast.DeclStmt
-	valueSpec *ast.ValueSpec
-	ruleSpec  *ast.RuleSpec
-	selDecl   *ast.SelDecl
-	selStmt   *ast.SelStmt
-	propSpec  *ast.PropValueSpec
-	typeSpec  *ast.TypeSpec
-	comments  *ast.CommentGroup
-	comment   *ast.Comment
-	funcDecl  *ast.FuncDecl
+	ident       *ast.Ident
+	expr        ast.Expr
+	declStmt    *ast.DeclStmt
+	valueSpec   *ast.ValueSpec
+	ruleSpec    *ast.RuleSpec
+	selDecl     *ast.SelDecl
+	selStmt     *ast.SelStmt
+	propSpec    *ast.PropValueSpec
+	typeSpec    *ast.TypeSpec
+	comments    *ast.CommentGroup
+	comment     *ast.Comment
+	funcDecl    *ast.FuncDecl
+	includeStmt *ast.IncludeStmt
 )
 
 func (ctx *Context) Init() {
@@ -293,6 +296,7 @@ func (ctx *Context) Init() {
 	ctx.printers[funcDecl] = visitFunc
 
 	ctx.printers[ident] = printIdent
+	ctx.printers[includeStmt] = printInclude
 	ctx.printers[declStmt] = printDecl
 	ctx.printers[ruleSpec] = printRuleSpec
 	ctx.printers[selDecl] = printSelDecl

@@ -29,7 +29,10 @@ func RegisterMixin(name string, numargs int, fn *MixFn) {
 			panic(fmt.Sprintf("already registered mixin: %s(%d)",
 				name, numargs))
 		}
+	} else {
+		mixins[name] = make(map[int]*MixFn)
 	}
+	mixins[name][numargs] = fn
 }
 
 func Mixin(name string, numargs int) (*MixFn, error) {

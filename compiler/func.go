@@ -19,10 +19,11 @@ func visitFunc(ctx *Context, n ast.Node) {
 		// for _, l := range fn.Body.List {
 		// 	ast.Walk(&mixctx, l)
 		// }
+
 		RegisterMixin(fn.Name.String(),
-			len(fn.Body.List),
+			fn.Type.Params.NumFields(),
 			&MixFn{
-				minArgs: len(fn.Body.List),
+				minArgs: fn.Type.Params.NumFields(),
 				ctx:     &mixctx,
 				fn:      fn,
 			})
