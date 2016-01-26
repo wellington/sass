@@ -62,10 +62,11 @@ func printInclude(ctx *Context, n ast.Node) {
 	if len(params) > len(mixargs) {
 		fmt.Printf("dropped extra params: % #v\n", params[len(mixargs):])
 	}
-	for _, stmt := range mix.fn.Body.List {
+
+	for _, stmt := range ast.StatementsSort(mix.fn.Body.List) {
 		ast.Walk(ctx, stmt)
 	}
-	ctx.scope = CloseScope(ctx.scope)
 
 	// Exit new scope, removing args
+	ctx.scope = CloseScope(ctx.scope)
 }

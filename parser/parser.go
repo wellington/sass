@@ -1107,23 +1107,7 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 			})
 		}
 	}
-
-	// sort statements so rules move to the top of selector blocks
-	rules := make([]ast.Stmt, 0, len(list))
-	notrules := make([]ast.Stmt, 0, len(list))
-
-	for _, stmt := range list {
-		switch stmt.(type) {
-		case *ast.DeclStmt:
-			// Rule
-			rules = append(rules, stmt)
-		case *ast.IncludeStmt, *ast.CommStmt:
-			rules = append(rules, stmt)
-		default:
-			notrules = append(notrules, stmt)
-		}
-	}
-	return append(rules, notrules...)
+	return ast.StatementsSort(list)
 }
 
 func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {

@@ -184,6 +184,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		// while printing these
 		key = selStmt
 		// Nothing to do
+	case *ast.CommStmt:
+	case *ast.CommentGroup:
 	case *ast.Comment:
 		key = comment
 	case *ast.FuncDecl:
