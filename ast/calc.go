@@ -23,7 +23,7 @@ var cssColors map[string]string = map[string]string{
 	"#800000": "maroon",
 	"#ff0000": "red",
 	"#800080": "purple",
-	"#ff00ff": "yellow",
+	"#ff00ff": "magenta",
 	"#008000": "green",
 	"#00ff00": "lime",
 	"#808000": "olive",
@@ -158,7 +158,7 @@ var cssColors map[string]string = map[string]string{
 	"#663399": "rebeccapurple",
 }
 
-func lookupColor(s string) string {
+func LookupColor(s string) string {
 	// check for CSS color name
 	if name, ok := cssColors[s]; ok {
 		fmt.Println(s, name)
@@ -202,7 +202,19 @@ func colorFromHex(in []byte) color.RGBA {
 	}
 
 	if len(in) != 6 {
-		panic("Invalid color hex: " + string(in))
+		// Shittttttt..... need better internal
+		// representation of colors
+		s := string(in)
+		var found bool
+		for key, color := range cssColors {
+			if s == color {
+				found = true
+				in = []byte(key)[1:]
+			}
+		}
+		if !found {
+			panic("Invalid color hex: " + string(in))
+		}
 	}
 
 	r, g, b, a := in[0:2], in[2:4], in[4:6], []byte{255, 255}
@@ -229,7 +241,7 @@ func colorToHex(c color.Color) string {
 func BasicLitFromColor(c color.Color) *BasicLit {
 	return &BasicLit{
 		Kind:  token.COLOR,
-		Value: lookupColor(colorToHex(c)),
+		Value: colorToHex(c),
 	}
 }
 
@@ -245,7 +257,7 @@ func colorOpColor(tok token.Token, x *BasicLit, y *BasicLit) (*BasicLit, error) 
 	s := colorToHex(z)
 	return &BasicLit{
 		Kind:  token.COLOR,
-		Value: lookupColor(s),
+		Value: LookupColor(s),
 	}, nil
 }
 
@@ -285,10 +297,9 @@ func colorOpInt(tok token.Token, c *BasicLit, i *BasicLit) (*BasicLit, error) {
 
 	s := colorToHex(col)
 
-	fmt.Println(c.Value, tok, i.Value, "=", lookupColor(s))
 	return &BasicLit{
 		Kind:  token.COLOR,
-		Value: lookupColor(s),
+		Value: LookupColor(s),
 		// Created Expr doesn't have a position
 	}, err
 }

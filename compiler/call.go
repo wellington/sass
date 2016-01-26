@@ -61,9 +61,9 @@ func rgb(args []ast.Expr) (*ast.BasicLit, error) {
 			switch key.Value {
 			case "$red":
 				lits[0] = val
-			case "$blue":
-				lits[1] = val
 			case "$green":
+				lits[1] = val
+			case "$blue":
 				lits[2] = val
 			default:
 				log.Fatal("unsupported", key.Value)
@@ -74,9 +74,13 @@ func rgb(args []ast.Expr) (*ast.BasicLit, error) {
 	r, _ := strconv.Atoi(lits[0].Value)
 	g, _ := strconv.Atoi(lits[1].Value)
 	b, _ := strconv.Atoi(lits[2].Value)
-	return ast.BasicLitFromColor(color.RGBA{
+	lit := ast.BasicLitFromColor(color.RGBA{
 		R: uint8(r),
 		G: uint8(g),
 		B: uint8(b),
-	}), nil
+	})
+	// There's some stupidity in the color stuff, do a lookup
+	// manually
+	lit.Value = ast.LookupColor(lit.Value)
+	return lit, nil
 }
