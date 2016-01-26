@@ -45,6 +45,19 @@ func (s *valueScope) Mixin(name string, numargs int) (*MixFn, error) {
 
 	mix, ok := mixs[numargs]
 	if !ok {
+		// TODO: properly register default args
+		// There is a mixin found matching this name, but it was called
+		// with the wrong number of args. This may be okay when default
+		// params are set.
+		//
+		// So call the first mixin with enough args to satisfy this
+		// include call.
+		for i := range mixs {
+			if i > numargs {
+				return mixs[i], nil
+			}
+		}
+
 		return nil, fmt.Errorf("mixin %s with num args %d not found",
 			name, numargs)
 	}

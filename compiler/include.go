@@ -22,7 +22,6 @@ func printInclude(ctx *Context, n ast.Node) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("========\ninclude", name)
 	ctx.scope = NewScope(ctx.scope)
 
 	mixargs := mix.fn.Type.Params.List
@@ -32,21 +31,33 @@ func printInclude(ctx *Context, n ast.Node) {
 		if len(params) > i {
 			param = params[i]
 		}
-		key := mixargs[i].Type.(*ast.BasicLit)
-
-		switch v := param.Type.(type) {
+		var (
+			key *ast.BasicLit
+			val *ast.Ident
+		)
+		switch v := mixargs[i].Type.(type) {
+		case *ast.BasicLit:
+			key = v
 		case *ast.KeyValueExpr:
-			// Key args specify their argument, so use their key
-			// instead of the mixins argument for this position
-			// Params with defaults
 			key = v.Key.(*ast.BasicLit)
-			val := v.Value.(*ast.Ident)
-			ctx.scope.Set(key.Value, val.Name)
-		case *ast.Ident:
-			ctx.scope.Set(key.Value, v.Name)
-		default:
-			fmt.Printf("dropped param: % #v\n", v)
+			val = v.Value.(*ast.Ident)
 		}
+
+		if param != nil {
+			switch v := param.Type.(type) {
+			case *ast.KeyValueExpr:
+				// Key args specify their argument, so use their key
+				// instead of the mixins argument for this position
+				// Params with defaults
+				key = v.Key.(*ast.BasicLit)
+				val = v.Value.(*ast.Ident)
+			case *ast.Ident:
+				val = v
+			default:
+				fmt.Printf("dropped param: % #v\n", v)
+			}
+		}
+		ctx.scope.Set(key.Value, val.Name)
 	}
 	if len(params) > len(mixargs) {
 		fmt.Printf("dropped extra params: % #v\n", params[len(mixargs):])

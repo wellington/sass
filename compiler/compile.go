@@ -195,6 +195,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		return ctx
 	case nil:
 		return ctx
+	case *ast.EmptyStmt:
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
