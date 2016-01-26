@@ -24,7 +24,7 @@ type Context struct {
 	level     int
 	printers  map[ast.Node]func(*Context, ast.Node)
 
-	typ Scope
+	scope Scope
 }
 
 // stores types and values with scoping. To remove a scope
@@ -219,13 +219,13 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		if ctx.typ.RuleLen() > 0 {
+		if ctx.scope.RuleLen() > 0 {
 			ctx.level = ctx.level + 1
 			if !ctx.firstRule {
 				fmt.Fprintf(ctx.buf, " }\n")
 			}
 		}
-		ctx.typ = NewScope(ctx.typ)
+		ctx.scope = NewScope(ctx.scope)
 		ctx.firstRule = true
 		for _, node := range v.List {
 			ast.Walk(ctx, node)
@@ -233,7 +233,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		if ctx.level > 0 {
 			ctx.level = ctx.level - 1
 		}
-		ctx.typ = CloseScope(ctx.typ)
+		ctx.scope = CloseScope(ctx.scope)
 		ctx.blockOutro()
 		ctx.firstRule = true
 		// ast.Walk(ctx, v.List)
@@ -314,7 +314,7 @@ func (ctx *Context) Init() {
 	ctx.printers[expr] = printExpr
 	ctx.printers[comments] = printComments
 	ctx.printers[comment] = printComment
-	ctx.typ = NewScope(empty)
+	ctx.scope = NewScope(empty)
 	// ctx.printers[typeSpec] = visitTypeSpec
 	// assign printers
 }
@@ -365,7 +365,7 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 	ctx.blockIntro()
 
 	spec := n.(*ast.RuleSpec)
-	ctx.typ.RuleAdd(spec)
+	ctx.scope.RuleAdd(spec)
 	ctx.out(fmt.Sprintf("  %s: ", spec.Name))
 	fmt.Fprintf(ctx.buf, "%s;", simplifyExprs(ctx, spec.Values))
 }
@@ -387,9 +387,9 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 	if len(spec.Values) > 0 {
 		expr := simplifyExprs(ctx, spec.Values)
 		fmt.Printf("setting %12s: %-10v\n", names[0], expr)
-		ctx.typ.Set(names[0], expr)
+		ctx.scope.Set(names[0], expr)
 	} else {
-		fmt.Fprintf(ctx.buf, "%s;", ctx.typ.Get(names[0]))
+		fmt.Fprintf(ctx.buf, "%s;", ctx.scope.Get(names[0]))
 	}
 }
 
@@ -479,7 +479,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 		switch v := expr.(type) {
 		case *ast.Value:
 			// if v.Obj == nil {
-			s, ok := ctx.typ.Get(v.Name).(string)
+			s, ok := ctx.scope.Get(v.Name).(string)
 			if ok {
 				sums = append(sums, s)
 			} else {
@@ -512,7 +512,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 			switch v.Obj.Kind {
 			case ast.Var, ast.Con:
 				name := v.Obj.Name
-				s, ok := ctx.typ.Get(name).(string)
+				s, ok := ctx.scope.Get(name).(string)
 				if ok {
 					sums = append(sums, s)
 				} else {
@@ -524,7 +524,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 		case *ast.BasicLit:
 			switch v.Kind {
 			case token.VAR:
-				s, ok := ctx.typ.Get(v.Value).(string)
+				s, ok := ctx.scope.Get(v.Value).(string)
 				if ok {
 					sums = append(sums, s)
 				}
@@ -546,7 +546,7 @@ func printDecl(ctx *Context, node ast.Node) {
 func printIdent(ctx *Context, node ast.Node) {
 	// don't print these
 	ident := node.(*ast.Ident)
-	resolved := ctx.typ.Get(ident.String())
+	resolved := ctx.scope.Get(ident.String())
 	if resolved != nil {
 		fmt.Fprint(ctx.buf, resolved.(string), ";")
 	} else {

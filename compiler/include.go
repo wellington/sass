@@ -18,12 +18,12 @@ func printInclude(ctx *Context, n ast.Node) {
 	}
 	numargs := stmt.Spec.Params.NumFields()
 
-	mix, err := ctx.typ.Mixin(name, numargs)
+	mix, err := ctx.scope.Mixin(name, numargs)
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("include", name)
-	ctx.typ = NewScope(ctx.typ)
+	ctx.scope = NewScope(ctx.scope)
 	mixargs := mix.fn.Type.Params.List
 	for i := range mixargs {
 		// Param passed by include
@@ -38,7 +38,7 @@ func printInclude(ctx *Context, n ast.Node) {
 				arg,
 				val.Name,
 			)
-			ctx.typ.Set(arg, val.Name)
+			ctx.scope.Set(arg, val.Name)
 		} else {
 			fmt.Printf("var: % #v\nNOVAL: % #v\n",
 				mixargs[i].Type.(*ast.BasicLit).Value,
@@ -50,7 +50,7 @@ func printInclude(ctx *Context, n ast.Node) {
 	for _, stmt := range mix.fn.Body.List {
 		ast.Walk(ctx, stmt)
 	}
-	ctx.typ = CloseScope(ctx.typ)
+	ctx.scope = CloseScope(ctx.scope)
 
 	// Exit new scope, removing args
 }
