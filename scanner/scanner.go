@@ -427,7 +427,7 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 		return pos, token.RULE,
 			string(bytes.TrimSpace(sel))
 	}
-	fmt.Printf("rewinding: %q\n", string(sel))
+	fmt.Printf("               rewinding: %q\n", string(sel))
 	s.rewind(offs)
 	return
 	// case '(':
@@ -622,7 +622,7 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 		tok = token.IDENT
 	default:
 		// Not sure, this requires more specifics
-		fmt.Printf("fallback because %q: %s\n", string(s.ch), lit)
+		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
 		tok = token.IDENT
 	}
 	return

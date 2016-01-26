@@ -881,6 +881,9 @@ func (p *parser) parsePointerType() *ast.StarExpr {
 
 // If the result is an identifier, it is not resolved.
 func (p *parser) tryVarType(isParam bool) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "tryVarType"))
+	}
 	if isParam && p.tok == token.ELLIPSIS {
 		pos := p.pos
 		p.next()
@@ -893,15 +896,20 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 		}
 		return &ast.Ellipsis{Ellipsis: pos, Elt: typ}
 	} else if isParam {
-		// p.next()
 		typ := p.tryIdentOrType()
 		if p.tok == token.COLON {
-			p.next()
-
-			p.next()
+			// Default arg found!
+			pos := p.expect(token.COLON)
+			val := p.parseIdent()
+			return &ast.KeyValueExpr{
+				Key:   typ,
+				Colon: pos,
+				Value: val,
+			}
 		}
 		return typ
 	}
+
 	return p.tryIdentOrType()
 }
 
@@ -927,45 +935,18 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 	var list []ast.Expr
 	for {
 		list = append(list, p.parseVarType(ellipsisOk))
+
 		if p.tok != token.COMMA {
 			break
 		}
+
 		p.next()
 		if p.tok == token.RPAREN {
 			break
 		}
 	}
 
-	// analyze case
-	if typ := p.tryVarType(ellipsisOk); typ != nil {
-		// IdentifierList Type
-		idents := p.makeIdentList(list)
-		field := &ast.Field{Names: idents, Type: typ}
-		params = append(params, field)
-		// Go spec: The scope of an identifier denoting a function
-		// parameter or result variable is the function body.
-		p.declare(field, nil, scope, ast.Var, idents...)
-		p.resolve(typ)
-		if !p.atComma("parameter list", token.RPAREN) {
-			return
-		}
-		p.next()
-		for p.tok != token.RPAREN && p.tok != token.EOF {
-			idents := p.parseIdentList()
-			typ := p.parseVarType(ellipsisOk)
-			field := &ast.Field{Names: idents, Type: typ}
-			params = append(params, field)
-			// Go spec: The scope of an identifier denoting a function
-			// parameter or result variable is the function body.
-			p.declare(field, nil, scope, ast.Var, idents...)
-			p.resolve(typ)
-			if !p.atComma("parameter list", token.RPAREN) {
-				break
-			}
-			p.next()
-		}
-		return
-	}
+	fmt.Println("we dropped out", p.tok)
 
 	// Type { "," Type } (anonymous parameters)
 	params = make([]*ast.Field, len(list))
@@ -1064,7 +1045,9 @@ func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
 
 // If the result is an identifier, it is not resolved.
 func (p *parser) tryIdentOrType() ast.Expr {
-
+	if p.trace {
+		defer un(trace(p, "tryIdentOrType"))
+	}
 	switch p.tok {
 	case token.IDENT:
 		return p.parseTypeName()
