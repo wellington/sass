@@ -946,8 +946,6 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 		}
 	}
 
-	fmt.Println("we dropped out", p.tok)
-
 	// Type { "," Type } (anonymous parameters)
 	params = make([]*ast.Field, len(list))
 	for i, typ := range list {
@@ -968,6 +966,7 @@ func (p *parser) parseParameters(scope *ast.Scope, ellipsisOk bool) *ast.FieldLi
 	if p.tok != token.RPAREN {
 		params = p.parseParameterList(scope, ellipsisOk)
 	}
+
 	rparen := p.expect(token.RPAREN)
 
 	return &ast.FieldList{Opening: lparen, List: params, Closing: rparen}
@@ -1311,30 +1310,43 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		defer un(trace(p, "CallOrConversion"))
 	}
 
-	lparen := p.expect(token.LPAREN)
-	p.exprLev++
-	var list []ast.Expr
-	var ellipsis token.Pos
-	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-		list = append(list, p.parseRhsOrType()) // builtins may expect a type: make(some type, ...)
-		switch p.tok {
-		case token.COLON:
-			p.next()
-			// Next one is default value
-			list = append(list, p.parseRhsOrType())
-		case token.ELLIPSIS:
-			ellipsis = p.pos
-			p.next()
-		}
-		if !p.atComma("argument list", token.RPAREN) {
-			break
-		}
-		p.next()
-	}
-	p.exprLev--
-	rparen := p.expectClosing(token.RPAREN, "argument list")
+	// lparen := p.expect(token.LPAREN)
+	// p.exprLev++
+	// var list []ast.Expr
+	// var ellipsis token.Pos
+	// for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
+	// 	list = append(list, p.parseRhsOrType()) // builtins may expect a type: make(some type, ...)
+	// 	switch p.tok {
+	// 	case token.COLON:
+	// 		fmt.Println("looks right")
+	// 		p.next()
+	// 		// Next one is default value
+	// 		list = append(list, p.parseRhsOrType())
+	// 	case token.ELLIPSIS:
+	// 		ellipsis = p.pos
+	// 		p.next()
+	// 	}
+	// 	if !p.atComma("argument list", token.RPAREN) {
+	// 		break
+	// 	}
+	// 	p.next()
+	// }
+	// p.exprLev--
+	params := p.parseParameters(p.topScope, true)
+	// rparen := p.expectClosing(token.RPAREN, "argument list")
 
-	return &ast.CallExpr{Fun: fun, Lparen: lparen, Args: list, Ellipsis: ellipsis, Rparen: rparen}
+	// convert params back to expr
+	args := make([]ast.Expr, len(params.List))
+	for i := range params.List {
+		args[i] = params.List[i].Type
+	}
+
+	return &ast.CallExpr{
+		Fun:    fun,
+		Lparen: params.Opening,
+		Args:   args,
+		//Ellipsis: ellipsis,
+		Rparen: params.Closing}
 }
 
 func (p *parser) parseValue(keyOk bool) ast.Expr {

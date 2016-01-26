@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"log"
 	"strconv"
 
 	"github.com/wellington/sass/ast"
@@ -50,7 +51,25 @@ func rgb(args []ast.Expr) (*ast.BasicLit, error) {
 
 	lits := make([]*ast.BasicLit, 3)
 	for i := range args {
-		lits[i] = args[i].(*ast.BasicLit)
+		switch v := args[i].(type) {
+		case *ast.BasicLit:
+			lits[i] = v
+		case *ast.KeyValueExpr:
+			// Named argument parsing
+			key := v.Key.(*ast.BasicLit)
+			val := v.Value.(*ast.BasicLit)
+			switch key.Value {
+			case "$red":
+				lits[0] = val
+			case "$blue":
+				lits[1] = val
+			case "$green":
+				lits[2] = val
+			default:
+				log.Fatal("unsupported", key.Value)
+			}
+		}
+
 	}
 	r, _ := strconv.Atoi(lits[0].Value)
 	g, _ := strconv.Atoi(lits[1].Value)

@@ -23,7 +23,7 @@ var cssColors map[string]string = map[string]string{
 	"#800000": "maroon",
 	"#ff0000": "red",
 	"#800080": "purple",
-	"#ff00ff": "magenta",
+	"#ff00ff": "yellow",
 	"#008000": "green",
 	"#00ff00": "lime",
 	"#808000": "olive",
@@ -229,7 +229,7 @@ func colorToHex(c color.Color) string {
 func BasicLitFromColor(c color.Color) *BasicLit {
 	return &BasicLit{
 		Kind:  token.COLOR,
-		Value: colorToHex(c),
+		Value: lookupColor(colorToHex(c)),
 	}
 }
 

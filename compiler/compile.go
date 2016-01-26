@@ -404,11 +404,6 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 		return bx.Value + bin.Op.String() + by.Value, nil
 	}
 
-	// BasicLit from here on, right?
-	fmt.Printf("x %s: %s\n", bx.Kind, bx.Value)
-	fmt.Printf("y %s: %s\n", by.Kind, by.Value)
-	// Now look for colors
-	// xc, xok := x.(*ast.Co)
 	return "", nil
 }
 
@@ -443,6 +438,12 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				log.Fatal(err)
 			}
 			sums = append(sums, s)
+		case *ast.CallExpr:
+			s, err := evaluateCall(v)
+			if err != nil {
+				log.Fatal(err)
+			}
+			sums = append(sums, s.Value)
 		case *ast.ParenExpr:
 			sums = append(sums, simplifyExprs(ctx, []ast.Expr{v.X}))
 		case *ast.Ident:
