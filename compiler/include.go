@@ -57,7 +57,7 @@ func printInclude(ctx *Context, n ast.Node) {
 				fmt.Printf("dropped param: % #v\n", v)
 			}
 		}
-		ctx.scope.Set(key.Value, val.Name)
+		ctx.scope.Insert(key.Value, val.Name)
 	}
 	if len(params) > len(mixargs) {
 		fmt.Printf("dropped extra params: % #v\n", params[len(mixargs):])

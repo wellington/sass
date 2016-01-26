@@ -168,7 +168,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.Ident:
 		// The first IDENT is always the filename, just preserve
 		// it somewhere
-		// key = ident
+		key = ident
 	case *ast.PropValueSpec:
 		key = propSpec
 	case *ast.DeclStmt:
@@ -314,7 +314,7 @@ func visitAssignStmt(ctx *Context, n ast.Node) {
 		log.Fatalf("unsupported key: % #v", v)
 	}
 
-	ctx.scope.Set(key.Name, val.Name)
+	ctx.scope.Insert(key.Name, val.Name)
 }
 
 // Variable declarations
@@ -328,9 +328,9 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 
 	if len(spec.Values) > 0 {
 		expr := simplifyExprs(ctx, spec.Values)
-		ctx.scope.Set(names[0], expr)
+		ctx.scope.Insert(names[0], expr)
 	} else {
-		fmt.Fprintf(ctx.buf, "%s;", ctx.scope.Get(names[0]))
+		fmt.Fprintf(ctx.buf, "%s;", ctx.scope.Lookup(names[0]))
 	}
 }
 
@@ -420,7 +420,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 		switch v := expr.(type) {
 		case *ast.Value:
 			// if v.Obj == nil {
-			s, ok := ctx.scope.Get(v.Name).(string)
+			s, ok := ctx.scope.Lookup(v.Name).(string)
 			if ok {
 				sums = append(sums, s)
 			} else {
@@ -453,7 +453,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 			switch v.Obj.Kind {
 			case ast.Var, ast.Con:
 				name := v.Obj.Name
-				s, ok := ctx.scope.Get(name).(string)
+				s, ok := ctx.scope.Lookup(name).(string)
 				if ok {
 					sums = append(sums, s)
 				} else {
@@ -465,7 +465,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 		case *ast.BasicLit:
 			switch v.Kind {
 			case token.VAR:
-				s, ok := ctx.scope.Get(v.Value).(string)
+				s, ok := ctx.scope.Lookup(v.Value).(string)
 				if ok {
 					sums = append(sums, s)
 				}
@@ -486,12 +486,13 @@ func printDecl(ctx *Context, node ast.Node) {
 
 func printIdent(ctx *Context, node ast.Node) {
 	// don't print these
-	return
 	ident := node.(*ast.Ident)
-	resolved := ctx.scope.Get(ident.String())
+	fmt.Printf("ignoring % #v\n", ident)
+	return
+	resolved := ctx.scope.Lookup(ident.String())
 	if resolved != nil {
-		fmt.Fprint(ctx.buf, resolved.(string), ";")
+		fmt.Fprint(ctx.buf, resolved.(string), ";\n")
 	} else {
-		fmt.Fprint(ctx.buf, ident, ";")
+		fmt.Fprint(ctx.buf, ident, ";\n")
 	}
 }

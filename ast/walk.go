@@ -212,8 +212,8 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.X)
 
 	case *AssignStmt:
-		walkExprList(v, n.Lhs)
-		walkExprList(v, n.Rhs)
+		// walkExprList(v, n.Lhs)
+		// walkExprList(v, n.Rhs)
 
 	case *GoStmt:
 		Walk(v, n.Call)

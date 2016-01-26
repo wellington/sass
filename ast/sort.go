@@ -12,13 +12,12 @@ func StatementsSort(list []Stmt) []Stmt {
 		case *DeclStmt:
 			// Rule
 			rules = append(rules, stmt)
-			fmt.Printf("% #v\n", v.Decl.(*GenDecl).Specs[0].(*RuleSpec).Name)
-		case *IncludeStmt, *CommStmt:
+		case *IncludeStmt, *CommStmt, *AssignStmt:
 			rules = append(rules, stmt)
 		case *SelStmt:
-			fmt.Printf("% #v\n", v.Name)
 			notrules = append(notrules, stmt)
 		default:
+			fmt.Printf("unhandled sort! % #v\n", v)
 			notrules = append(notrules, stmt)
 		}
 	}

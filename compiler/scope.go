@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/wellington/sass/ast"
 )
@@ -11,8 +12,8 @@ import (
 type Scope interface {
 	// OpenScope() Typ
 	// CloseScope() Typ
-	Get(string) interface{}
-	Set(string, interface{})
+	Lookup(string) interface{}
+	Insert(string, interface{})
 	// Number of Rules in this scope
 	RuleAdd(*ast.RuleSpec)
 	RuleLen() int
@@ -27,7 +28,7 @@ var (
 
 type emptyTyp struct{}
 
-func (*emptyTyp) Get(name string) interface{} {
+func (*emptyTyp) Lookup(name string) interface{} {
 	return nil
 }
 
@@ -37,7 +38,7 @@ func (*emptyTyp) Mixin(_ string, _ int) (*MixFn, error) {
 	return nil, ErrMixinNotFound
 }
 
-func (*emptyTyp) Set(name string, _ interface{}) {}
+func (*emptyTyp) Insert(name string, _ interface{}) {}
 
 func (*emptyTyp) RuleLen() int { return 0 }
 
@@ -57,15 +58,37 @@ func (t *valueScope) RuleLen() int {
 	return len(t.rules)
 }
 
-func (t *valueScope) Get(name string) interface{} {
+func (t *valueScope) Lookup(name string) interface{} {
 	val, ok := t.m[name]
+	fmt.Printf("lookup %12s: %-10v\n", name, val)
 	if ok {
 		return val
 	}
-	return t.Scope.Get(name)
+	return t.Scope.Lookup(name)
 }
 
-func (t *valueScope) Set(name string, v interface{} /* should this just be string? */) {
+func (t *valueScope) Insert(name string, v interface{} /* should this just be string? */) {
+	val := v.(string)
+	l := len(val)
+	fmt.Println("       ", val)
+	val = strings.TrimSuffix(val, " !global")
+	fmt.Println("trimmed", val)
+	if len(val) != l {
+		// Global detected!
+		// This is only temporary, find a better way to get to
+		// top level scope
+		fmt.Println("global detected", v)
+		top := t
+		var ok bool
+		for !ok {
+			var val *valueScope
+			val, ok = top.Scope.(*valueScope)
+			top = val
+		}
+		top.Insert(name, val)
+		return
+	}
+
 	fmt.Printf("setting %12s: %-10v\n", name, v)
 	t.m[name] = v
 }
