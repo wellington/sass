@@ -20,7 +20,7 @@ func TestParse_files(t *testing.T) {
 	mode = Trace | ParseComments
 	for _, name := range inputs {
 
-		if !strings.Contains(name, "01_") {
+		if !strings.Contains(name, "22_") {
 			// continue
 		}
 		// These are fucked things in Sass like lists
@@ -76,7 +76,7 @@ func TestVarScope_quotes(t *testing.T) {
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
 	}
 
-	_, ok := vals[0].(*ast.Ident)
+	_, ok := vals[0].(*ast.Value)
 	if !ok {
 		t.Fatal("IDENT not found")
 	}
@@ -91,7 +91,7 @@ func TestVarScope_quotes(t *testing.T) {
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
 	}
 
-	lit := vals[0].(*ast.BasicLit)
+	lit := vals[0].(*ast.Value)
 	if e := token.QSTRING; e != lit.Kind {
 		t.Fatalf("got: %s wanted: %s", lit.Kind, e)
 	}
