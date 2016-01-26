@@ -91,7 +91,9 @@ func Walk(v Visitor, node Node) {
 	// Expressions
 	case *BadExpr, *BasicLit:
 		// nothing to do
+	case *IncludeSpec:
 	case *IncludeStmt:
+		Walk(v, n.Spec)
 	case *Ident:
 
 	case *Value:

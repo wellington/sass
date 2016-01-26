@@ -8,20 +8,21 @@ import (
 )
 
 func printInclude(ctx *Context, n ast.Node) {
-	// Add new scope, register args
-	stmt := n.(*ast.IncludeStmt)
+	spec := n.(*ast.IncludeSpec)
 
-	name := stmt.Spec.Name.String()
+	name := spec.Name.String()
 	var params []*ast.Field
-	if stmt.Spec.Params != nil {
-		params = stmt.Spec.Params.List
+	if spec.Params != nil {
+		params = spec.Params.List
 	}
-	numargs := stmt.Spec.Params.NumFields()
+	numargs := spec.Params.NumFields()
 
 	mix, err := ctx.scope.Mixin(name, numargs)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Add new scope, register args
 	ctx.scope = NewScope(ctx.scope)
 
 	mixargs := mix.fn.Type.Params.List
@@ -40,7 +41,7 @@ func printInclude(ctx *Context, n ast.Node) {
 			key = v
 		case *ast.KeyValueExpr:
 			key = v.Key.(*ast.BasicLit)
-			val = v.Value.(*ast.Ident)
+			val = ast.ToIdent(v.Value)
 		}
 
 		if param != nil {
@@ -50,14 +51,18 @@ func printInclude(ctx *Context, n ast.Node) {
 				// instead of the mixins argument for this position
 				// Params with defaults
 				key = v.Key.(*ast.BasicLit)
-				val = v.Value.(*ast.Ident)
+				val = ast.ToIdent(v.Value)
 			case *ast.Ident:
 				val = v
+			case *ast.BasicLit:
+				val = ast.ToIdent(v)
 			default:
 				fmt.Printf("dropped param: % #v\n", v)
 			}
 		}
-		ctx.scope.Insert(key.Value, val.Name)
+		if key != nil && val != nil {
+			ctx.scope.Insert(key.Value, val.Name)
+		}
 	}
 	if len(params) > len(mixargs) {
 		fmt.Printf("dropped extra params: % #v\n", params[len(mixargs):])

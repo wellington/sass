@@ -24,7 +24,8 @@ type MixFn struct {
 var mixins = map[string]map[int]*MixFn{}
 
 func (s *valueScope) RegisterMixin(name string, numargs int, fn *MixFn) {
-	if mix, ok := mixins[name]; ok {
+	// Evidently Sass allows redefining mixins
+	if mix, ok := mixins[name]; ok && false {
 		if _, ok := mix[numargs]; ok {
 			panic(fmt.Sprintf("already registered mixin: %s(%d)",
 				name, numargs))
@@ -57,7 +58,6 @@ func (s *valueScope) Mixin(name string, numargs int) (*MixFn, error) {
 				return mixs[i], nil
 			}
 		}
-
 		return nil, fmt.Errorf("mixin %s with num args %d not found",
 			name, numargs)
 	}

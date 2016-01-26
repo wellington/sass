@@ -173,8 +173,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = propSpec
 	case *ast.DeclStmt:
 		key = declStmt
-	case *ast.IncludeStmt:
-		key = includeStmt
+	case *ast.IncludeSpec:
+		key = includeSpec
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:
@@ -220,7 +220,7 @@ var (
 	typeSpec    *ast.TypeSpec
 	comment     *ast.Comment
 	funcDecl    *ast.FuncDecl
-	includeStmt *ast.IncludeStmt
+	includeSpec *ast.IncludeSpec
 )
 
 func (ctx *Context) Init() {
@@ -231,7 +231,7 @@ func (ctx *Context) Init() {
 	ctx.printers[assignStmt] = visitAssignStmt
 
 	ctx.printers[ident] = printIdent
-	ctx.printers[includeStmt] = printInclude
+	ctx.printers[includeSpec] = printInclude
 	ctx.printers[declStmt] = printDecl
 	ctx.printers[ruleSpec] = printRuleSpec
 	ctx.printers[selDecl] = printSelDecl
