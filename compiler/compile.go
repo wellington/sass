@@ -320,14 +320,10 @@ func visitAssignStmt(ctx *Context, n ast.Node) {
 
 // Variable declarations
 func visitValueSpec(ctx *Context, n ast.Node) {
-	fmt.Println("\n==============\nvisitValueSpec")
+	// TODO: probably remove this
 	spec := n.(*ast.ValueSpec)
 	names := make([]string, len(spec.Names))
 	var val *ast.BasicLit
-
-	for _, val := range spec.Values {
-		fmt.Printf("val  % #v\n", val)
-	}
 
 	_ = val
 	// fmt.Fprintf(ctx.buf, "%s;", val.Name)
@@ -418,7 +414,6 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 
 	var sums []string
 	for _, expr := range exprs {
-		fmt.Printf("expr: % #v\n", expr)
 		switch v := expr.(type) {
 		case *ast.Value:
 			// if v.Obj == nil {
@@ -458,7 +453,6 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				sums = append(sums, v.Name)
 				continue
 			}
-			fmt.Printf("found obj % #v\n", v.Obj)
 			switch vv := v.Obj.Decl.(type) {
 			case *ast.ValueSpec:
 				var s []string
@@ -467,12 +461,10 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 						// If obj is set, resolve Obj and report
 						if ident.Obj != nil {
 							spec := ident.Obj.Decl.(*ast.ValueSpec)
-							fmt.Printf("%s got % #v\n", ident, spec)
 							for _, val := range spec.Values {
 								s = append(s, fmt.Sprintf("%s", val))
 							}
 						} else {
-							fmt.Printf("wut % #v\n", ident)
 							// fmt.Printf("basic ident: % #v\n", ident)
 							s = append(s, fmt.Sprintf("%s", ident))
 						}

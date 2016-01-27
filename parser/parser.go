@@ -2494,6 +2494,7 @@ func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
 		Name:   ident,
 		Params: params,
 	}
+	fmt.Printf("include % #v\n", spec)
 
 	return spec
 }

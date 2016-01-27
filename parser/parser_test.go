@@ -21,7 +21,7 @@ func TestParse_files(t *testing.T) {
 	for _, name := range inputs {
 
 		if !strings.Contains(name, "03_") {
-			continue
+			// continue
 		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {
