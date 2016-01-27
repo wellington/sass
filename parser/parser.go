@@ -20,6 +20,9 @@ type parser struct {
 	errors  scanner.ErrorList
 	scanner scanner.Scanner
 
+	// Mixins
+	mixins map[string]*ast.FuncDecl
+
 	// Tracing/debugging
 	mode   Mode // parsing mode
 	trace  bool // == (mode & Trace != 0)
@@ -60,6 +63,7 @@ type parser struct {
 }
 
 func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
+	p.mixins = make(map[string]*ast.FuncDecl, 4)
 	p.file = fset.AddFile(filename, -1, len(src))
 	var m scanner.Mode
 	if mode&ParseComments != 0 {
@@ -178,12 +182,13 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	}
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
-		fmt.Println("resolving ident", ident)
 		if obj := s.Lookup(ident.Name); obj != nil {
+			fmt.Printf("resolved %s: % #v\n", ident, obj)
 			ident.Obj = obj
 			return
 		}
 	}
+	fmt.Println("failed to resolve", ident)
 	// all local scopes are known, so any unresolved identifier
 	// must be found either in the file scope, package scope
 	// (perhaps in another file), or universe scope --- collect
@@ -2480,6 +2485,49 @@ func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, 
 	return p.parseIncludeSpec()
 }
 
+// Resolves statements (again) using the passed fieldlist
+func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, args *ast.FieldList, stmts []ast.Stmt) {
+	for i, sig := range signature.List {
+		var arg *ast.Field
+		if i < args.NumFields() {
+			arg = args.List[i]
+
+		}
+		ident := ast.ToIdent(sig.Type)
+		// Reset resolution
+		ident.Obj = nil
+		field := &ast.Field{
+			Names:   []*ast.Ident{ident},
+			Type:    arg.Type,
+			Comment: arg.Comment,
+		}
+		// ident := ast.ToIdent(field.Type)
+		p.declare(field, nil, p.topScope, ast.Fun, ident)
+	}
+
+	for _, stmt := range stmts {
+		decl := stmt.(*ast.DeclStmt)
+		p.resolveDecl(scope, decl)
+	}
+}
+
+// resolveDecl reevalutes all found IDENTs with new scope provided by
+// arg list
+func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
+	switch v := decl.Decl.(type) {
+	case *ast.GenDecl:
+		for _, spec := range v.Specs {
+			switch sv := spec.(type) {
+			case *ast.RuleSpec:
+				for _, val := range sv.Values {
+					p.resolve(val)
+				}
+			}
+		}
+	}
+
+}
+
 // @include foo(second, third);
 // @include foo($x: second, $y: third);
 func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
@@ -2488,13 +2536,26 @@ func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
 	}
 	p.expect(token.INCLUDE)
 	ident := p.parseIdent()
-	params, _ := p.parseSignature(p.topScope)
+	args, _ := p.parseSignature(p.topScope)
 
+	p.resolve(ident)
 	spec := &ast.IncludeSpec{
 		Name:   ident,
-		Params: params,
+		Params: args,
 	}
-	fmt.Printf("include % #v\n", spec)
+
+	assert(ident.Obj != nil, "failed to retrieve mixin")
+
+	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
+	list := fnDecl.Body.List
+	for i := range list {
+		spec.List = append(spec.List, list[i])
+	}
+	// All the identifiers within this list need to be re-resolved
+	// with the args passed via the include
+	p.openScope()
+	p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
+	p.closeScope()
 
 	return spec
 }
@@ -2532,17 +2593,8 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 		},
 		Body: body,
 	}
-	if true /*recv == nil*/ {
-		// Go spec: The scope of an identifier denoting a constant, type,
-		// variable, or function (but not method) declared at top level
-		// (outside any function) is the package block.
-		//
-		// init() functions cannot be referred to and there may
-		// be more than one - don't put them in the pkgScope
-		if ident.Name != "init" {
-			p.declare(decl, nil, p.pkgScope, ast.Fun, ident)
-		}
-	}
+	// Mixins are available to everything parsed from here on out
+	p.declare(decl, nil, p.pkgScope, ast.Fun, ident)
 
 	return decl
 }

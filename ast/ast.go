@@ -937,6 +937,7 @@ type (
 	IncludeSpec struct {
 		Name   *Ident
 		Params *FieldList // (incoming) parameters; or nil
+		List   []Stmt     // Statements contained in the mixin referred to by this include
 	}
 
 	MediaSpec struct {
