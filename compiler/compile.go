@@ -458,6 +458,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				sums = append(sums, v.Name)
 				continue
 			}
+			fmt.Printf("found obj % #v\n", v.Obj)
 			switch vv := v.Obj.Decl.(type) {
 			case *ast.ValueSpec:
 				var s []string
@@ -466,10 +467,12 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 						// If obj is set, resolve Obj and report
 						if ident.Obj != nil {
 							spec := ident.Obj.Decl.(*ast.ValueSpec)
+							fmt.Printf("%s got % #v\n", ident, spec)
 							for _, val := range spec.Values {
 								s = append(s, fmt.Sprintf("%s", val))
 							}
 						} else {
+							fmt.Printf("wut % #v\n", ident)
 							// fmt.Printf("basic ident: % #v\n", ident)
 							s = append(s, fmt.Sprintf("%s", ident))
 						}
@@ -482,7 +485,9 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				}
 				sums = append(sums, strings.Join(s, " "))
 			default:
-				fmt.Printf("unsupported VarDecl: % #v\n", vv)
+				// fmt.Printf("unsupported VarDecl: % #v\n", vv)
+				// Weird stuff here, let's just push the Ident in
+				sums = append(sums, v.Name)
 			}
 		case *ast.BasicLit:
 			switch v.Kind {
