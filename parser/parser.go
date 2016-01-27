@@ -115,6 +115,7 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		obj.Data = data
 		ident.Obj = obj
 		if ident.Name != "_" {
+			fmt.Printf("declaring %s: % #v\n", ident.Name, obj)
 			if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
 				prevDecl := ""
 				if pos := alt.Pos(); pos.IsValid() {
@@ -168,14 +169,16 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// nothing to do if x is not an identifier or the blank identifier
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
+		fmt.Printf("cant resolve this: % #v\n", x)
 		return
 	}
-	assert(ident.Obj == nil, "identifier already declared or resolved")
+	// assert(ident.Obj == nil, "identifier already declared or resolved")
 	if ident.Name == "_" {
 		return
 	}
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
+		fmt.Println("resolving ident", ident)
 		if obj := s.Lookup(ident.Name); obj != nil {
 			ident.Obj = obj
 			return
@@ -728,8 +731,8 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		expr = &ast.Ident{
 			NamePos: p.pos,
 			Name:    p.lit,
-			Obj:     ast.NewObj(ast.Var, p.lit),
 		}
+		p.resolve(expr)
 		// basic = &ast.BasicLit{
 		// 	ValuePos: p.pos,
 		// 	Value:    p.lit,
@@ -2231,17 +2234,21 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		for i, v := range values {
 			switch vv := v.(type) {
 			case *ast.Ident:
-				values[i] = &ast.Value{
-					Name:    vv.Name,
-					NamePos: vv.NamePos,
-				}
+				values[i] = vv
+				// values[i] = &ast.Value{
+				// 	Name:    vv.Name,
+				// 	NamePos: vv.NamePos,
+				// }
 			case *ast.BasicLit:
-				values[i] = &ast.Value{
-					Name:    vv.Value,
-					NamePos: vv.ValuePos,
-					Kind:    vv.Kind,
-				}
+				values[i] = vv
+				// values[i] = &ast.Value{
+				// 	Name:    vv.Value,
+				// 	NamePos: vv.ValuePos,
+				// 	Kind:    vv.Kind,
+				// }
 			}
+			fmt.Printf("resolving % #v\n", values[i])
+			p.resolve(values[i])
 		}
 
 		spec = &ast.ValueSpec{
@@ -2677,7 +2684,7 @@ func (p *parser) parseFile() *ast.File {
 	i := 0
 	for _, ident := range p.unresolved {
 		// i <= index for current ident
-		assert(ident.Obj == unresolved, "object already resolved")
+		// assert(ident.Obj == unresolved, "object already resolved")
 		ident.Obj = p.pkgScope.Lookup(ident.Name) // also removes unresolved sentinel
 		if ident.Obj == nil {
 			p.unresolved[i] = ident

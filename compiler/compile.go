@@ -297,6 +297,7 @@ func printPropValueSpec(ctx *Context, n ast.Node) {
 
 // Variable assignments inside blocks ie. mixins
 func visitAssignStmt(ctx *Context, n ast.Node) {
+	return
 	stmt := n.(*ast.AssignStmt)
 	var key, val *ast.Ident
 
@@ -319,12 +320,18 @@ func visitAssignStmt(ctx *Context, n ast.Node) {
 
 // Variable declarations
 func visitValueSpec(ctx *Context, n ast.Node) {
+	fmt.Println("\n==============\nvisitValueSpec")
 	spec := n.(*ast.ValueSpec)
-
 	names := make([]string, len(spec.Names))
-	for i, nm := range spec.Names {
-		names[i] = nm.Name
+	var val *ast.BasicLit
+
+	for _, val := range spec.Values {
+		fmt.Printf("val  % #v\n", val)
 	}
+
+	_ = val
+	// fmt.Fprintf(ctx.buf, "%s;", val.Name)
+	return
 
 	if len(spec.Values) > 0 {
 		expr := simplifyExprs(ctx, spec.Values)
@@ -411,7 +418,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 
 	var sums []string
 	for _, expr := range exprs {
-		// fmt.Printf("expr: % #v\n", expr)
+		fmt.Printf("expr: % #v\n", expr)
 		switch v := expr.(type) {
 		case *ast.Value:
 			// if v.Obj == nil {
@@ -451,25 +458,39 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				sums = append(sums, v.Name)
 				continue
 			}
-			switch v.Obj.Kind {
-			case ast.Var, ast.Con:
-				name := v.Obj.Name
-				s, ok := ctx.scope.Lookup(name).(string)
-				if ok {
-					sums = append(sums, s)
-				} else {
-					sums = append(sums, name)
+			switch vv := v.Obj.Decl.(type) {
+			case *ast.ValueSpec:
+				var s []string
+				for i := range vv.Values {
+					if ident, ok := vv.Values[i].(*ast.Ident); ok {
+						// If obj is set, resolve Obj and report
+						if ident.Obj != nil {
+							spec := ident.Obj.Decl.(*ast.ValueSpec)
+							for _, val := range spec.Values {
+								s = append(s, fmt.Sprintf("%s", val))
+							}
+						} else {
+							// fmt.Printf("basic ident: % #v\n", ident)
+							s = append(s, fmt.Sprintf("%s", ident))
+						}
+						continue
+					}
+					lit := vv.Values[i].(*ast.BasicLit)
+					if len(lit.Value) > 0 {
+						s = append(s, lit.Value)
+					}
 				}
+				sums = append(sums, strings.Join(s, " "))
 			default:
-				fmt.Printf("unsupported obj kind: %s\n", v.Obj.Kind)
+				fmt.Printf("unsupported VarDecl: % #v\n", vv)
 			}
 		case *ast.BasicLit:
 			switch v.Kind {
 			case token.VAR:
-				s, ok := ctx.scope.Lookup(v.Value).(string)
-				if ok {
-					sums = append(sums, s)
-				}
+				// s, ok := ctx.scope.Lookup(v.Value).(string)
+				// if ok {
+				// 	sums = append(sums, s)
+				// }
 			default:
 				sums = append(sums, v.Value)
 			}

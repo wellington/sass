@@ -20,8 +20,8 @@ func TestParse_files(t *testing.T) {
 	mode = Trace | ParseComments
 	for _, name := range inputs {
 
-		if !strings.Contains(name, "16_") {
-			// continue
+		if !strings.Contains(name, "03_") {
+			continue
 		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {
@@ -44,25 +44,17 @@ func TestParseDir(t *testing.T) {
 
 }
 
-func TestVarScope_list2(t *testing.T) {
-	t.Skip("Parser will have to split rhs lists")
-	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : x,y;`, Trace)
+func TestVarScope(t *testing.T) {
+	f, err := ParseFile(token.NewFileSet(), "../sass-spec/spec/basic/03_simple_variable/input.scss", nil, Trace)
+
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if e := "main.scss"; e != f.Name.Name {
-		t.Fatalf("got: %s wanted: %s", f.Name, e)
-	}
-
-	vals := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
-
-	if e := 2; len(vals) != e {
-		t.Fatalf("got: %d wanted: %d", len(vals), e)
-	}
+	fmt.Printf("% #v\n", f)
 }
 
-func TestVarScope_quotes(t *testing.T) {
+func TestParse_quotes(t *testing.T) {
 	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : word;`, 0)
 	if err != nil {
 		t.Fatal(err)

@@ -70,9 +70,7 @@ func (t *valueScope) Lookup(name string) interface{} {
 func (t *valueScope) Insert(name string, v interface{} /* should this just be string? */) {
 	val := v.(string)
 	l := len(val)
-	fmt.Println("       ", val)
 	val = strings.TrimSuffix(val, " !global")
-	fmt.Println("trimmed", val)
 	if len(val) != l {
 		// Global detected!
 		// This is only temporary, find a better way to get to
