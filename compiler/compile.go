@@ -41,7 +41,7 @@ func fileRun(path string) (string, error) {
 func (ctx *Context) Run(path string) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
 	fset := token.NewFileSet()
-	pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.Trace)
+	pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments) //|parser.Trace)
 	if err != nil {
 		return "", err
 	}
@@ -447,6 +447,12 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 					}
 				}
 				sums = append(sums, strings.Join(s, " "))
+			case *ast.AssignStmt:
+				// li := vv.Lhs[0].(*ast.Ident)
+				// ri := vv.Rhs[0].(*ast.Ident)
+				// fmt.Printf("lhs %s % #v\n", li)
+				// fmt.Printf("rhs %s % #v\n", ri)
+				sums = append(sums, simplifyExprs(ctx, vv.Rhs))
 			default:
 				fmt.Printf("unsupported VarDecl: % #v\n", vv)
 				// Weird stuff here, let's just push the Ident in
@@ -475,7 +481,18 @@ func printDecl(ctx *Context, node ast.Node) {
 }
 
 func printIdent(ctx *Context, node ast.Node) {
+	// ident := node.(*ast.Ident)
 	// don't print these
-	ident := node.(*ast.Ident)
-	fmt.Printf("ignoring % #v\n", ident)
+	// fmt.Printf("ignoring % #v\n", ident)
+}
+
+func (c *Context) makeStrings(exprs []ast.Expr) (list []string) {
+	list = make([]string, 0, len(exprs))
+	for _, expr := range exprs {
+		switch e := expr.(type) {
+		case *ast.Ident:
+			list = append(list, e.Name)
+		}
+	}
+	return
 }

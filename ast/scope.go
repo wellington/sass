@@ -42,9 +42,10 @@ func (s *Scope) Lookup(name string) *Object {
 // it inserts obj and returns nil.
 //
 func (s *Scope) Insert(obj *Object) (alt *Object) {
-	// if alt = s.Objects[obj.Name]; alt == nil {
+	if alt = s.Objects[obj.Name]; alt == nil {
+	}
+	// At some point, we shouldn't need to do this but not today
 	s.Objects[obj.Name] = obj
-	// }
 	return
 }
 

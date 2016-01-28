@@ -112,17 +112,27 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		obj := ast.NewObj(kind, ident.Name)
 		// remember the corresponding declaration for redeclaration
 		// errors and global variable resolution/typechecking phase
+
+		// Catch rules, these should not be declared
+		switch decl.(type) {
+		case *ast.RuleSpec:
+			return
+		}
 		obj.Decl = decl
 		obj.Data = data
 		ident.Obj = obj
 		if ident.Name != "_" {
-			fmt.Printf("declaring %s (%p): % #v\n", ident, ident, obj.Decl)
 			if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
+
 				prevDecl := ""
 				if pos := alt.Pos(); pos.IsValid() {
 					prevDecl = fmt.Sprintf("\n\tprevious declaration at %s", p.file.Position(pos))
 				}
 				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
+			} else {
+				fmt.Printf("declaring %15s(%p): scope(%p): % #v\n",
+					ident, ident, scope, obj.Decl)
+				// p.tryResolve(ident, false)
 			}
 		}
 	}
@@ -140,13 +150,20 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 			// remember corresponding assignment for other tools
 			obj.Decl = decl
 			ident.Obj = obj
+			fmt.Printf("defining %s(%p): % #v\n",
+				ident, ident, obj)
 			if ident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
+					fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
+						ident, decl)
 					ident.Obj = alt // redeclaration
 				} else {
 					n++ // new declaration
 				}
 			}
+			// fmt.Println("does it resolve?")
+			// p.tryResolve(ident, false)
+			// fmt.Println("||||||||||||")
 		} else {
 			p.errorExpected(x.Pos(), "identifier on left side of :=")
 		}
@@ -181,12 +198,25 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
 		if obj := s.Lookup(ident.Name); obj != nil {
-			fmt.Printf("resolved %s: % #v\n", ident, obj.Decl)
+			decl, ok := obj.Decl.(*ast.AssignStmt)
+			if ok {
+				fmt.Printf("resolved  %15s: scope(%p) % #v\n",
+					ident,
+					s,
+					decl.Rhs[0])
+			}
 			ident.Obj = obj
 			return
 		}
 	}
-	fmt.Println("failed to resolve", ident)
+
+	// This is a significant failure scenario. However, inside
+	// mixins failing to resolve identifiers are perfectly valid.
+	// So produce annoying output for somebody to eventually come fix
+	// this.
+
+	fmt.Println("failed to resolve", ident, collectUnresolved)
+	// panic("boom")
 
 	// all local scopes are known, so any unresolved identifier
 	// must be found either in the file scope, package scope
@@ -682,7 +712,6 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
 	}
-
 	list = append(list, p.inferExpr(lhs))
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
@@ -739,7 +768,9 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		// Inside mixins, this should not be marked as unresolved
 		// Since pkgScope means nothings to us, we don't care about
 		// resolving this again at the package scope.
-		p.tryResolve(expr, false)
+		if !lhs {
+			p.tryResolve(expr, false)
+		}
 		// basic = &ast.BasicLit{
 		// 	ValuePos: p.pos,
 		// 	Value:    p.lit,
@@ -1216,7 +1247,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	case token.IDENT:
 		x := p.parseIdent()
 		if !lhs {
-			p.resolve(x)
+			// p.resolve(x)
 		}
 		return x
 	case token.INTERP:
@@ -2222,6 +2253,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	lhs := true
 
 	p.next()
+	pos, tok := p.pos, p.tok
 	switch p.tok {
 	case token.LPAREN:
 		values = append(values, p.parseCallOrConversion(p.checkExprOrType(
@@ -2265,9 +2297,12 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 				// 	Kind:    vv.Kind,
 				// }
 			}
-			p.resolve(values[i])
+			// This only looks at IDENTs from what I can tell
+			// No need to resolve these
+			// p.resolve(values[i])
 		}
 
+		// Assignment happening
 		spec = &ast.ValueSpec{
 			Doc:   doc,
 			Names: []*ast.Ident{name},
@@ -2275,19 +2310,25 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			Comment: p.lineComment,
 			Values:  values,
 		}
-
+		decl := &ast.AssignStmt{}
+		decl.Lhs = []ast.Expr{name}
+		decl.Rhs = values
+		decl.Tok = tok
+		decl.TokPos = pos
+		fmt.Println(decl.Lhs, decl.Rhs)
+		p.shortVarDecl(decl, decl.Lhs)
 	default:
 		spec = &ast.RuleSpec{
 			Name:    name,
 			Comment: p.lineComment,
 			Values:  values,
 		}
+		// kind := ast.Con
+		// if keyword == token.VAR {
+		// 	kind = ast.Var
+		// }
+		// p.declare(spec, iota, p.topScope, kind, name)
 	}
-	kind := ast.Con
-	if keyword == token.VAR {
-		kind = ast.Var
-	}
-	p.declare(spec, iota, p.topScope, kind, name)
 	return spec
 
 }
@@ -2472,15 +2513,20 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 		// p.tok != token.RULE &&
 		p.tok != token.EOF; iota++ {
 
+		var spec ast.Spec
+
 		switch p.tok {
-		case token.LPAREN:
-			list = append(list, f(p.leadComment, p.tok, iota))
-			p.expect(token.RPAREN)
 		case token.SELECTOR:
 			f = p.inferSelSpec
-			list = append(list, f(p.leadComment, p.tok, iota))
+			spec = f(p.leadComment, p.tok, iota)
+		case token.LPAREN:
+			spec = f(p.leadComment, p.tok, iota)
+			p.expect(token.RPAREN)
 		default:
-			list = append(list, f(p.leadComment, p.tok, iota))
+			spec = f(p.leadComment, p.tok, iota)
+		}
+		if spec != nil {
+			list = append(list, spec)
 		}
 	}
 	p.expectSemi()
@@ -2497,9 +2543,9 @@ func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, 
 	return p.parseIncludeSpec()
 }
 
-// Resolves statements (again) using the passed fieldlist
-// Signature is the called function signature and the args are what
-// it was called with
+// Resolves a block within a new scope parsing the called arguments
+// against the provided signature
+// Currently only used for mixin and include
 func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList, stmts []ast.Stmt) []ast.Stmt {
 
 	var sigs []*ast.Ident
@@ -2518,8 +2564,7 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			ident := ast.ToIdent(v.Key)
 			// declare the default argument
 			if v.Value != nil {
-				copy := *ident
-				p.declare(v.Value, nil, scope, ast.Var, &copy)
+				p.declare(v.Value, nil, scope, ast.Var, ident)
 			}
 
 			typ = ident
@@ -2551,19 +2596,24 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			if sigident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
 					sigident.Obj = alt
+					fmt.Printf("arg redeclare: %s (%p): % #v\n",
+						sigident, sigident.Obj, sigident.Obj.Decl)
 				} else {
+					fmt.Printf("arg   declare: %s (%p): % #v\n",
+						sigident, obj, obj.Decl)
 					n++
 				}
 			}
-
 		}
 	}
+
+	panic("just set this shit directly, scoping is not working here")
 	fmt.Println("visited Resolve Stmt")
 	for i := range stmts {
 		if decl, ok := stmts[i].(*ast.DeclStmt); ok {
 			p.resolveDecl(scope, decl)
 			stmts[i] = decl
-			fmt.Printf("resolved stmt: % #v\n", stmts[i])
+			fmt.Printf("resolved stmt: % #v\n", decl.Decl.(*ast.GenDecl).Specs[0])
 		}
 	}
 
@@ -2579,11 +2629,20 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
 				for _, val := range sv.Values {
-					p.resolve(val)
+					ident := val.(*ast.Ident)
+					if ident.Obj != nil {
+						fmt.Printf("ident %s scope (%p): % #v\n",
+							ident, p.topScope, ident.Obj.Decl.(*ast.Ident))
+					} else {
+						//	p.resolve(val)
+					}
+					// fmt.Println("weird resolve", ident)
 					// This feels weird, but what can you do?
 				}
 			}
 		}
+	default:
+		panic("resolveDecl")
 	}
 
 }

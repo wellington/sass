@@ -427,7 +427,7 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 		return pos, token.RULE,
 			string(bytes.TrimSpace(sel))
 	}
-	fmt.Printf("               rewinding: %q\n", string(sel))
+	// fmt.Printf("               rewinding: %q\n", string(sel))
 	s.rewind(offs)
 	return
 	// case '(':
