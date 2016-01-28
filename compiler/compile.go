@@ -300,7 +300,7 @@ func visitAssignStmt(ctx *Context, n ast.Node) {
 	return
 	stmt := n.(*ast.AssignStmt)
 	var key, val *ast.Ident
-
+	_, _ = key, val
 	switch v := stmt.Lhs[0].(type) {
 	case *ast.Ident:
 		key = v
@@ -315,26 +315,11 @@ func visitAssignStmt(ctx *Context, n ast.Node) {
 		log.Fatalf("unsupported key: % #v", v)
 	}
 
-	ctx.scope.Insert(key.Name, val.Name)
 }
 
 // Variable declarations
 func visitValueSpec(ctx *Context, n ast.Node) {
-	// TODO: probably remove this
-	spec := n.(*ast.ValueSpec)
-	names := make([]string, len(spec.Names))
-	var val *ast.BasicLit
-
-	_ = val
-	// fmt.Fprintf(ctx.buf, "%s;", val.Name)
 	return
-
-	if len(spec.Values) > 0 {
-		expr := simplifyExprs(ctx, spec.Values)
-		ctx.scope.Insert(names[0], expr)
-	} else {
-		fmt.Fprintf(ctx.buf, "%s;", ctx.scope.Lookup(names[0]))
-	}
 }
 
 func exprString(expr ast.Expr) string {
@@ -416,24 +401,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 	for _, expr := range exprs {
 		switch v := expr.(type) {
 		case *ast.Value:
-			// if v.Obj == nil {
-			s, ok := ctx.scope.Lookup(v.Name).(string)
-			if ok {
-				sums = append(sums, s)
-			} else {
-				sums = append(sums, v.Name)
-			}
-			continue
-			// }
-			// switch v.Obj.Kind {
-			// case ast.Var:
-			// 	s, ok := ctx.typ.Get(v.Obj.Name).(string)
-			// 	if ok {
-			// 		sums = append(sums, s)
-			// 	}
-			// default:
-			// 	fmt.Println("unsupported obj kind")
-			// }
+			panic("ast.Value")
 		case *ast.BinaryExpr:
 			s, err := calculateExprs(ctx, v)
 			if err != nil {
@@ -453,7 +421,10 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				sums = append(sums, v.Name)
 				continue
 			}
+			fmt.Printf("printing (%p) % #v\n", v, v)
 			switch vv := v.Obj.Decl.(type) {
+			case *ast.Ident:
+				sums = append(sums, vv.Name)
 			case *ast.ValueSpec:
 				var s []string
 				for i := range vv.Values {
@@ -477,7 +448,7 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
 				}
 				sums = append(sums, strings.Join(s, " "))
 			default:
-				// fmt.Printf("unsupported VarDecl: % #v\n", vv)
+				fmt.Printf("unsupported VarDecl: % #v\n", vv)
 				// Weird stuff here, let's just push the Ident in
 				sums = append(sums, v.Name)
 			}
@@ -507,11 +478,4 @@ func printIdent(ctx *Context, node ast.Node) {
 	// don't print these
 	ident := node.(*ast.Ident)
 	fmt.Printf("ignoring % #v\n", ident)
-	return
-	resolved := ctx.scope.Lookup(ident.String())
-	if resolved != nil {
-		fmt.Fprint(ctx.buf, resolved.(string), ";\n")
-	} else {
-		fmt.Fprint(ctx.buf, ident, ";\n")
-	}
 }

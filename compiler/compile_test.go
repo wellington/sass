@@ -36,7 +36,7 @@ func findPaths() []file {
 			continue
 		}
 		if strings.Contains(input, "17_") {
-			continue
+			// continue
 		}
 		if strings.Contains(input, "06_") {
 			continue

@@ -20,9 +20,6 @@ type parser struct {
 	errors  scanner.ErrorList
 	scanner scanner.Scanner
 
-	// Mixins
-	mixins map[string]*ast.FuncDecl
-
 	// Tracing/debugging
 	mode   Mode // parsing mode
 	trace  bool // == (mode & Trace != 0)
@@ -63,7 +60,7 @@ type parser struct {
 }
 
 func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
-	p.mixins = make(map[string]*ast.FuncDecl, 4)
+
 	p.file = fset.AddFile(filename, -1, len(src))
 	var m scanner.Mode
 	if mode&ParseComments != 0 {
@@ -119,7 +116,7 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		obj.Data = data
 		ident.Obj = obj
 		if ident.Name != "_" {
-			fmt.Printf("declaring %s: % #v\n", ident.Name, obj)
+			fmt.Printf("declaring %s (%p): % #v\n", ident, ident, obj.Decl)
 			if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
 				prevDecl := ""
 				if pos := alt.Pos(); pos.IsValid() {
@@ -174,6 +171,7 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
 		fmt.Printf("cant resolve this: % #v\n", x)
+		panic("ugh")
 		return
 	}
 	// assert(ident.Obj == nil, "identifier already declared or resolved")
@@ -183,12 +181,13 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
 		if obj := s.Lookup(ident.Name); obj != nil {
-			fmt.Printf("resolved %s: % #v\n", ident, obj)
+			fmt.Printf("resolved %s: % #v\n", ident, obj.Decl)
 			ident.Obj = obj
 			return
 		}
 	}
 	fmt.Println("failed to resolve", ident)
+
 	// all local scopes are known, so any unresolved identifier
 	// must be found either in the file scope, package scope
 	// (perhaps in another file), or universe scope --- collect
@@ -737,7 +736,10 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 			NamePos: p.pos,
 			Name:    p.lit,
 		}
-		p.resolve(expr)
+		// Inside mixins, this should not be marked as unresolved
+		// Since pkgScope means nothings to us, we don't care about
+		// resolving this again at the package scope.
+		p.tryResolve(expr, false)
 		// basic = &ast.BasicLit{
 		// 	ValuePos: p.pos,
 		// 	Value:    p.lit,
@@ -957,7 +959,12 @@ func (p *parser) parseParameterList(scope *ast.Scope, ellipsisOk bool) (params [
 	// Type { "," Type } (anonymous parameters)
 	params = make([]*ast.Field, len(list))
 	for i, typ := range list {
-		p.resolve(typ)
+		// ident := ast.ToIdent(typ)
+		// if ident != nil && ident.Obj == nil {
+		// 	p.resolve(ident)
+		// 	typ = ident
+		// 	fmt.Printf("wut? % #v\n", typ)
+		// }
 		params[i] = &ast.Field{Type: typ}
 	}
 
@@ -1107,7 +1114,13 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 	}
 
 	for p.tok != token.RBRACE && p.tok != token.EOF {
-		list = append(list, p.parseStmt())
+		stmt := p.parseStmt()
+		if inc, ok := stmt.(*ast.IncludeStmt); ok {
+			// Unwrap includes
+			list = append(list, inc.Spec.List...)
+			continue
+		}
+		list = append(list, stmt)
 		if p.leadComment != nil {
 			list = append(list, &ast.CommStmt{
 				Group: p.leadComment,
@@ -2245,14 +2258,13 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 				// 	NamePos: vv.NamePos,
 				// }
 			case *ast.BasicLit:
-				values[i] = vv
+				values[i] = ast.ToIdent(vv)
 				// values[i] = &ast.Value{
 				// 	Name:    vv.Value,
 				// 	NamePos: vv.ValuePos,
 				// 	Kind:    vv.Kind,
 				// }
 			}
-			fmt.Printf("resolving % #v\n", values[i])
 			p.resolve(values[i])
 		}
 
@@ -2486,29 +2498,76 @@ func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, 
 }
 
 // Resolves statements (again) using the passed fieldlist
-func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, args *ast.FieldList, stmts []ast.Stmt) {
-	for i, sig := range signature.List {
-		var arg *ast.Field
-		if i < args.NumFields() {
-			arg = args.List[i]
+// Signature is the called function signature and the args are what
+// it was called with
+func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList, stmts []ast.Stmt) []ast.Stmt {
 
+	var sigs []*ast.Ident
+	var args []ast.Expr
+	_ = args
+	// Process the signature, declaring defaults
+	for _, sig := range signature.List {
+		// var cmt *ast.CommentGroup
+		var typ *ast.Ident
+
+		// Convert ident or basiclit to ident
+		switch v := sig.Type.(type) {
+		case *ast.Ident, *ast.BasicLit:
+			typ = ast.ToIdent(sig.Type)
+		case *ast.KeyValueExpr:
+			ident := ast.ToIdent(v.Key)
+			// declare the default argument
+			if v.Value != nil {
+				copy := *ident
+				p.declare(v.Value, nil, scope, ast.Var, &copy)
+			}
+
+			typ = ident
 		}
-		ident := ast.ToIdent(sig.Type)
-		// Reset resolution
-		ident.Obj = nil
-		field := &ast.Field{
-			Names:   []*ast.Ident{ident},
-			Type:    arg.Type,
-			Comment: arg.Comment,
-		}
-		// ident := ast.ToIdent(field.Type)
-		p.declare(field, nil, p.topScope, ast.Fun, ident)
+		sigs = append(sigs, typ)
 	}
 
-	for _, stmt := range stmts {
-		decl := stmt.(*ast.DeclStmt)
-		p.resolveDecl(scope, decl)
+	// Now walk through passed arguments and declare finding the
+	// appropriate matching arg
+	if arguments != nil {
+		for i, arg := range arguments.List {
+			var argident *ast.Ident
+			var sigident *ast.Ident
+			switch v := arg.Type.(type) {
+			case *ast.Ident, *ast.BasicLit:
+				argident = ast.ToIdent(v)
+				sigident = sigs[i]
+				// p.declare(ident, nil, scope, ast.Var, sigs[i])
+			case *ast.KeyValueExpr:
+				sigident = ast.ToIdent(v.Key)
+				argident = v.Value.(*ast.Ident)
+			}
+			n := 0
+			if argident == nil {
+				continue
+			}
+			obj := ast.NewObj(ast.Var, sigident.Name)
+			obj.Decl = argident
+			if sigident.Name != "_" {
+				if alt := p.topScope.Insert(obj); alt != nil {
+					sigident.Obj = alt
+				} else {
+					n++
+				}
+			}
+
+		}
 	}
+	fmt.Println("visited Resolve Stmt")
+	for i := range stmts {
+		if decl, ok := stmts[i].(*ast.DeclStmt); ok {
+			p.resolveDecl(scope, decl)
+			stmts[i] = decl
+			fmt.Printf("resolved stmt: % #v\n", stmts[i])
+		}
+	}
+
+	return stmts
 }
 
 // resolveDecl reevalutes all found IDENTs with new scope provided by
@@ -2521,6 +2580,7 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 			case *ast.RuleSpec:
 				for _, val := range sv.Values {
 					p.resolve(val)
+					// This feels weird, but what can you do?
 				}
 			}
 		}
@@ -2554,9 +2614,8 @@ func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
 	// All the identifiers within this list need to be re-resolved
 	// with the args passed via the include
 	p.openScope()
-	p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
+	spec.List = p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
 	p.closeScope()
-
 	return spec
 }
 
@@ -2665,6 +2724,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		// Regular CSS
 		return p.parseSelDecl()
 	case token.INCLUDE:
+		fmt.Println("one of these...")
 		return p.parseGenDecl("", token.INCLUDE, p.parseIncludeSpecFn)
 	case token.RULE, token.IDENT:
 		return p.parseRuleDecl()
@@ -2740,7 +2800,8 @@ func (p *parser) parseFile() *ast.File {
 		// assert(ident.Obj == unresolved, "object already resolved")
 		ident.Obj = p.pkgScope.Lookup(ident.Name) // also removes unresolved sentinel
 		if ident.Obj == nil {
-			p.unresolved[i] = ident
+			// Don't add anything as unresolved yet
+			// p.unresolved[i] = ident
 			i++
 		}
 	}

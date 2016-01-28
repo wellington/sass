@@ -8,6 +8,7 @@ import (
 )
 
 func printInclude(ctx *Context, n ast.Node) {
+	panic("dont call this")
 	spec := n.(*ast.IncludeSpec)
 
 	name := spec.Name.String()
@@ -36,6 +37,7 @@ func printInclude(ctx *Context, n ast.Node) {
 			key *ast.BasicLit
 			val *ast.Ident
 		)
+		_, _ = key, val
 		switch v := mixargs[i].Type.(type) {
 		case *ast.BasicLit:
 			key = v
@@ -60,9 +62,9 @@ func printInclude(ctx *Context, n ast.Node) {
 				fmt.Printf("dropped param: % #v\n", v)
 			}
 		}
-		if key != nil && val != nil {
-			ctx.scope.Insert(key.Value, val.Name)
-		}
+		// if key != nil && val != nil {
+		// 	ctx.scope.Insert(key.Value, val.Name)
+		// }
 	}
 	if len(params) > len(mixargs) {
 		fmt.Printf("dropped extra params: % #v\n", params[len(mixargs):])
