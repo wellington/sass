@@ -22,21 +22,20 @@ func findPaths() []file {
 
 	var input string
 	defer func() {
+		fmt.Println("Exited on", input)
 		if r := recover(); r != nil {
 			log.Fatal("Recovered from", input)
 		}
 	}()
+
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
-		if !strings.Contains(input, "04_") {
-			// continue
+		if !strings.Contains(input, "20_") {
+			continue
 		}
 		if strings.Contains(input, "19_") {
 			continue
-		}
-		if strings.Contains(input, "17_") {
-			// continue
 		}
 		if strings.Contains(input, "06_") {
 			continue

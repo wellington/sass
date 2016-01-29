@@ -2608,16 +2608,32 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		}
 	}
 
-	// panic("just set this shit directly, scoping is not working here")
-	fmt.Println("visited Resolve Stmt")
+	fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
-		if decl, ok := stmts[i].(*ast.DeclStmt); ok {
+		fmt.Printf("stmt[i] % #v\n", stmts[i])
+		switch decl := stmts[i].(type) {
+		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
 			stmts[i] = decl
 			gen := decl.Decl.(*ast.GenDecl)
 			for i := range gen.Specs {
 				fmt.Printf("% #v\n", gen.Specs[i])
 			}
+		case *ast.AssignStmt:
+			p.shortVarDecl(decl, decl.Lhs)
+			obj := p.topScope.Lookup("$x")
+			if obj != nil {
+				fmt.Printf("obj % #v\n",
+					obj.Decl.(*ast.AssignStmt).Rhs[0])
+			}
+		case *ast.CommStmt:
+		case *ast.SelStmt:
+			log.Fatal("selstmt!", decl.Name)
+			decl.Body.List = p.resolveStmts(scope,
+				&ast.FieldList{},
+				&ast.FieldList{}, decl.Body.List)
+		default:
+			log.Fatalf("unsupported stmt: % #v\n", stmts[i])
 		}
 	}
 
@@ -2657,10 +2673,12 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 					// fmt.Println("weird resolve", ident)
 					// This feels weird, but what can you do?
 				}
+			default:
+				log.Fatalf("spec not supported % #v\n", v)
 			}
 		}
 	default:
-		log.Fatalf("%T: % #v\n", v, v)
+		log.Fatalf("decl not supported %T: % #v\n", v, v)
 	}
 
 }

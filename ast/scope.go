@@ -9,6 +9,7 @@ package ast
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	"github.com/wellington/sass/token"
 )
@@ -45,9 +46,27 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 	if alt = s.Objects[obj.Name]; alt == nil {
 	} else {
 	}
+
+	// Pre-calculate top for the sake of !global checks
+	top := s
+	for top.Outer != nil {
+		top = top.Outer
+	}
+
+	// Global insanity
+	if assign, ok := obj.Decl.(*AssignStmt); ok {
+		for _, r := range assign.Rhs {
+			ident := r.(*Ident)
+			if strings.HasSuffix(ident.Name, " !global") {
+				ident.Name = strings.TrimSuffix(ident.Name, " !global")
+				top.Insert(obj)
+			}
+		}
+	}
+
 	// At some point, we shouldn't need to do this but not today
 	s.Objects[obj.Name] = obj
-	fmt.Printf("inserting %s(%p):\n", obj.Name, obj)
+	fmt.Printf("inserting %s(%p): % #v\n", obj.Name, obj, obj)
 	return
 }
 
