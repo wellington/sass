@@ -92,6 +92,9 @@ func Walk(v Visitor, node Node) {
 	case *BadExpr, *BasicLit:
 		// nothing to do
 	case *IncludeSpec:
+		for _, s := range n.List {
+			Walk(v, s)
+		}
 	case *IncludeStmt:
 		Walk(v, n.Spec)
 	case *Ident:

@@ -43,6 +43,11 @@ func (s *Scope) Lookup(name string) *Object {
 // it inserts obj and returns nil.
 //
 func (s *Scope) Insert(obj *Object) (alt *Object) {
+	// Hack to prevent mixins inserting variables
+	if s == nil {
+		return
+	}
+
 	if alt = s.Objects[obj.Name]; alt == nil {
 	} else {
 	}

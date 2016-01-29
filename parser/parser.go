@@ -54,6 +54,9 @@ type parser struct {
 	unresolved []*ast.Ident      // unresolved identifiers
 	imports    []*ast.ImportSpec // list of imports
 
+	// special rules for mixins
+	inMixin bool
+
 	// Label scopes
 	// (maintained by open/close LabelScope)
 	labelScope  *ast.Scope     // label scope for current function
@@ -152,8 +155,7 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 			// remember corresponding assignment for other tools
 			obj.Decl = decl
 			ident.Obj = obj
-			fmt.Printf("defining %s(%p) scope(%p): % #v\n",
-				ident, ident, p.topScope, decl.Rhs[0])
+
 			if ident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
 					fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
@@ -197,8 +199,11 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	if ident.Name == "_" {
 		return
 	}
+	var leak *ast.Scope
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
+		fmt.Printf("up scope(%p) ", s)
+		leak = s
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
 			if ok {
@@ -211,14 +216,16 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 			return
 		}
 	}
+	fmt.Printf("top scope(%p)\n", leak)
 
 	// This is a significant failure scenario. However, inside
 	// mixins failing to resolve identifiers are perfectly valid.
 	// So produce annoying output for somebody to eventually come fix
 	// this.
-
 	fmt.Println("failed to resolve", ident, collectUnresolved)
-	// panic("boom")
+	// if ident.Name == "foo" {
+	// 	panic("boom")
+	// }
 
 	// all local scopes are known, so any unresolved identifier
 	// must be found either in the file scope, package scope
@@ -1148,8 +1155,8 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 
 	for p.tok != token.RBRACE && p.tok != token.EOF {
 		stmt := p.parseStmt()
-		if inc, ok := stmt.(*ast.IncludeStmt); ok {
-			// Unwrap includes
+		if inc, ok := stmt.(*ast.IncludeStmt); ok && !p.inMixin {
+			// Unwrap includes if not inside a mixin
 			list = append(list, inc.Spec.List...)
 			continue
 		}
@@ -1174,12 +1181,13 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 			Group: p.leadComment,
 		})
 	}
-
+	oldScope := p.topScope
 	p.topScope = scope // open function scope
 	p.openLabelScope()
 	list = append(list, p.parseStmtList()...)
 	p.closeLabelScope()
-	p.closeScope()
+	p.topScope = oldScope
+	//p.closeScope()
 	rbrace := p.expect(token.RBRACE)
 
 	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
@@ -2143,7 +2151,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 	case token.IMPORT:
 		s = &ast.DeclStmt{Decl: p.parseGenDecl("", token.IMPORT, p.parseImportSpec)}
 	case token.INCLUDE:
-		s = &ast.IncludeStmt{Spec: p.parseIncludeSpec()}
+		s = &ast.IncludeStmt{Spec: p.parseIncludeSpec(!p.inMixin)}
 	case token.SELECTOR:
 		s = p.parseSelStmt()
 	case token.SEMICOLON:
@@ -2244,7 +2252,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// Move this out of inferValueSpec
 	switch p.tok {
 	case token.INCLUDE:
-		return p.parseIncludeSpec()
+		return p.parseIncludeSpec(!p.inMixin)
 	}
 
 	name := &ast.Ident{
@@ -2558,7 +2566,8 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 }
 
 func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
-	return p.parseIncludeSpec()
+	// The top level must be rules, or this is a failure
+	return p.parseIncludeSpec(!p.inMixin)
 }
 
 // Resolves a block within a new scope parsing the called arguments
@@ -2603,7 +2612,9 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 				// p.declare(ident, nil, scope, ast.Var, sigs[i])
 			case *ast.KeyValueExpr:
 				sigident = ast.ToIdent(v.Key)
-				argident = v.Value.(*ast.Ident)
+				argident = ast.ToIdent(v.Value)
+				// Resolve Value
+				p.resolve(argident)
 			}
 			n := 0
 			if argident == nil {
@@ -2628,6 +2639,7 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 	ret := make([]ast.Stmt, 0, len(stmts))
 	fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
+		fmt.Printf("stmts[i] % #v\n", stmts[i])
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
@@ -2639,6 +2651,11 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.AssignStmt:
 			p.shortVarDecl(decl, decl.Lhs)
 		case *ast.CommStmt:
+		case *ast.IncludeStmt:
+			p.resolveIncludeSpec(decl.Spec)
+			// decl.Spec.List = p.resolveStmts(scope,
+			// 	decl.Spec.Params,
+			// )
 		case *ast.SelStmt:
 			decl.Body.List = p.resolveStmts(scope,
 				&ast.FieldList{},
@@ -2658,6 +2675,9 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 // resolveDecl reevalutes all found IDENTs with new scope provided by
 // arg list.
 func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
+	if p.trace {
+		defer un(trace(p, "ResolveDecl"))
+	}
 	assert(p.topScope == scope, "resolveDecl scope mismatch")
 	switch v := decl.Decl.(type) {
 	case *ast.GenDecl:
@@ -2698,35 +2718,50 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 
 }
 
+func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
+	ident := spec.Name
+	p.resolve(ident)
+	assert(ident.Obj != nil, "failed to retrieve mixin")
+	args := spec.Params
+	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
+	// Walk through all statements performing a copy of each
+	list := fnDecl.Body.List
+	for i := range list {
+		stmt := ast.StmtCopy(list[i])
+		spec.List = append(spec.List, stmt)
+	}
+
+	// All the identifiers within this list need to be re-resolved
+	// with the args passed in the include
+	p.openScope()
+	spec.List = p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
+	p.closeScope()
+
+}
+
 // @include foo(second, third);
 // @include foo($x: second, $y: third);
-func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
+func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 	if p.trace {
 		defer un(trace(p, "IncludeSpec"))
 	}
 	p.expect(token.INCLUDE)
 	ident := p.parseIdent()
 	args, _ := p.parseSignature(p.topScope)
-
-	p.resolve(ident)
+	// Resolve ident only on doResolve
+	// p.resolve(ident)
 	spec := &ast.IncludeSpec{
 		Name:   ident,
 		Params: args,
 	}
 
-	assert(ident.Obj != nil, "failed to retrieve mixin")
-
-	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
-	// Walk through all statements performing a copy of each
-	list := fnDecl.Body.List
-	for i := range list {
-		spec.List = append(spec.List, ast.StmtCopy(list[i]))
+	if !doResolve {
+		fmt.Println("bailed on", ident)
+		// Inside mixin, just bail we will come back here later
 	}
-	// All the identifiers within this list need to be re-resolved
-	// with the args passed in the include
-	p.openScope()
-	spec.List = p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
-	p.closeScope()
+	if doResolve {
+		p.resolveIncludeSpec(spec)
+	}
 	return spec
 }
 
@@ -2740,12 +2775,8 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 
 	doc := p.leadComment
 	pos := p.expect(token.MIXIN)
-	// Mixins do not pollute the global scope
-	oldScope := p.topScope
-	defer func() {
-		p.topScope = oldScope
-	}()
-	scope := ast.NewScope(nil) // function scope
+	// Mixins do not resolve or define variables in any scope
+	var scope *ast.Scope //ast.NewScope(nil) // function scope
 	fmt.Printf("created bogus scope (%p)\n", scope)
 	ident := p.parseIdent()
 
@@ -2753,7 +2784,10 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 
 	var body *ast.BlockStmt
 	if p.tok == token.LBRACE {
+		p.inMixin = true
 		body = p.parseBody(scope)
+		fmt.Printf("body % #v\n", body)
+		p.inMixin = false
 	}
 
 	decl := &ast.FuncDecl{
@@ -2768,6 +2802,7 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 		},
 		Body: body,
 	}
+
 	// Mixins are available to everything parsed from here on out
 	p.declare(decl, nil, p.pkgScope, ast.Fun, ident)
 
@@ -2840,7 +2875,6 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		// Regular CSS
 		return p.parseSelDecl()
 	case token.INCLUDE:
-		fmt.Println("one of these...")
 		return p.parseGenDecl("", token.INCLUDE, p.parseIncludeSpecFn)
 	case token.RULE, token.IDENT:
 		return p.parseRuleDecl()

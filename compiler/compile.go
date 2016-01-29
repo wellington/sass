@@ -41,8 +41,8 @@ func fileRun(path string) (string, error) {
 func (ctx *Context) Run(path string) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
 	fset := token.NewFileSet()
-	pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments) //|parser.Trace)
-	// pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.Trace)
+	// pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments) //|parser.Trace)
+	pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.Trace)
 	if err != nil {
 		return "", err
 	}
@@ -175,7 +175,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.DeclStmt:
 		key = declStmt
 	case *ast.IncludeSpec:
-		key = includeSpec
+		// panic("not supported")
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:
@@ -396,82 +396,92 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 	return "", nil
 }
 
-func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
-
-	var sums []string
-	for _, expr := range exprs {
-		switch v := expr.(type) {
-		case *ast.Value:
-			panic("ast.Value")
-		case *ast.BinaryExpr:
-			s, err := calculateExprs(ctx, v)
-			if err != nil {
-				log.Fatal(err)
-			}
-			sums = append(sums, s)
-		case *ast.CallExpr:
-			s, err := evaluateCall(v)
-			if err != nil {
-				log.Fatalf("failed to call '%s': %s", v.Fun, err)
-			}
-			sums = append(sums, s.Value)
-		case *ast.ParenExpr:
-			sums = append(sums, simplifyExprs(ctx, []ast.Expr{v.X}))
-		case *ast.Ident:
-			if v.Obj == nil {
-				sums = append(sums, v.Name)
+func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {
+	v := ident
+	if ident.Obj == nil {
+		out = ident.Name
+		return
+	}
+	switch vv := v.Obj.Decl.(type) {
+	case *ast.Ident:
+		out = resolveIdent(ctx, vv)
+	case *ast.ValueSpec:
+		var s []string
+		for i := range vv.Values {
+			if ident, ok := vv.Values[i].(*ast.Ident); ok {
+				// If obj is set, resolve Obj and report
+				if ident.Obj != nil {
+					spec := ident.Obj.Decl.(*ast.ValueSpec)
+					for _, val := range spec.Values {
+						s = append(s, fmt.Sprintf("%s", val))
+					}
+				} else {
+					// fmt.Printf("basic ident: % #v\n", ident)
+					s = append(s, fmt.Sprintf("%s", ident))
+				}
 				continue
 			}
-			fmt.Printf("printing (%p) % #v\n", v, v)
-			switch vv := v.Obj.Decl.(type) {
-			case *ast.Ident:
-				sums = append(sums, vv.Name)
-			case *ast.ValueSpec:
-				var s []string
-				for i := range vv.Values {
-					if ident, ok := vv.Values[i].(*ast.Ident); ok {
-						// If obj is set, resolve Obj and report
-						if ident.Obj != nil {
-							spec := ident.Obj.Decl.(*ast.ValueSpec)
-							for _, val := range spec.Values {
-								s = append(s, fmt.Sprintf("%s", val))
-							}
-						} else {
-							// fmt.Printf("basic ident: % #v\n", ident)
-							s = append(s, fmt.Sprintf("%s", ident))
-						}
-						continue
-					}
-					lit := vv.Values[i].(*ast.BasicLit)
-					if len(lit.Value) > 0 {
-						s = append(s, lit.Value)
-					}
-				}
-				sums = append(sums, strings.Join(s, " "))
-			case *ast.AssignStmt:
-				// li := vv.Lhs[0].(*ast.Ident)
-				// ri := vv.Rhs[0].(*ast.Ident)
-				// fmt.Printf("lhs %s % #v\n", li)
-				// fmt.Printf("rhs %s % #v\n", ri)
-				sums = append(sums, simplifyExprs(ctx, vv.Rhs))
-			default:
-				fmt.Printf("unsupported VarDecl: % #v\n", vv)
-				// Weird stuff here, let's just push the Ident in
-				sums = append(sums, v.Name)
+			lit := vv.Values[i].(*ast.BasicLit)
+			if len(lit.Value) > 0 {
+				s = append(s, lit.Value)
 			}
-		case *ast.BasicLit:
-			switch v.Kind {
-			case token.VAR:
-				// s, ok := ctx.scope.Lookup(v.Value).(string)
-				// if ok {
-				// 	sums = append(sums, s)
-				// }
-			default:
-				sums = append(sums, v.Value)
-			}
-		default:
-			panic(fmt.Sprintf("unhandled expr: % #v\n", v))
 		}
+		out = strings.Join(s, " ")
+	case *ast.AssignStmt:
+		// li := vv.Lhs[0].(*ast.Ident)
+		// ri := vv.Rhs[0].(*ast.Ident)
+		// fmt.Printf("lhs %s % #v\n", li)
+		// fmt.Printf("rhs %s % #v\n", ri)
+		out = simplifyExprs(ctx, vv.Rhs)
+	default:
+		fmt.Printf("unsupported VarDecl: % #v\n", vv)
+		// Weird stuff here, let's just push the Ident in
+		out = v.Name
+	}
+	return
+}
+
+func resolveExpr(ctx *Context, expr ast.Expr) (out string) {
+	switch v := expr.(type) {
+	case *ast.Value:
+		panic("ast.Value")
+	case *ast.BinaryExpr:
+		s, err := calculateExprs(ctx, v)
+		if err != nil {
+			log.Fatal(err)
+		}
+		out = s
+	case *ast.CallExpr:
+		s, err := evaluateCall(v)
+		if err != nil {
+			log.Fatalf("failed to call '%s': %s", v.Fun, err)
+		}
+		out = s.Value
+	case *ast.ParenExpr:
+		out = simplifyExprs(ctx, []ast.Expr{v.X})
+	case *ast.Ident:
+		out = resolveIdent(ctx, v)
+	case *ast.BasicLit:
+		switch v.Kind {
+		case token.VAR:
+			// s, ok := ctx.scope.Lookup(v.Value).(string)
+			// if ok {
+			// 	sums = append(sums, s)
+			// }
+		default:
+			out = v.Value
+		}
+	default:
+		panic(fmt.Sprintf("unhandled expr: % #v\n", v))
+	}
+	return
+}
+
+func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
+
+	sums := make([]string, 0, len(exprs))
+	for _, expr := range exprs {
+		sums = append(sums, resolveExpr(ctx, expr))
 	}
 
 	return strings.Join(sums, " ")
