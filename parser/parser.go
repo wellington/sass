@@ -3,6 +3,7 @@ package parser
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -2596,24 +2597,27 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			if sigident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
 					sigident.Obj = alt
-					fmt.Printf("arg redeclare: %s (%p): % #v\n",
-						sigident, sigident.Obj, sigident.Obj.Decl)
+					fmt.Printf("arg redeclare: %s(%p): % #v\n",
+						sigident, sigident, sigident.Obj.Decl)
 				} else {
-					fmt.Printf("arg   declare: %s (%p): % #v\n",
-						sigident, obj, obj.Decl)
+					fmt.Printf("arg   declare: %s(%p): % #v\n",
+						sigident, sigident, obj.Decl)
 					n++
 				}
 			}
 		}
 	}
 
-	panic("just set this shit directly, scoping is not working here")
+	// panic("just set this shit directly, scoping is not working here")
 	fmt.Println("visited Resolve Stmt")
 	for i := range stmts {
 		if decl, ok := stmts[i].(*ast.DeclStmt); ok {
 			p.resolveDecl(scope, decl)
 			stmts[i] = decl
-			fmt.Printf("resolved stmt: % #v\n", decl.Decl.(*ast.GenDecl).Specs[0])
+			gen := decl.Decl.(*ast.GenDecl)
+			for i := range gen.Specs {
+				fmt.Printf("% #v\n", gen.Specs[i])
+			}
 		}
 	}
 
@@ -2621,8 +2625,9 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 }
 
 // resolveDecl reevalutes all found IDENTs with new scope provided by
-// arg list
+// arg list.
 func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
+	assert(p.topScope == scope, "resolveDecl scope mismatch")
 	switch v := decl.Decl.(type) {
 	case *ast.GenDecl:
 		for _, spec := range v.Specs {
@@ -2630,11 +2635,24 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 			case *ast.RuleSpec:
 				for _, val := range sv.Values {
 					ident := val.(*ast.Ident)
+					var new bool
 					if ident.Obj != nil {
-						fmt.Printf("ident %s scope (%p): % #v\n",
-							ident, p.topScope, ident.Obj.Decl.(*ast.Ident))
+						fmt.Printf("existing %s(%p) scope (%p): % #v\n",
+							ident, ident, p.topScope, ident.Obj.Decl.(*ast.Ident))
 					} else {
-						//	p.resolve(val)
+						new = true
+					}
+					p.resolve(val)
+					if new {
+						if ident.Obj != nil && ident.Obj.Decl != nil {
+							ident, _ := ident.Obj.Decl.(*ast.Ident)
+							fmt.Printf("new      %s(%p) scope (%p): % #v\n",
+								ident, ident, p.topScope,
+								ident)
+						}
+					} else {
+						fmt.Printf("second re %s(%p) scope (%p): % #v\n",
+							ident, ident, p.topScope, ident.Obj.Decl.(*ast.Ident))
 					}
 					// fmt.Println("weird resolve", ident)
 					// This feels weird, but what can you do?
@@ -2642,7 +2660,7 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 			}
 		}
 	default:
-		panic("resolveDecl")
+		log.Fatalf("%T: % #v\n", v, v)
 	}
 
 }
@@ -2666,12 +2684,13 @@ func (p *parser) parseIncludeSpec() *ast.IncludeSpec {
 	assert(ident.Obj != nil, "failed to retrieve mixin")
 
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
+	// Walk through all statements performing a copy of each
 	list := fnDecl.Body.List
 	for i := range list {
-		spec.List = append(spec.List, list[i])
+		spec.List = append(spec.List, ast.StmtCopy(list[i]))
 	}
 	// All the identifiers within this list need to be re-resolved
-	// with the args passed via the include
+	// with the args passed in the include
 	p.openScope()
 	spec.List = p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
 	p.closeScope()
