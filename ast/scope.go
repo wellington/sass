@@ -49,24 +49,34 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 
 	// Pre-calculate top for the sake of !global checks
 	top := s
-	for top.Outer != nil {
-		top = top.Outer
+	for ; top.Outer != nil; top = top.Outer {
+		fmt.Printf("up scope(%p) ", top)
 	}
+	fmt.Printf("top scope(%p)\n", top)
 
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
-		for _, r := range assign.Rhs {
-			ident := r.(*Ident)
+		for i := range assign.Rhs {
+			ident := assign.Rhs[i].(*Ident)
 			if strings.HasSuffix(ident.Name, " !global") {
-				ident.Name = strings.TrimSuffix(ident.Name, " !global")
-				top.Insert(obj)
+				decl2 := StmtCopy(assign)
+				assign2 := decl2.(*AssignStmt)
+				assign2.Rhs[i] = NewIdent(strings.TrimSuffix(ident.Name, " !global"))
+				obj2 := *obj
+				obj2.Decl = decl2
+				// top.Insert(obj)
+				top.Objects[obj2.Name] = &obj2
+				fmt.Printf("inserting global %s scope(%p): % #v\n",
+					obj2.Name, top, obj2)
+				// Buck stops at 1
+				return
 			}
 		}
 	}
 
 	// At some point, we shouldn't need to do this but not today
 	s.Objects[obj.Name] = obj
-	fmt.Printf("inserting %s(%p): % #v\n", obj.Name, obj, obj)
+	fmt.Printf("inserting %s scope(%p): % #v\n", obj.Name, s, obj)
 	return
 }
 

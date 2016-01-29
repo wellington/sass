@@ -145,14 +145,15 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 	// the same type, and at least one of the non-blank variables is new.
 	n := 0 // number of new variables
 	for _, x := range list {
+		fmt.Println("shortVar", x)
 		if ident, isIdent := x.(*ast.Ident); isIdent {
 			assert(ident.Obj == nil, "identifier already declared or resolved")
 			obj := ast.NewObj(ast.Var, ident.Name)
 			// remember corresponding assignment for other tools
 			obj.Decl = decl
 			ident.Obj = obj
-			fmt.Printf("defining %s(%p): % #v\n",
-				ident, ident, obj)
+			fmt.Printf("defining %s(%p) scope(%p): % #v\n",
+				ident, ident, p.topScope, decl.Rhs[0])
 			if ident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
 					fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
@@ -2637,11 +2638,6 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			}
 		case *ast.AssignStmt:
 			p.shortVarDecl(decl, decl.Lhs)
-			obj := p.topScope.Lookup("$x")
-			if obj != nil {
-				fmt.Printf("obj % #v\n",
-					obj.Decl.(*ast.AssignStmt).Rhs[0])
-			}
 		case *ast.CommStmt:
 		case *ast.SelStmt:
 			decl.Body.List = p.resolveStmts(scope,
@@ -2744,8 +2740,13 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 
 	doc := p.leadComment
 	pos := p.expect(token.MIXIN)
-	scope := ast.NewScope(p.topScope) // function scope
-
+	// Mixins do not pollute the global scope
+	oldScope := p.topScope
+	defer func() {
+		p.topScope = oldScope
+	}()
+	scope := ast.NewScope(nil) // function scope
+	fmt.Printf("created bogus scope (%p)\n", scope)
 	ident := p.parseIdent()
 
 	params, results := p.parseSignature(scope)
