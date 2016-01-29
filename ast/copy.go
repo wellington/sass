@@ -43,6 +43,7 @@ func StmtCopy(in Stmt) (out Stmt) {
 	case *CommStmt:
 		out = v
 		return
+	case *EmptyStmt:
 	default:
 		log.Fatalf("unsupported stmt copy %T: % #v\n", v, v)
 	}

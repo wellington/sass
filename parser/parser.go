@@ -1190,8 +1190,14 @@ func (p *parser) parseBlockStmt() *ast.BlockStmt {
 	}
 
 	lbrace := p.expect(token.LBRACE)
+	var list []ast.Stmt
+	if p.leadComment != nil {
+		list = append(list, &ast.CommStmt{
+			Group: p.leadComment,
+		})
+	}
 	p.openScope()
-	list := p.parseStmtList()
+	list = append(list, p.parseStmtList()...)
 	p.closeScope()
 	rbrace := p.expect(token.RBRACE)
 
@@ -1997,8 +2003,7 @@ func (p *parser) parseSelStmt() ast.Stmt {
 	}
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
-	scope := ast.NewScope(p.topScope)
-	body := p.parseBody(scope)
+	body := p.parseBlockStmt()
 
 	idents := parseSelectors(lit, pos)
 
@@ -2098,7 +2103,18 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
 		// p.expectSemi()
 	case
-		token.VAR,
+		token.VAR:
+		spec := p.inferValueSpec(p.leadComment, p.tok, 0).(*ast.ValueSpec)
+		stmt := &ast.AssignStmt{}
+		for _, name := range spec.Names {
+			stmt.Lhs = append(stmt.Lhs, name)
+		}
+		for _, val := range spec.Values {
+			stmt.Rhs = append(stmt.Rhs, val)
+		}
+		// FIXME: lost the Token and Position in this transformation
+		s = stmt
+	case
 		// TODO: Not sure any of these cases ever exist in Sass
 		// tokens that may start an expression
 		token.INT, token.FLOAT, token.STRING, token.FUNC, token.LPAREN, // operands
@@ -2608,9 +2624,9 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		}
 	}
 
+	ret := make([]ast.Stmt, 0, len(stmts))
 	fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
-		fmt.Printf("stmt[i] % #v\n", stmts[i])
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
@@ -2628,16 +2644,19 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			}
 		case *ast.CommStmt:
 		case *ast.SelStmt:
-			log.Fatal("selstmt!", decl.Name)
 			decl.Body.List = p.resolveStmts(scope,
 				&ast.FieldList{},
 				&ast.FieldList{}, decl.Body.List)
+		case *ast.EmptyStmt, nil:
+			// Trim from result
+			continue
 		default:
 			log.Fatalf("unsupported stmt: % #v\n", stmts[i])
 		}
+		ret = append(ret, stmts[i])
 	}
 
-	return stmts
+	return ret
 }
 
 // resolveDecl reevalutes all found IDENTs with new scope provided by
