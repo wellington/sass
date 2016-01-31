@@ -52,8 +52,7 @@ func StmtCopy(in Stmt) (out Stmt) {
 	default:
 		log.Fatalf("unsupported stmt copy %T: % #v\n", v, v)
 	}
-	fmt.Printf("StmtCopy (%p)% #v\n      ~> (%p)% #v\n",
-		in, in, out, out)
+	// fmt.Printf("StmtCopy (%p)% #v\n      ~> (%p)% #v\n", in, in, out, out)
 	return
 }
 
@@ -156,7 +155,7 @@ func SpecCopy(in Spec) (out Spec) {
 		log.Fatalf("unsupported spec copy %T: % #v\n", v, v)
 		return
 	}
-	fmt.Printf("SpecCopy % #v\n      ~> % #v\n", in, out)
+	// fmt.Printf("SpecCopy % #v\n      ~> % #v\n", in, out)
 	return
 }
 
@@ -178,7 +177,6 @@ func DeclCopy(in Decl) (out Decl) {
 	default:
 		log.Fatalf("unsupported decl copy %T: % #v\n", v, v)
 	}
-	fmt.Printf("DeclCopy (%p)% #v\n      ~> (%p)% #v\n",
-		in, in, out, out)
+	// fmt.Printf("DeclCopy (%p)% #v\n      ~> (%p)% #v\n", in, in, out, out)
 	return
 }

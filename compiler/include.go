@@ -70,7 +70,7 @@ func printInclude(ctx *Context, n ast.Node) {
 		fmt.Printf("dropped extra params: % #v\n", params[len(mixargs):])
 	}
 
-	for _, stmt := range ast.StatementsSort(mix.fn.Body.List) {
+	for _, stmt := range mix.fn.Body.List {
 		ast.Walk(ctx, stmt)
 	}
 

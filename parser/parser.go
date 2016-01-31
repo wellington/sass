@@ -1168,7 +1168,9 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 			})
 		}
 	}
-	return ast.StatementsSort(list)
+	ast.SortStatements(list)
+	// ast.Print(token.NewFileSet(), list)
+	return list
 }
 
 func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
@@ -1188,9 +1190,7 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 	list = append(list, p.parseStmtList()...)
 	p.closeLabelScope()
 	p.topScope = oldScope
-	//p.closeScope()
 	rbrace := p.expect(token.RBRACE)
-
 	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
 }
 
@@ -2014,7 +2014,9 @@ func (p *parser) parseSelStmt() ast.Stmt {
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	body := p.parseBlockStmt()
-
+	fset := token.NewFileSet()
+	ast.Print(fset, body.List)
+	ast.SortStatements(body.List)
 	idents := parseSelectors(lit, pos)
 
 	return &ast.SelStmt{
@@ -2657,18 +2659,11 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
 			stmts[i] = decl
-			gen := decl.Decl.(*ast.GenDecl)
-			for i := range gen.Specs {
-				fmt.Printf("% #v\n", gen.Specs[i])
-			}
 		case *ast.AssignStmt:
 			p.shortVarDecl(decl, decl.Lhs)
 		case *ast.CommStmt:
 		case *ast.IncludeStmt:
 			p.resolveIncludeSpec(decl.Spec)
-			// decl.Spec.List = p.resolveStmts(scope,
-			// 	decl.Spec.Params,
-			// )
 		case *ast.SelStmt:
 			decl.Body.List = p.resolveStmts(scope,
 				&ast.FieldList{},
@@ -2739,11 +2734,6 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	p.resolve(ident)
 	assert(ident.Obj != nil, "failed to retrieve mixin")
 	args := spec.Params
-	if args != nil {
-		for i, arg := range args.List {
-			fmt.Printf("arg(%d): % #v\n", i, arg)
-		}
-	}
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 	// Walk through all statements performing a copy of each
 	list := fnDecl.Body.List
@@ -2924,16 +2914,6 @@ func (p *parser) parseFile() *ast.File {
 	if p.errors.Len() != 0 {
 		return nil
 	}
-
-	// // package clause
-	// doc := p.leadComment
-	// // Go spec: The package clause is not a declaration;
-	// // the package name does not appear in any scope.
-	// ident := p.parseIdent()
-	// if ident.Name == "_" && p.mode&DeclarationErrors != 0 {
-	// 	p.error(p.pos, "invalid package name _")
-	// }
-	// p.expectSemi()
 
 	// Don't bother parsing the rest if we had errors parsing the package clause.
 	// Likely not a Go source file at all.
