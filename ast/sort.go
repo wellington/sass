@@ -2,19 +2,23 @@ package ast
 
 import (
 	"log"
-	"sort"
 
 	"github.com/wellington/sass/token"
 )
+
+var _ token.Pos
 
 type Stmts []Stmt
 
 func (s Stmts) lookup(pos int) int {
 	i := 0
 	switch s[pos].(type) {
-	case *DeclStmt, *IncludeStmt, *CommStmt, *EmptyStmt,
+	case *DeclStmt, *IncludeStmt, *EmptyStmt,
 		*AssignStmt, *BadStmt:
+	case *CommStmt:
 	case *SelStmt:
+		// log.Printf("pushing to end % #v\n", v)
+		//Print(token.NewFileSet(), v)
 		i = 1
 	default:
 		log.Fatalf("failed to sort % #v\n", s[pos])
@@ -22,28 +26,17 @@ func (s Stmts) lookup(pos int) int {
 	return i
 }
 
-func (s Stmts) Len() int {
-	return len(s)
-}
-
-func (s Stmts) Swap(i, j int) {
-	s[i], s[j] = s[j], s[i]
-}
-
-func (s Stmts) Less(i, j int) bool {
-	return s.lookup(i) < s.lookup(j)
-}
-
 // Sort statements for most efficient usage of CSS rules
 // (rules first, then other tings)
 func SortStatements(list Stmts) {
-	// Print(token.NewFileSet(), list)
-	// for i, stmt := range list {
-	// 	fmt.Printf("%d: % #v\n", i, stmt)
-	// }
-	sort.Sort(list)
-	Print(token.NewFileSet(), list)
-	// for i, stmt := range list {
-	// 	fmt.Printf("%d: % #v\n", i, stmt)
-	// }
+	b := list[:0]
+	var notrules []Stmt
+	for i := range list {
+		if list.lookup(i) == 1 {
+			notrules = append(notrules, list[i])
+			continue
+		}
+		b = append(b, list[i])
+	}
+	b = append(b, notrules...)
 }

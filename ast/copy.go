@@ -141,7 +141,7 @@ func SpecCopy(in Spec) (out Spec) {
 		out = spec
 	case *IncludeSpec:
 		spec := &IncludeSpec{
-			Name:   NewIdent(v.Name.Name),
+			Name:   IdentCopy(v.Name),
 			Params: FieldListCopy(v.Params),
 		}
 		list := make([]Stmt, len(v.List))

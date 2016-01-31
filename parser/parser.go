@@ -1163,7 +1163,7 @@ func (p *parser) tryType() ast.Expr {
 }
 
 func (p *parser) checkComment() *ast.CommStmt {
-	if p.leadComment == nil {
+	if p.leadComment == nil || len(p.leadComment.List) == 0 {
 		return nil
 	}
 	cmt := &ast.CommStmt{
@@ -1214,6 +1214,7 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 	if cmt := p.checkComment(); cmt != nil {
 		list = append(list, cmt)
 	}
+
 	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
 }
 
@@ -2031,6 +2032,7 @@ func (p *parser) parseSelStmt() ast.Stmt {
 	}
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
+	assert(pos != 0, "Selector position is zero")
 	body := p.parseBlockStmt()
 	fset := token.NewFileSet()
 	ast.Print(fset, body.List)
@@ -2333,7 +2335,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	var spec ast.Spec
 	switch keyword {
 	case token.VAR:
-
 		// So, to prevent printing of Var expr, change its
 		// type away from Ident
 		for i, v := range values {
@@ -2452,6 +2453,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 		defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
 	pos := p.pos
+	assert(pos != 0, "0 position found")
 	// doc := p.leadComment
 
 	var lparen, rparen token.Pos
@@ -2528,6 +2530,7 @@ func (p *parser) parseSelDecl() *ast.SelDecl {
 
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
+	assert(pos != 0, "invalid selector position")
 	scope := ast.NewScope(p.topScope)
 	idents := parseSelectors(lit, pos)
 
@@ -2561,6 +2564,7 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	// })
 	// pos := p.expect(token.RULE)
 	// p.expect(token.COLON)
+	pos := p.pos
 
 	f := p.inferValueSpec
 	for iota := 0; p.tok != token.SEMICOLON &&
@@ -2587,9 +2591,9 @@ func (p *parser) parseRuleDecl() *ast.GenDecl {
 	p.expectSemi()
 
 	return &ast.GenDecl{
-		// TokPos: pos,
-		Tok:   p.tok,
-		Specs: list,
+		TokPos: pos,
+		Tok:    p.tok,
+		Specs:  list,
 	}
 
 }
