@@ -165,9 +165,6 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 					n++ // new declaration
 				}
 			}
-			// fmt.Println("does it resolve?")
-			// p.tryResolve(ident, false)
-			// fmt.Println("||||||||||||")
 		} else {
 			p.errorExpected(x.Pos(), "identifier on left side of :=")
 		}
@@ -1173,6 +1170,17 @@ func (p *parser) checkComment() *ast.CommStmt {
 	return cmt
 }
 
+func (p *parser) unwrapInclude(in ast.Stmt) (out []ast.Stmt) {
+	if inc, ok := in.(*ast.IncludeStmt); ok && !p.inMixin {
+		for i := range inc.Spec.List {
+			out = append(out, p.unwrapInclude(inc.Spec.List[i])...)
+		}
+		return
+	}
+	out = append(out, in)
+	return
+}
+
 // ----------------------------------------------------------------------------
 // Blocks
 
@@ -1183,12 +1191,7 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 
 	for p.tok != token.RBRACE && p.tok != token.EOF {
 		stmt := p.parseStmt()
-		if inc, ok := stmt.(*ast.IncludeStmt); ok && !p.inMixin {
-			// Unwrap includes if not inside a mixin
-			list = append(list, inc.Spec.List...)
-			continue
-		}
-		list = append(list, stmt)
+		list = append(list, p.unwrapInclude(stmt)...)
 	}
 	if cmt := p.checkComment(); cmt != nil {
 		list = append(list, cmt)
@@ -2371,7 +2374,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		decl.Rhs = values
 		decl.Tok = tok
 		decl.TokPos = pos
-		fmt.Println(decl.Lhs, decl.Rhs)
 		p.shortVarDecl(decl, decl.Lhs)
 	default:
 		spec = &ast.RuleSpec{
@@ -2705,8 +2707,7 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		}
 		ret = append(ret, stmts[i])
 	}
-	fmt.Println("==============\nResolved Sort\n===============")
-	ast.SortStatements(ret)
+
 	return ret
 }
 
@@ -2777,7 +2778,6 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	p.openScope()
 	spec.List = p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
 	p.closeScope()
-
 }
 
 // @include foo(second, third);
