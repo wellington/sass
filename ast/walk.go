@@ -72,7 +72,7 @@ func Walk(v Visitor, node Node) {
 
 	case *Field:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		walkIdentList(v, n.Names)
 		Walk(v, n.Type)
@@ -301,7 +301,7 @@ func Walk(v Visitor, node Node) {
 	// Declarations
 	case *ImportSpec:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		if n.Name != nil {
 			Walk(v, n.Name)
@@ -324,7 +324,7 @@ func Walk(v Visitor, node Node) {
 
 	case *ValueSpec:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		// walkIdentList(v, n.Names)
 		if n.Type != nil {
@@ -337,7 +337,7 @@ func Walk(v Visitor, node Node) {
 
 	case *TypeSpec:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		Walk(v, n.Name)
 		Walk(v, n.Type)
@@ -350,7 +350,7 @@ func Walk(v Visitor, node Node) {
 
 	case *GenDecl:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		for _, s := range n.Specs {
 			Walk(v, s)
@@ -358,7 +358,7 @@ func Walk(v Visitor, node Node) {
 
 	case *FuncDecl:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		if n.Recv != nil {
 			Walk(v, n.Recv)
@@ -372,7 +372,7 @@ func Walk(v Visitor, node Node) {
 	// Files and packages
 	case *File:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		// Walk(v, n.Name)
 		walkDeclList(v, n.Decls)
@@ -382,7 +382,7 @@ func Walk(v Visitor, node Node) {
 
 	case *SelDecl:
 		if n.Doc != nil {
-			Walk(v, n.Doc)
+			// Walk(v, n.Doc)
 		}
 		if n.Body != nil {
 			Walk(v, n.Body)

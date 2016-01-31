@@ -1,8 +1,10 @@
 package ast
 
 import (
-	"fmt"
+	"log"
 	"sort"
+
+	"github.com/wellington/sass/token"
 )
 
 type Stmts []Stmt
@@ -10,9 +12,12 @@ type Stmts []Stmt
 func (s Stmts) lookup(pos int) int {
 	i := 0
 	switch s[pos].(type) {
-	case *DeclStmt, *IncludeStmt, *CommStmt:
+	case *DeclStmt, *IncludeStmt, *CommStmt, *EmptyStmt,
+		*AssignStmt, *BadStmt:
 	case *SelStmt:
 		i = 1
+	default:
+		log.Fatalf("failed to sort % #v\n", s[pos])
 	}
 	return i
 }
@@ -32,11 +37,13 @@ func (s Stmts) Less(i, j int) bool {
 // Sort statements for most efficient usage of CSS rules
 // (rules first, then other tings)
 func SortStatements(list Stmts) {
-	for i, stmt := range list {
-		fmt.Printf("%d: % #v\n", i, stmt)
-	}
+	// Print(token.NewFileSet(), list)
+	// for i, stmt := range list {
+	// 	fmt.Printf("%d: % #v\n", i, stmt)
+	// }
 	sort.Sort(list)
-	for i, stmt := range list {
-		fmt.Printf("%d: % #v\n", i, stmt)
-	}
+	Print(token.NewFileSet(), list)
+	// for i, stmt := range list {
+	// 	fmt.Printf("%d: % #v\n", i, stmt)
+	// }
 }

@@ -26,6 +26,7 @@ func TestSort(t *testing.T) {
 		startcmt,
 		&DeclStmt{},
 		endcmt,
+		&SelStmt{Name: &Ident{Name: "p"}},
 		&IncludeStmt{},
 		&AssignStmt{},
 	}
@@ -36,6 +37,7 @@ func TestSort(t *testing.T) {
 		&CommStmt{},
 		&IncludeStmt{},
 		&AssignStmt{},
+		&SelStmt{},
 		&SelStmt{},
 	}
 

@@ -74,7 +74,7 @@ func ExprCopy(in Expr) (out Expr) {
 		toomany++
 		log.Println("use ident copy directly", expr)
 		if toomany > 50 {
-			panic("")
+			// panic("")
 		}
 		out = IdentCopy(expr)
 	}

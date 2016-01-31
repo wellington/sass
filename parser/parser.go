@@ -298,6 +298,7 @@ func (p *parser) consumeComment() (comment *ast.Comment, endline int) {
 	// /*-style comments may end on a different line than where they start.
 	// Scan the comment for '\n' chars and adjust endline accordingly.
 	endline = p.file.Line(p.pos)
+	tok := token.LINECOMMENT
 	if p.lit[1] == '*' {
 		// don't use range here - no need to decode Unicode code points
 		for i := 0; i < len(p.lit); i++ {
@@ -305,10 +306,10 @@ func (p *parser) consumeComment() (comment *ast.Comment, endline int) {
 				endline++
 			}
 		}
+		tok = token.COMMENT
 	}
 
-	comment = &ast.Comment{Slash: p.pos, Text: p.lit}
-	fmt.Printf("comment % #v\n", comment)
+	comment = &ast.Comment{Tok: tok, Slash: p.pos, Text: p.lit}
 	p.next0()
 
 	return
@@ -322,7 +323,7 @@ func (p *parser) consumeComment() (comment *ast.Comment, endline int) {
 func (p *parser) consumeCommentGroup(n int) (comments *ast.CommentGroup, endline int) {
 	var list []*ast.Comment
 	endline = p.file.Line(p.pos)
-	for p.tok == token.COMMENT && p.file.Line(p.pos) <= endline+n {
+	if p.tok == token.COMMENT { //&& p.file.Line(p.pos) <= endline+n {
 		var comment *ast.Comment
 		comment, endline = p.consumeComment()
 		list = append(list, comment)
@@ -354,6 +355,7 @@ func (p *parser) next() {
 	p.leadComment = nil
 	p.lineComment = nil
 	prev := p.pos
+	_ = prev
 	p.next0()
 
 	if p.tok == token.COMMENT {
@@ -373,8 +375,14 @@ func (p *parser) next() {
 
 		// consume successor comments, if any
 		endline = -1
-		for p.tok == token.COMMENT {
-			comment, endline = p.consumeCommentGroup(1)
+		if p.tok == token.COMMENT && comment == nil {
+			if comment == nil {
+				comment = &ast.CommentGroup{}
+			}
+			var inner *ast.CommentGroup
+			inner, endline = p.consumeCommentGroup(1)
+			comment.List = append(comment.List, inner.List...)
+			// comment, endline = p.consumeCommentGroup(1)
 		}
 
 		if endline+1 == p.file.Line(p.pos) {
@@ -382,6 +390,14 @@ func (p *parser) next() {
 			// comment group, thus the last comment group is a lead comment.
 			p.leadComment = comment
 		}
+
+		// For now, don't report line comments
+		for i, cmt := range comment.List {
+			if cmt.Tok == token.LINECOMMENT {
+				comment.List = append(comment.List[:i], comment.List[i+1:]...)
+			}
+		}
+		p.leadComment = comment
 	}
 }
 
@@ -871,7 +887,7 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 		defer un(trace(p, "FieldDecl"))
 	}
 
-	doc := p.leadComment
+	// doc := p.leadComment
 
 	// 1st FieldDecl
 	// A type name used as an anonymous field looks like a field identifier.
@@ -912,7 +928,7 @@ func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
 
 	p.expectSemi() // call before accessing p.linecomment
 
-	field := &ast.Field{Doc: doc, Names: idents, Type: typ, Tag: tag, Comment: p.lineComment}
+	field := &ast.Field{ /*Doc: doc,*/ Names: idents, Type: typ, Tag: tag, Comment: p.lineComment}
 	p.declare(field, nil, scope, ast.Var, idents...)
 	p.resolve(typ)
 
@@ -1075,7 +1091,7 @@ func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
 		defer un(trace(p, "MethodSpec"))
 	}
 
-	doc := p.leadComment
+	// doc := p.leadComment
 	var idents []*ast.Ident
 	var typ ast.Expr
 	x := p.parseTypeName()
@@ -1092,7 +1108,7 @@ func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
 	}
 	p.expectSemi() // call before accessing p.linecomment
 
-	spec := &ast.Field{Doc: doc, Names: idents, Type: typ, Comment: p.lineComment}
+	spec := &ast.Field{ /*Doc: doc,*/ Names: idents, Type: typ, Comment: p.lineComment}
 	p.declare(spec, nil, scope, ast.Fun, idents...)
 
 	return spec
@@ -1146,6 +1162,17 @@ func (p *parser) tryType() ast.Expr {
 	return typ
 }
 
+func (p *parser) checkComment() *ast.CommStmt {
+	if p.leadComment == nil {
+		return nil
+	}
+	cmt := &ast.CommStmt{
+		Group: p.leadComment,
+	}
+	p.leadComment = nil
+	return cmt
+}
+
 // ----------------------------------------------------------------------------
 // Blocks
 
@@ -1162,11 +1189,9 @@ func (p *parser) parseStmtList() (list []ast.Stmt) {
 			continue
 		}
 		list = append(list, stmt)
-		if p.leadComment != nil {
-			list = append(list, &ast.CommStmt{
-				Group: p.leadComment,
-			})
-		}
+	}
+	if cmt := p.checkComment(); cmt != nil {
+		list = append(list, cmt)
 	}
 	ast.SortStatements(list)
 	// ast.Print(token.NewFileSet(), list)
@@ -1179,11 +1204,6 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 	}
 	lbrace := p.expect(token.LBRACE)
 	var list []ast.Stmt
-	if p.leadComment != nil {
-		list = append(list, &ast.CommStmt{
-			Group: p.leadComment,
-		})
-	}
 	oldScope := p.topScope
 	p.topScope = scope // open function scope
 	p.openLabelScope()
@@ -1191,6 +1211,9 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 	p.closeLabelScope()
 	p.topScope = oldScope
 	rbrace := p.expect(token.RBRACE)
+	if cmt := p.checkComment(); cmt != nil {
+		list = append(list, cmt)
+	}
 	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
 }
 
@@ -1201,11 +1224,6 @@ func (p *parser) parseBlockStmt() *ast.BlockStmt {
 
 	lbrace := p.expect(token.LBRACE)
 	var list []ast.Stmt
-	if p.leadComment != nil {
-		list = append(list, &ast.CommStmt{
-			Group: p.leadComment,
-		})
-	}
 	p.openScope()
 	list = append(list, p.parseStmtList()...)
 	p.closeScope()
@@ -2016,7 +2034,7 @@ func (p *parser) parseSelStmt() ast.Stmt {
 	body := p.parseBlockStmt()
 	fset := token.NewFileSet()
 	ast.Print(fset, body.List)
-	ast.SortStatements(body.List)
+	// ast.SortStatements(body.List)
 	idents := parseSelectors(lit, pos)
 
 	return &ast.SelStmt{
@@ -2110,10 +2128,18 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		defer un(trace(p, "Statement"))
 	}
 
+	if cmt := p.checkComment(); cmt != nil {
+		fmt.Printf("checkComment % #v\n", cmt.Group.List[0])
+		return cmt
+	}
+
 	switch p.tok {
 	case token.IDENT, token.RULE:
 		s = &ast.DeclStmt{Decl: p.parseDecl(syncStmt)}
 		// p.expectSemi()
+	case token.COMMENT:
+		group, _ := p.consumeCommentGroup(0)
+		s = &ast.CommStmt{Group: group}
 	case
 		token.VAR:
 		spec := p.inferValueSpec(p.leadComment, p.tok, 0).(*ast.ValueSpec)
@@ -2224,7 +2250,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 
 	// collect imports
 	spec := &ast.ImportSpec{
-		Doc:     doc,
+		// Doc:     doc,
 		Name:    ident,
 		Path:    &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: path},
 		Comment: p.lineComment,
@@ -2333,7 +2359,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 
 		// Assignment happening
 		spec = &ast.ValueSpec{
-			Doc:   doc,
+			// Doc:   doc,
 			Names: []*ast.Ident{name},
 			// Type:    values[0],
 			Comment: p.lineComment,
@@ -2411,7 +2437,7 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 	// at the identifier in the TypeSpec and ends at the end of the innermost
 	// containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
-	spec := &ast.TypeSpec{Doc: doc, Name: ident}
+	spec := &ast.TypeSpec{ /*Doc: doc,*/ Name: ident}
 	p.declare(spec, nil, p.topScope, ast.Typ, ident)
 
 	spec.Type = p.parseType()
@@ -2426,7 +2452,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 		defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
 	pos := p.pos
-	doc := p.leadComment
+	// doc := p.leadComment
 
 	var lparen, rparen token.Pos
 	var list []ast.Spec
@@ -2444,7 +2470,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 
 	p.expectSemi()
 	return &ast.GenDecl{
-		Doc:    doc,
+		// Doc:    doc,
 		TokPos: pos,
 		Tok:    keyword,
 		Lparen: lparen,
@@ -2591,7 +2617,6 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.Ident, *ast.BasicLit:
 			typ = ast.ToIdent(sig.Type)
 		case *ast.KeyValueExpr:
-			fmt.Printf("sig %s: % #v\n", v.Key, v.Value)
 			ident := ast.ToIdent(v.Key)
 			// declare the default signature value
 			if v.Value != nil {
@@ -2676,7 +2701,8 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		}
 		ret = append(ret, stmts[i])
 	}
-
+	fmt.Println("==============\nResolved Sort\n===============")
+	ast.SortStatements(ret)
 	return ret
 }
 
@@ -2783,7 +2809,7 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 		defer un(trace(p, "MixinDecl"))
 	}
 
-	doc := p.leadComment
+	// doc := p.leadComment
 	pos := p.expect(token.MIXIN)
 	// Mixins do not resolve or define variables in any scope
 	var scope *ast.Scope //ast.NewScope(nil) // function scope
@@ -2801,7 +2827,7 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	}
 
 	decl := &ast.FuncDecl{
-		Doc: doc,
+		// Doc: doc,
 		// Recv: recv,
 		Tok:  token.MIXIN,
 		Name: ident,
@@ -2823,7 +2849,7 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 		defer un(trace(p, "FunctionDecl"))
 	}
 
-	doc := p.leadComment
+	// doc := p.leadComment
 	pos := p.expect(token.FUNC)
 	scope := ast.NewScope(p.topScope) // function scope
 
@@ -2843,7 +2869,7 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	p.expectSemi()
 
 	decl := &ast.FuncDecl{
-		Doc:  doc,
+		// Doc:  doc,
 		Recv: recv,
 		Tok:  token.FUNC,
 		Name: ident,
