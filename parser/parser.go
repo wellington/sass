@@ -1170,34 +1170,43 @@ func (p *parser) checkComment() *ast.CommStmt {
 	return cmt
 }
 
-func (p *parser) unwrapInclude(in ast.Stmt) (out []ast.Stmt) {
+func (p *parser) unwrapInclude(in ast.Stmt) []ast.Stmt {
 	if inc, ok := in.(*ast.IncludeStmt); ok && !p.inMixin {
+		out := make([]ast.Stmt, 0, len(inc.Spec.List)+1)
 		for i := range inc.Spec.List {
 			out = append(out, p.unwrapInclude(inc.Spec.List[i])...)
 		}
-		return
+		return out
 	}
-	out = append(out, in)
-	return
+	return []ast.Stmt{in}
 }
 
 // ----------------------------------------------------------------------------
 // Blocks
 
-func (p *parser) parseStmtList() (list []ast.Stmt) {
+func (p *parser) parseStmtList() []ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "StatementList"))
 	}
-
+	sels := make([]ast.Stmt, 0)
+	list := make([]ast.Stmt, 0)
 	for p.tok != token.RBRACE && p.tok != token.EOF {
-		stmt := p.parseStmt()
-		list = append(list, p.unwrapInclude(stmt)...)
+		stmt, sel := p.parseStmt()
+		if sel {
+			sels = append(sels, stmt)
+			continue
+		}
+		expand := p.unwrapInclude(stmt)
+		list = append(list, expand...)
+		if len(expand) > 0 {
+			ast.SortStatements(list)
+		}
 	}
 	if cmt := p.checkComment(); cmt != nil {
 		list = append(list, cmt)
 	}
-	ast.SortStatements(list)
-	// ast.Print(token.NewFileSet(), list)
+	list = append(list, sels...)
+	// ast.SortStatements(list)
 	return list
 }
 
@@ -1894,7 +1903,8 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 			// Go spec: The scope of a label is the body of the function
 			// in which it is declared and excludes the body of any nested
 			// function.
-			stmt := &ast.LabeledStmt{Label: label, Colon: colon, Stmt: p.parseStmt()}
+			st, _ := p.parseStmt()
+			stmt := &ast.LabeledStmt{Label: label, Colon: colon, Stmt: st}
 			p.declare(stmt, nil, p.labelScope, ast.Lbl, label)
 			return stmt, false
 		}
@@ -2128,14 +2138,15 @@ func (p *parser) parseForStmt() ast.Stmt {
 	}
 }
 
-func (p *parser) parseStmt() (s ast.Stmt) {
+func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 	if p.trace {
 		defer un(trace(p, "Statement"))
 	}
 
 	if cmt := p.checkComment(); cmt != nil {
 		fmt.Printf("checkComment % #v\n", cmt.Group.List[0])
-		return cmt
+		s = cmt
+		return
 	}
 
 	switch p.tok {
@@ -2188,6 +2199,7 @@ func (p *parser) parseStmt() (s ast.Stmt) {
 		s = &ast.IncludeStmt{Spec: p.parseIncludeSpec(!p.inMixin)}
 	case token.SELECTOR:
 		s = p.parseSelStmt()
+		isSelector = true
 	case token.SEMICOLON:
 		// Is it ever possible to have an implicit semicolon
 		// producing an empty statement in a valid program?
