@@ -812,10 +812,15 @@ func (p *parser) parseSassType() ast.Expr {
 	if p.trace {
 		defer un(trace(p, "SassType"))
 	}
-	expr := &ast.BasicLit{
+	var expr ast.Expr
+	expr = &ast.BasicLit{
 		ValuePos: p.pos,
 		Value:    p.lit,
 		Kind:     token.VAR,
+	}
+	expr = &ast.Ident{
+		Name:    p.lit,
+		NamePos: p.pos,
 	}
 	p.next()
 	return expr
@@ -1430,6 +1435,9 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		case token.ELLIPSIS:
 			ellipsis = p.pos
 			p.next()
+		}
+		if _, ok := typ.(*ast.Ident); ok {
+			p.resolve(typ)
 		}
 		list = append(list, typ)
 		if !p.atComma("argument list", token.RPAREN) {

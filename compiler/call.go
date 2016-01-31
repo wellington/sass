@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"errors"
+	"fmt"
 	"image/color"
 	"log"
 	"strconv"
@@ -47,8 +48,21 @@ func parseColors(args []ast.Expr) (color.RGBA, error) {
 	lits := make([]*ast.BasicLit, 4)
 	for i := range args {
 		switch v := args[i].(type) {
+		case *ast.Ident:
+			assign := v.Obj.Decl.(*ast.AssignStmt)
+			fmt.Printf("% #v:% #v\n", assign.Lhs[0], assign.Rhs[0])
+			call := assign.Rhs[0].(*ast.CallExpr)
+			for i := range call.Args {
+				lits = append(lits, call.Args[i].(*ast.BasicLit))
+			}
 		case *ast.BasicLit:
-			lits[i] = v
+			switch v.Kind {
+			case token.VAR:
+				//log.Fatalf("VAR % #v\n", v)
+			default:
+				//log.Fatalf("unsupported % #v\n", v)
+			}
+			lits = append(lits, v)
 		case *ast.KeyValueExpr:
 			// Named argument parsing
 			key := v.Key.(*ast.BasicLit)
@@ -65,9 +79,12 @@ func parseColors(args []ast.Expr) (color.RGBA, error) {
 			default:
 				log.Fatal("unsupported", key.Value)
 			}
+		default:
+			log.Fatalf("default % #v\n", v)
 		}
 
 	}
+
 	var err error
 	ints := make([]uint8, 4)
 	if lits[3] != nil && err == nil {
@@ -101,6 +118,7 @@ func parseColors(args []ast.Expr) (color.RGBA, error) {
 }
 
 func rgb(args []ast.Expr) (*ast.BasicLit, error) {
+	fmt.Println("rgb", args)
 	c, err := parseColors(args)
 	if err != nil {
 		return nil, err
@@ -113,6 +131,7 @@ func rgb(args []ast.Expr) (*ast.BasicLit, error) {
 }
 
 func rgba(args []ast.Expr) (*ast.BasicLit, error) {
+	fmt.Println("rgba", args)
 	c, err := parseColors(args)
 	if err != nil {
 		return nil, err
