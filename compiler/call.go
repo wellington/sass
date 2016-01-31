@@ -45,7 +45,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 // Builtin functions
 
 func parseColors(args []ast.Expr) (color.RGBA, error) {
-	lits := make([]*ast.BasicLit, 4)
+	lits := make([]*ast.BasicLit, 0, 4)
 	for i := range args {
 		switch v := args[i].(type) {
 		case *ast.Ident:
@@ -62,12 +62,18 @@ func parseColors(args []ast.Expr) (color.RGBA, error) {
 			default:
 				//log.Fatalf("unsupported % #v\n", v)
 			}
+			fmt.Println("lit", v)
 			lits = append(lits, v)
 		case *ast.KeyValueExpr:
+			// Ensure lits is full size
+			for len(lits) < 4 {
+				lits = append(lits, &ast.BasicLit{})
+			}
 			// Named argument parsing
-			key := v.Key.(*ast.BasicLit)
+			key := v.Key.(*ast.Ident)
 			val := v.Value.(*ast.BasicLit)
-			switch key.Value {
+			fmt.Printf("k/v % #v: % #v\n", key, val)
+			switch key.Name {
 			case "$red":
 				lits[0] = val
 			case "$green":
@@ -77,20 +83,22 @@ func parseColors(args []ast.Expr) (color.RGBA, error) {
 			case "$alpha":
 				lits[3] = val
 			default:
-				log.Fatal("unsupported", key.Value)
+				log.Fatalf("unsupported % #v\n", key)
 			}
 		default:
 			log.Fatalf("default % #v\n", v)
 		}
 
 	}
-
+	fmt.Println(lits)
 	var err error
 	ints := make([]uint8, 4)
-	if lits[3] != nil && err == nil {
-		var f float64
-		f, err = strconv.ParseFloat(lits[3].Value, 32)
-		ints[3] = uint8(f * 100)
+	if len(lits) > 3 {
+		if lits[3] != nil && err == nil {
+			var f float64
+			f, err = strconv.ParseFloat(lits[3].Value, 32)
+			ints[3] = uint8(f * 100)
+		}
 	}
 
 	if lits[0] != nil && lits[0].Kind == token.COLOR {
