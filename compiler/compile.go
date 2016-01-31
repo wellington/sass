@@ -23,8 +23,8 @@ type Context struct {
 	firstRule bool
 	level     int
 	printers  map[ast.Node]func(*Context, ast.Node)
-
-	scope Scope
+	fset      *token.FileSet
+	scope     Scope
 }
 
 func fileRun(path string) (string, error) {
@@ -40,9 +40,9 @@ func fileRun(path string) (string, error) {
 // Run takes a single Sass file and compiles it
 func (ctx *Context) Run(path string) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
-	fset := token.NewFileSet()
+	ctx.fset = token.NewFileSet()
 	// pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments) //|parser.Trace)
-	pf, err := parser.ParseFile(fset, path, nil, parser.ParseComments|parser.Trace)
+	pf, err := parser.ParseFile(ctx.fset, path, nil, parser.ParseComments|parser.Trace)
 	if err != nil {
 		return "", err
 	}
@@ -176,6 +176,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = declStmt
 	case *ast.IncludeSpec:
 		// panic("not supported")
+		// ast.Print(ctx.fset, node)
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:

@@ -18,10 +18,12 @@ func TestParse_files(t *testing.T) {
 
 	mode := DeclarationErrors
 	mode = Trace | ParseComments
-	for _, name := range inputs {
+	var name string
+	defer func() { fmt.Println("exit parsing", name) }()
+	for _, name = range inputs {
 
 		if !strings.Contains(name, "17_") {
-			continue
+			// continue
 		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {
@@ -44,15 +46,16 @@ func TestParseDir(t *testing.T) {
 
 }
 
-func TestVarScope(t *testing.T) {
-	t.Skip("")
-	f, err := ParseFile(token.NewFileSet(), "../sass-spec/spec/basic/03_simple_variable/input.scss", nil, Trace)
+func TestPrint(t *testing.T) {
 
+	fset := token.NewFileSet()
+	f, err := ParseFile(fset, "../sass-spec/spec/basic/19_full_mixin_craziness/input.scss", nil, Trace)
+	_ = f
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	fmt.Printf("% #v\n", f)
+	ast.Print(fset, nil)
 }
 
 func TestParse_quotes(t *testing.T) {

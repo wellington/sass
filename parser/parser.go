@@ -213,6 +213,7 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 					decl.Rhs[0])
 			}
 			ident.Obj = obj
+			fmt.Println("")
 			return
 		}
 	}
@@ -2588,10 +2589,20 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.Ident, *ast.BasicLit:
 			typ = ast.ToIdent(sig.Type)
 		case *ast.KeyValueExpr:
+			fmt.Printf("sig %s: % #v\n", v.Key, v.Value)
 			ident := ast.ToIdent(v.Key)
-			// declare the default argument
+			// declare the default signature value
 			if v.Value != nil {
-				p.declare(v.Value, nil, scope, ast.Var, ident)
+				if lit, ok := v.Value.(*ast.BasicLit); ok {
+					// Resolve lit (variable) passed
+					if lit.Kind == token.VAR {
+						val := ast.NewIdent(lit.Value)
+						p.resolve(val)
+						p.declare(val, nil, scope, ast.Var, ident)
+					}
+				} else {
+					p.declare(v.Value, nil, scope, ast.Var, ident)
+				}
 			}
 
 			typ = ident
@@ -2618,8 +2629,10 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			}
 			n := 0
 			if argident == nil {
+				fmt.Println("skipped argument %s", sigident.Name)
 				continue
 			}
+			fmt.Println("resolved argument %s", sigident.Name)
 			obj := ast.NewObj(ast.Var, sigident.Name)
 			obj.Decl = argident
 			if sigident.Name != "_" {
@@ -2637,9 +2650,9 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 	}
 
 	ret := make([]ast.Stmt, 0, len(stmts))
-	fmt.Println("visit Resolve Stmt")
+	// fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
-		fmt.Printf("stmts[i] % #v\n", stmts[i])
+		// fmt.Printf("stmts[i] % #v\n", stmts[i])
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
@@ -2719,10 +2732,18 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 }
 
 func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
+	if p.trace {
+		defer un(trace(p, "ResolveIncludeSpec"))
+	}
 	ident := spec.Name
 	p.resolve(ident)
 	assert(ident.Obj != nil, "failed to retrieve mixin")
 	args := spec.Params
+	if args != nil {
+		for i, arg := range args.List {
+			fmt.Printf("arg(%d): % #v\n", i, arg)
+		}
+	}
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 	// Walk through all statements performing a copy of each
 	list := fnDecl.Body.List
@@ -2743,13 +2764,11 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 // @include foo($x: second, $y: third);
 func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 	if p.trace {
-		defer un(trace(p, "IncludeSpec"))
+		defer un(trace(p, "ParseIncludeSpec"))
 	}
 	p.expect(token.INCLUDE)
 	ident := p.parseIdent()
 	args, _ := p.parseSignature(p.topScope)
-	// Resolve ident only on doResolve
-	// p.resolve(ident)
 	spec := &ast.IncludeSpec{
 		Name:   ident,
 		Params: args,
@@ -2762,6 +2781,7 @@ func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 	if doResolve {
 		p.resolveIncludeSpec(spec)
 	}
+
 	return spec
 }
 
@@ -2780,7 +2800,7 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	fmt.Printf("created bogus scope (%p)\n", scope)
 	ident := p.parseIdent()
 
-	params, results := p.parseSignature(scope)
+	params, _ := p.parseSignature(scope)
 
 	var body *ast.BlockStmt
 	if p.tok == token.LBRACE {
@@ -2796,9 +2816,8 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 		Tok:  token.MIXIN,
 		Name: ident,
 		Type: &ast.FuncType{
-			Func:    pos,
-			Params:  params,
-			Results: results,
+			Func:   pos,
+			Params: params,
 		},
 		Body: body,
 	}
