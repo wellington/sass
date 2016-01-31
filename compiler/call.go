@@ -2,18 +2,19 @@ package compiler
 
 import (
 	"errors"
-	"fmt"
 	"image/color"
 	"log"
 	"strconv"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/token"
 )
 
 var ErrNotFound = errors.New("function does not exist")
 
 func init() {
 	Register("rgb", rgb)
+	Register("rgba", rgba)
 }
 
 type callFunc func(args []ast.Expr) (*ast.BasicLit, error)
@@ -42,13 +43,8 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 
 // Builtin functions
 
-func rgb(args []ast.Expr) (*ast.BasicLit, error) {
-	if len(args) != 3 {
-		return nil,
-			fmt.Errorf("rgb() invalid arg count found: %d", len(args))
-	}
-
-	lits := make([]*ast.BasicLit, 3)
+func parseColors(args []ast.Expr) (color.RGBA, error) {
+	lits := make([]*ast.BasicLit, 4)
 	for i := range args {
 		switch v := args[i].(type) {
 		case *ast.BasicLit:
@@ -64,20 +60,64 @@ func rgb(args []ast.Expr) (*ast.BasicLit, error) {
 				lits[1] = val
 			case "$blue":
 				lits[2] = val
+			case "$alpha":
+				lits[3] = val
 			default:
 				log.Fatal("unsupported", key.Value)
 			}
 		}
 
 	}
-	r, _ := strconv.Atoi(lits[0].Value)
-	g, _ := strconv.Atoi(lits[1].Value)
-	b, _ := strconv.Atoi(lits[2].Value)
-	lit := ast.BasicLitFromColor(color.RGBA{
-		R: uint8(r),
-		G: uint8(g),
-		B: uint8(b),
-	})
+	var err error
+	ints := make([]uint8, 4)
+	if lits[3] != nil && err == nil {
+		var f float64
+		f, err = strconv.ParseFloat(lits[3].Value, 32)
+		ints[3] = uint8(f * 100)
+	}
+
+	if lits[0] != nil && lits[0].Kind == token.COLOR {
+		c := ast.ColorFromHexString(lits[0].Value)
+		c.A = ints[3]
+		return c, nil
+	}
+
+	for i := range lits[:3] {
+		if lits[i] != nil {
+			var n int
+			n, err = strconv.Atoi(lits[i].Value)
+			if err != nil {
+				break
+			}
+			ints[i] = uint8(n)
+		}
+	}
+	return color.RGBA{
+		R: ints[0],
+		G: ints[1],
+		B: ints[2],
+		A: ints[3],
+	}, err
+}
+
+func rgb(args []ast.Expr) (*ast.BasicLit, error) {
+	c, err := parseColors(args)
+	if err != nil {
+		return nil, err
+	}
+	lit := ast.BasicLitFromColor(c)
+	// There's some stupidity in the color stuff, do a lookup
+	// manually
+	lit.Value = ast.LookupColor(lit.Value)
+	return lit, nil
+}
+
+func rgba(args []ast.Expr) (*ast.BasicLit, error) {
+	c, err := parseColors(args)
+	if err != nil {
+		return nil, err
+	}
+	lit := ast.BasicLitFromColor(c)
 	// There's some stupidity in the color stuff, do a lookup
 	// manually
 	lit.Value = ast.LookupColor(lit.Value)

@@ -186,6 +186,10 @@ func (x *BasicLit) Op(tok token.Token, y *BasicLit) *BasicLit {
 	return nil
 }
 
+func ColorFromHexString(s string) color.RGBA {
+	return colorFromHexString(s)
+}
+
 func colorFromHexString(s string) color.RGBA {
 	return colorFromHex([]byte(s))
 }

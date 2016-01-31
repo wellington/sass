@@ -62,8 +62,8 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
 		for i := range assign.Rhs {
-			ident := assign.Rhs[i].(*Ident)
-			if strings.HasSuffix(ident.Name, " !global") {
+			ident, ok := assign.Rhs[i].(*Ident)
+			if ok && strings.HasSuffix(ident.Name, " !global") {
 				decl2 := StmtCopy(assign)
 				assign2 := decl2.(*AssignStmt)
 				assign2.Rhs[i] = NewIdent(strings.TrimSuffix(ident.Name, " !global"))
