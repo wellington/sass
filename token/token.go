@@ -137,9 +137,9 @@ var Tokens = [...]string{
 	FLOAT:    "FLOAT",
 	VAR:      "VAR",
 	RULE:     "rule",
-	STRING:   "word",
-	QSTRING:  `"word"`,
-	QSSTRING: `'word'`,
+	STRING:   "string",
+	QSTRING:  `"string"`,
+	QSSTRING: `'string'`,
 	COLOR:    "color",
 	INTERP:   "INTERPOLATION",
 

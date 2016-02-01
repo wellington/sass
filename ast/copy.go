@@ -66,17 +66,25 @@ func ExprsCopy(in []Expr) []Expr {
 	return out
 }
 
-var toomany int
-
 func ExprCopy(in Expr) (out Expr) {
 	switch expr := in.(type) {
 	case *Ident:
-		toomany++
 		log.Println("use ident copy directly", expr)
-		if toomany > 50 {
-			// panic("")
-		}
 		out = IdentCopy(expr)
+	case *BasicLit:
+		out = &BasicLit{
+			Kind:     expr.Kind,
+			Value:    expr.Value,
+			ValuePos: expr.ValuePos,
+		}
+	case *KeyValueExpr:
+		kv := &KeyValueExpr{}
+		kv.Colon = expr.Colon
+		kv.Key = ExprCopy(expr.Key)
+		kv.Value = ExprCopy(expr.Value)
+		out = kv
+	default:
+		log.Fatalf("unsupported expr copy: % #v\n", expr)
 	}
 	return
 }

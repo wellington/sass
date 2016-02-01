@@ -445,11 +445,8 @@ func joinLits(a []*ast.BasicLit, sep string) string {
 }
 
 func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
-	li := astmt.Lhs[0].(*ast.Ident)
-	fmt.Printf("lhs %s % #v\n", li, li)
 
 	for _, rhs := range astmt.Rhs {
-		fmt.Printf("rhs % #v\n", rhs)
 		switch v := rhs.(type) {
 		case *ast.Ident:
 			assign := v.Obj.Decl.(*ast.AssignStmt)

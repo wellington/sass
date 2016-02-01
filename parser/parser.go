@@ -580,6 +580,8 @@ func (p *parser) parseDirective() *ast.Ident {
 	switch p.tok {
 	case token.MEDIA:
 		name = "MEDIA"
+	default:
+		log.Fatalf("failed to parse directive: %s", p.lit)
 	}
 
 	return &ast.Ident{NamePos: pos, Name: name}
@@ -768,18 +770,12 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	expr = basic
 	switch p.tok {
+	case token.STRING:
+		basic.Kind = token.STRING
 	case token.QSSTRING:
 		basic.Kind = token.QSSTRING
 	case token.QSTRING:
 		basic.Kind = token.QSTRING
-	// case token.IDENT:
-	// 	p.next()
-	// 	if p.tok != token.LPAREN {
-	// 		basic.Kind = token.IDENT
-	// 		return basic
-	// 	}
-	// 	fmt.Println("check for fn")
-	// 	return p.parseFuncTypeOrLit()
 	case token.RULE:
 		basic.Kind = token.RULE
 	case token.VAR:
@@ -2656,6 +2652,12 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 						p.declare(val, nil, scope, ast.Var, ident)
 					}
 				} else {
+					fmt.Println("keyvalident", ident)
+					if ident.Obj != nil {
+						fmt.Printf("existing decl % #v\n", ident.Obj.Decl)
+						fmt.Printf("new decl      % #v\n", v.Value)
+						ident.Obj = nil
+					}
 					p.declare(v.Value, nil, scope, ast.Var, ident)
 				}
 			}
@@ -2746,7 +2748,11 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
 				for _, val := range sv.Values {
-					ident := val.(*ast.Ident)
+					ident, ok := val.(*ast.Ident)
+					if !ok {
+						// Not ident, already resolved
+						continue
+					}
 					var new bool
 					if ident.Obj != nil {
 						fmt.Printf("existing %s(%p) scope (%p): % #v\n",
@@ -2785,7 +2791,8 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	}
 	ident := spec.Name
 	p.resolve(ident)
-	assert(ident.Obj != nil, "failed to retrieve mixin")
+	fmt.Printf("%s % #v\n", ident, ident.Obj)
+	assert(ident.Obj != nil, "failed to retrieve mixin: "+ident.Name)
 	args := spec.Params
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 	// Walk through all statements performing a copy of each
@@ -2809,7 +2816,11 @@ func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 		defer un(trace(p, "ParseIncludeSpec"))
 	}
 	p.expect(token.INCLUDE)
-	ident := p.parseIdent()
+
+	expr := p.parseOperand(true)
+	// @include hux; returns BasicLit, enforce ident here
+	ident := ast.ToIdent(expr)
+	assert(ident.Name != "_", "invalid include identifier")
 	args, _ := p.parseSignature(p.topScope)
 	spec := &ast.IncludeSpec{
 		Name:   ident,

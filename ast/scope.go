@@ -62,11 +62,16 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
 		for i := range assign.Rhs {
-			ident, ok := assign.Rhs[i].(*Ident)
-			if ok && strings.HasSuffix(ident.Name, " !global") {
+			blit, ok := assign.Rhs[i].(*BasicLit)
+			if ok && strings.HasSuffix(blit.Value, " !global") {
 				decl2 := StmtCopy(assign)
 				assign2 := decl2.(*AssignStmt)
-				assign2.Rhs[i] = NewIdent(strings.TrimSuffix(ident.Name, " !global"))
+				// Copy these b/c they might be introduced by a mixin
+				litcopy := *blit
+				litcopy.Value = strings.TrimSuffix(blit.Value, " !global")
+				assign2.Rhs[i] = &litcopy
+
+				// assign2.Rhs[i] = NewIdent(strings.TrimSuffix(blit.Value, " !global"))
 				obj2 := *obj
 				obj2.Decl = decl2
 				// top.Insert(obj)
