@@ -2654,9 +2654,15 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 				} else {
 					fmt.Println("keyvalident", ident)
 					if ident.Obj != nil {
+						fmt.Println("===============\n===============")
 						fmt.Printf("existing decl % #v\n", ident.Obj.Decl)
 						fmt.Printf("new decl      % #v\n", v.Value)
+						fmt.Println("===============\n===============")
 						ident.Obj = nil
+					} else {
+						fmt.Println("===============\n===============")
+						fmt.Printf("new decl      % #v\n", v.Value)
+						fmt.Println("===============\n===============")
 					}
 					p.declare(v.Value, nil, scope, ast.Var, ident)
 				}
@@ -2675,14 +2681,25 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			var sigident *ast.Ident
 			switch v := arg.Type.(type) {
 			case *ast.Ident, *ast.BasicLit:
-				argident = ast.ToIdent(v)
+				argident = ast.IdentCopy(ast.ToIdent(v))
 				sigident = sigs[i]
 				// p.declare(ident, nil, scope, ast.Var, sigs[i])
 			case *ast.KeyValueExpr:
 				sigident = ast.ToIdent(v.Key)
-				argident = ast.ToIdent(v.Value)
+				argident = ast.IdentCopy(ast.ToIdent(v.Value))
 				// Resolve Value
 				p.resolve(argident)
+				if ident, ok := argident.Obj.Decl.(*ast.Ident); ok {
+					if ident.Obj != nil {
+						assign, ok := ident.Obj.Decl.(*ast.AssignStmt)
+						if ok {
+							argident.Obj.Decl = assign
+							//assign.Lhs[0], assign.Rhs[0]
+						} else {
+							argident.Obj.Decl = ident.Obj.Decl
+						}
+					}
+				}
 			}
 			n := 0
 			if argident == nil {
