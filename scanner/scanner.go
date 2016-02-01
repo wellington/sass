@@ -620,6 +620,8 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 		// mixin or func ident
 		// IDENT()
 		tok = token.IDENT
+	case ';':
+		tok = token.STRING
 	default:
 		// Not sure, this requires more specifics
 		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
@@ -627,23 +629,6 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 	}
 	return
 }
-
-// func (s *Scanner) scanRule() (token.Token, string) {
-// 	offs := s.offset
-// scanRule:
-// 	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
-// 		s.next()
-// 	}
-// 	if s.ch == '#' {
-// 		s.next()
-// 		tok, lit := s.scanInterp(s.offset)
-// 		if tok == token.ILLEGAL {
-// 			// Interpolation failed, bailout
-// 		}
-// 	}
-// 	ss := string(s.src[offs:s.offset])
-// 	return ss
-// }
 
 func (s *Scanner) scanIdent() string {
 	offs := s.offset

@@ -2,8 +2,8 @@ package compiler
 
 import (
 	"errors"
+	"fmt"
 	"log"
-	"regexp"
 	"strings"
 
 	"github.com/wellington/sass/parser"
@@ -15,7 +15,7 @@ import (
 
 var ErrNotFound = errors.New("function does not exist")
 
-type CallHandler func(args []ast.Expr) (*ast.BasicLit, error)
+type CallHandler func(args []*ast.BasicLit) (*ast.BasicLit, error)
 
 type call struct {
 	name string
@@ -23,13 +23,21 @@ type call struct {
 	ch   CallHandler
 }
 
-var funcs map[string]call = make(map[string]call)
+func (c *call) Pos(key *ast.Ident) int {
+	for i, arg := range c.args {
+		switch v := arg.Key.(type) {
+		case *ast.Ident:
+			if key.Name == v.Name {
+				return i
+			}
+		default:
+			log.Fatalf("failed to lookup key % #v\n", v)
+		}
+	}
+	return -1
+}
 
-var (
-	regName = regexp.MustCompile("^\\s+").FindString
-	regArgs = regexp.MustCompile("\\$\\s+").FindAllString
-	regDef  = regexp.MustCompile(":\\s+,").FindAllString
-)
+var funcs map[string]call = make(map[string]call)
 
 type desc struct {
 	err error
@@ -77,12 +85,6 @@ func walkFunctionDescription(node ast.Node) call {
 }
 
 func Register(s string, ch CallHandler) {
-	name := regName(s)
-	if _, ok := funcs[name]; ok {
-		// panic("already registered: " + name)
-	}
-	args := regArgs(s, -1)
-	_ = args
 	fset := token.NewFileSet()
 	pf, err := parser.ParseFile(fset, "", s, 0)
 	if err != nil {
@@ -90,28 +92,49 @@ func Register(s string, ch CallHandler) {
 			log.Fatal(err)
 		}
 	}
-	d := &desc{c: call{}}
+	d := &desc{c: call{ch: ch}}
 	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])
 	if d.err != nil {
 		log.Fatal("failed to parse func description", d.err)
 	}
-	funcs[name] = d.c
+	if _, ok := funcs[d.c.name]; ok {
+		log.Println("already registered", d.c.name)
+	}
+	funcs[d.c.name] = d.c
 }
 
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 
 	ident := expr.Fun.(*ast.Ident)
-
 	fn, ok := funcs[ident.Name]
 	if !ok {
 		return notfoundCall(expr), nil
 	}
 
-	// Verify args and convert to KeyValueExpr before passing along
+	callargs := make([]*ast.BasicLit, len(fn.args))
+	for i := range fn.args {
+		callargs[i] = fn.args[i].Value.(*ast.BasicLit)
+	}
+	// Verify args and convert to BasicLit before passing along
+	for i, arg := range expr.Args {
+		switch v := arg.(type) {
+		case *ast.BasicLit:
+			callargs[i] = v
+		case *ast.KeyValueExpr:
+			pos := fn.Pos(v.Key.(*ast.Ident))
+			callargs[pos] = v.Value.(*ast.BasicLit)
+		case *ast.Ident:
+			assign := v.Obj.Decl.(*ast.AssignStmt)
+			fmt.Printf("% #v\n", assign.Rhs[0])
+			callargs[i] = assign.Rhs[0].(*ast.BasicLit)
+		default:
+			log.Fatalf("eval call unsupported % #v\n", v)
+		}
+	}
 
-	return fn.ch(expr.Args)
+	return fn.ch(callargs)
 }
 
 // there's no such thing as a failure in Sass. Resolve idents in callexpr
@@ -123,5 +146,5 @@ func notfoundCall(call *ast.CallExpr) (lit *ast.BasicLit) {
 
 func init() {
 	Register("rgb($red:0, $green:0, $blue:0)", builtin.RGB)
-	Register("rgba($red:0, $green:0, $blue:0, $alpha:0)", builtin.RGBA)
+	// Register("rgba($red:0, $green:0, $blue:0, $alpha:0)", builtin.RGBA)
 }

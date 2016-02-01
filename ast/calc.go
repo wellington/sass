@@ -31,7 +31,7 @@ var cssColors map[string]string = map[string]string{
 	"#000080": "navy",
 	"#0000ff": "blue",
 	"#008080": "teal",
-	"#00ffff": "yellow",
+	"#00ffff": "cyan",
 	"#ffa500": "orange",
 	"#f0f8ff": "aliceblue",
 	"#faebd7": "antiquewhite",

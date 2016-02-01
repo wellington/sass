@@ -333,7 +333,7 @@ func exprString(expr ast.Expr) string {
 	case *ast.BasicLit:
 		return v.Value
 	default:
-		panic(fmt.Sprintf("exprString: %T", v))
+		panic(fmt.Sprintf("exprString %T: % #v\n", v, v))
 	}
 	return ""
 }
@@ -341,20 +341,6 @@ func exprString(expr ast.Expr) string {
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 	x := bin.X
 	y := bin.Y
-
-	// If X or Y are Ident, append as strings
-	_, xok := x.(*ast.Ident)
-	_, yok := y.(*ast.Ident)
-	if xok || yok {
-		var s string
-		switch bin.Op {
-		case token.ADD:
-			s = exprString(x) + exprString(y)
-		default:
-			s = exprString(x) + bin.Op.String() + exprString(y)
-		}
-		return s, nil
-	}
 
 	var err error
 	// Convert CallExpr to BasicLit
@@ -383,9 +369,14 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 	if bx.Kind == token.COLOR {
 		z := bx.Op(bin.Op, by)
 		if z == nil {
-			panic(fmt.Sprintf("invalid return op: %q x: % #v y: % #v",
-				bin.Op, bx, by,
-			))
+			// Op failed, just do string math
+			z = &ast.BasicLit{
+				Kind:  token.STRING,
+				Value: bx.Value + by.Value,
+			}
+			// panic(fmt.Sprintf("invalid return op: %q x: % #v y: % #v",
+			// 	bin.Op, bx, by,
+			// ))
 		}
 		return z.Value, nil
 	}
@@ -431,9 +422,8 @@ func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {
 		}
 		out = strings.Join(s, " ")
 	case *ast.AssignStmt:
-		resolveAssign(ctx, vv)
-		lit := v.Obj.Decl.(*ast.BasicLit)
-		out = lit.Value
+		lits := resolveAssign(ctx, vv)
+		out = joinLits(lits, " ")
 	case *ast.BasicLit:
 		fmt.Printf("assigning %s: % #v\n", ident, vv)
 		ident.Obj.Decl = vv
@@ -445,24 +435,40 @@ func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {
 	return
 }
 
-func resolveAssign(ctx *Context, astmt *ast.AssignStmt) {
+// joinLits acts like strings.Join
+func joinLits(a []*ast.BasicLit, sep string) string {
+	s := make([]string, len(a))
+	for i := range a {
+		s[i] = a[i].Value
+	}
+	return strings.Join(s, sep)
+}
+
+func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 	li := astmt.Lhs[0].(*ast.Ident)
 	fmt.Printf("lhs %s % #v\n", li, li)
+
 	for _, rhs := range astmt.Rhs {
+		fmt.Printf("rhs % #v\n", rhs)
 		switch v := rhs.(type) {
 		case *ast.Ident:
+			assign := v.Obj.Decl.(*ast.AssignStmt)
+			// Replace Ident with underlying BasicLit
+			lits = append(lits, resolveAssign(ctx, assign)...)
 		case *ast.CallExpr:
 			// CallExpr needs to be evaluated before Ident is correctly resolved
 			lit, err := evaluateCall(v)
 			if err != nil {
 				log.Fatal(err)
 			}
-			li.Obj.Decl = lit
+			lits = append(lits, lit)
+		case *ast.BasicLit:
+			lits = append(lits, v)
 		default:
 			log.Fatalf("default rhs %s % #v\n", rhs, rhs)
 		}
 	}
-
+	return
 }
 
 func resolveExpr(ctx *Context, expr ast.Expr) (out string) {

@@ -592,8 +592,7 @@ func (p *parser) parseIdent() *ast.Ident {
 	pos := p.pos
 	name := "_"
 	// FIXME: parseIdent should not be responding with non-IDENT
-	if p.tok == token.IDENT || p.tok == token.RULE ||
-		p.tok == token.SELECTOR {
+	if p.tok == token.IDENT {
 		name = p.lit
 		p.next()
 	} else {
@@ -813,14 +812,17 @@ func (p *parser) parseSassType() ast.Expr {
 		defer un(trace(p, "SassType"))
 	}
 	var expr ast.Expr
-	expr = &ast.BasicLit{
-		ValuePos: p.pos,
-		Value:    p.lit,
-		Kind:     token.VAR,
-	}
-	expr = &ast.Ident{
-		Name:    p.lit,
-		NamePos: p.pos,
+	if p.lit[0] == '$' {
+		expr = &ast.Ident{
+			Name:    p.lit,
+			NamePos: p.pos,
+		}
+	} else {
+		expr = &ast.BasicLit{
+			ValuePos: p.pos,
+			Value:    p.lit,
+			Kind:     token.VAR,
+		}
 	}
 	p.next()
 	return expr
@@ -1300,7 +1302,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	case token.IDENT:
 		x := p.parseIdent()
 		if !lhs {
-			// p.resolve(x)
+			p.resolve(x)
 		}
 		return x
 	case token.INTERP:
@@ -2369,7 +2371,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 				// 	NamePos: vv.NamePos,
 				// }
 			case *ast.BasicLit:
-				values[i] = ast.ToIdent(vv)
+				values[i] = vv
 				// values[i] = &ast.Value{
 				// 	Name:    vv.Value,
 				// 	NamePos: vv.ValuePos,
