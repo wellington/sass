@@ -196,6 +196,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		return nil
 	case *ast.BasicLit:
 		return ctx
+	case *ast.CallExpr:
 	case nil:
 		return ctx
 	case *ast.EmptyStmt:
@@ -299,6 +300,7 @@ func printPropValueSpec(ctx *Context, n ast.Node) {
 
 // Variable assignments inside blocks ie. mixins
 func visitAssignStmt(ctx *Context, n ast.Node) {
+	fmt.Println("visit Assign")
 	return
 	stmt := n.(*ast.AssignStmt)
 	var key, val *ast.Ident
@@ -429,17 +431,38 @@ func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {
 		}
 		out = strings.Join(s, " ")
 	case *ast.AssignStmt:
-		// li := vv.Lhs[0].(*ast.Ident)
-		// ri := vv.Rhs[0].(*ast.Ident)
-		// fmt.Printf("lhs %s % #v\n", li)
-		// fmt.Printf("rhs %s % #v\n", ri)
-		out = simplifyExprs(ctx, vv.Rhs)
+		resolveAssign(ctx, vv)
+		lit := v.Obj.Decl.(*ast.BasicLit)
+		out = lit.Value
+	case *ast.BasicLit:
+		fmt.Printf("assigning %s: % #v\n", ident, vv)
+		ident.Obj.Decl = vv
 	default:
 		fmt.Printf("unsupported VarDecl: % #v\n", vv)
 		// Weird stuff here, let's just push the Ident in
 		out = v.Name
 	}
 	return
+}
+
+func resolveAssign(ctx *Context, astmt *ast.AssignStmt) {
+	li := astmt.Lhs[0].(*ast.Ident)
+	fmt.Printf("lhs %s % #v\n", li, li)
+	for _, rhs := range astmt.Rhs {
+		switch v := rhs.(type) {
+		case *ast.Ident:
+		case *ast.CallExpr:
+			// CallExpr needs to be evaluated before Ident is correctly resolved
+			lit, err := evaluateCall(v)
+			if err != nil {
+				log.Fatal(err)
+			}
+			li.Obj.Decl = lit
+		default:
+			log.Fatalf("default rhs %s % #v\n", rhs, rhs)
+		}
+	}
+
 }
 
 func resolveExpr(ctx *Context, expr ast.Expr) (out string) {
@@ -454,8 +477,11 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string) {
 		out = s
 	case *ast.CallExpr:
 		s, err := evaluateCall(v)
-		if err != nil {
-			log.Fatalf("failed to call '%s': %s", v.Fun, err)
+		if err != nil || s == nil {
+			for _, arg := range v.Args {
+				fmt.Println("arg", arg)
+			}
+			log.Fatalf("failed to call '%s': %s: % #v\n", v.Fun, err, v)
 		}
 		out = s.Value
 	case *ast.ParenExpr:
