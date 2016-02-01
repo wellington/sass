@@ -125,11 +125,14 @@ func FieldCopy(in *Field) (out *Field) {
 
 func FieldListCopy(in *FieldList) (out *FieldList) {
 	out = &FieldList{}
+	if in == nil || in.List == nil {
+		return
+	}
 	list := make([]*Field, len(in.List))
 	for i := range in.List {
 		list[i] = FieldCopy(in.List[i])
 	}
-	out.List = in.List
+	out.List = list
 	return
 }
 

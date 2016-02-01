@@ -55,9 +55,9 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 	// Pre-calculate top for the sake of !global checks
 	top := s
 	for ; top.Outer != nil; top = top.Outer {
-		fmt.Printf("up scope(%p) ", top)
+		// fmt.Printf("up scope(%p) ", top)
 	}
-	fmt.Printf("top scope(%p)\n", top)
+	// fmt.Printf("top scope(%p)\n", top)
 
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
@@ -86,7 +86,7 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 
 	// At some point, we shouldn't need to do this but not today
 	s.Objects[obj.Name] = obj
-	fmt.Printf("inserting %s scope(%p): % #v\n", obj.Name, s, obj)
+	// fmt.Printf("inserting %s scope(%p): % #v\n", obj.Name, s, obj)
 	return
 }
 
