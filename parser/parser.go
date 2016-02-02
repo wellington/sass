@@ -112,6 +112,10 @@ func (p *parser) closeLabelScope() {
 
 func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjKind, idents ...*ast.Ident) {
 	for _, ident := range idents {
+		if ident.Obj != nil {
+			fmt.Printf("====== OVERRIDE ==== %s\nold: % #v\nnew: % #v\n",
+				ident, ident.Obj.Decl, decl)
+		}
 		assert(ident.Obj == nil, "identifier already declared or resolved")
 		obj := ast.NewObj(kind, ident.Name)
 		// remember the corresponding declaration for redeclaration
@@ -197,9 +201,10 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		return
 	}
 	var leak *ast.Scope
+	_ = leak
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
-		fmt.Printf("up scope(%p) ", s)
+		// fmt.Printf("up scope(%p) ", s)
 		leak = s
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
@@ -214,13 +219,14 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 			return
 		}
 	}
-	fmt.Printf("top scope(%p)\n", leak)
+	// fmt.Printf("top scope(%p)\n", leak)
 
 	// This is a significant failure scenario. However, inside
 	// mixins failing to resolve identifiers are perfectly valid.
 	// So produce annoying output for somebody to eventually come fix
 	// this.
-	fmt.Println("failed to resolve", ident, collectUnresolved)
+	fmt.Printf("failed to resolve must?(%t) % #v\n",
+		collectUnresolved, ident)
 	// if ident.Name == "foo" {
 	// 	panic("boom")
 	// }
@@ -2623,105 +2629,93 @@ func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, 
 	return p.parseIncludeSpec(!p.inMixin)
 }
 
+// processFuncArgs walks through the arguments declaring each signature
+// in the provided scope
+func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList) {
+	assert(p.topScope == scope, "Invalid function argument scope")
+	var sigs []*ast.Ident
+
+	toDeclare := make(map[*ast.Ident]interface{})
+
+	// Process the signature and defaults, toDeclaring the defaults
+	for _, sig := range signature.List {
+		var key *ast.Ident
+
+		// Convert ident or basiclit to ident
+		switch v := sig.Type.(type) {
+		default:
+			log.Fatalf("unsupported sig type % #v\n", v)
+		case *ast.Ident:
+			key = v
+		case *ast.KeyValueExpr:
+			var val interface{}
+			// Default arg!
+			key = v.Key.(*ast.Ident)
+			// Set default value, if found
+			switch vv := v.Value.(type) {
+			case nil:
+			case *ast.BasicLit:
+				val = vv
+				// p.declare(val, nil, scope, ast.Var, ident)
+			case *ast.Ident:
+				p.resolve(vv)
+				// TODO: this may need to recursively search for BasicLit
+				val = vv.Obj.Decl
+			default:
+				log.Fatalf("unsupported default value % #v\n", vv)
+			}
+			toDeclare[key] = val
+		}
+		// Preserve sig
+		sigs = append(sigs, key)
+	}
+	fmt.Printf("Defaults found? % #v\n", toDeclare)
+	// Now walk through passed arguments and toDeclare finding the
+	// appropriate matching arg
+	if arguments != nil {
+		for i, arg := range arguments.List {
+			ident := sigs[i]
+			fmt.Printf("inspecting sigs[%d](%p) %s: % #v\n",
+				i, ident, ident, arg.Type)
+			var val interface{}
+			switch v := arg.Type.(type) {
+			case *ast.BasicLit:
+				val = v
+			case *ast.Ident:
+				p.resolve(v)
+				val = v.Obj.Decl
+			case *ast.KeyValueExpr:
+				ident = v.Key.(*ast.Ident)
+				val = v.Value
+				if valdent, ok := val.(*ast.Ident); ok {
+					p.resolve(valdent)
+					val = valdent.Obj.Decl
+				}
+			}
+			if val == nil {
+				fmt.Printf("skipped argument %s\n", sigs[i])
+				continue
+			}
+			toDeclare[ident] = val
+		}
+	}
+
+	fmt.Printf("Args+Defaults % #v\n", toDeclare)
+
+	if len(toDeclare) > 0 {
+		fmt.Println("Declaring include mixin arguments")
+	}
+	for k, v := range toDeclare {
+		fmt.Printf("%s: % #v\n", k, v)
+		p.declare(v, nil, scope, ast.Var, k)
+	}
+}
+
 // Resolves a block within a new scope parsing the called arguments
 // against the provided signature
 // Currently only used for mixin and include
 func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList, stmts []ast.Stmt) []ast.Stmt {
-
-	var sigs []*ast.Ident
-	var args []ast.Expr
-	_ = args
-	// Process the signature, declaring defaults
-	for _, sig := range signature.List {
-		// var cmt *ast.CommentGroup
-		var typ *ast.Ident
-
-		// Convert ident or basiclit to ident
-		switch v := sig.Type.(type) {
-		case *ast.Ident, *ast.BasicLit:
-			typ = ast.ToIdent(sig.Type)
-		case *ast.KeyValueExpr:
-			ident := ast.ToIdent(v.Key)
-			// declare the default signature value
-			if v.Value != nil {
-				if lit, ok := v.Value.(*ast.BasicLit); ok {
-					// Resolve lit (variable) passed
-					if lit.Kind == token.VAR {
-						val := ast.NewIdent(lit.Value)
-						p.resolve(val)
-						p.declare(val, nil, scope, ast.Var, ident)
-					}
-				} else {
-					fmt.Println("keyvalident", ident)
-					if ident.Obj != nil {
-						fmt.Println("===============\n===============")
-						fmt.Printf("existing decl % #v\n", ident.Obj.Decl)
-						fmt.Printf("new decl      % #v\n", v.Value)
-						fmt.Println("===============\n===============")
-						ident.Obj = nil
-					} else {
-						fmt.Println("===============\n===============")
-						fmt.Printf("new decl      % #v\n", v.Value)
-						fmt.Println("===============\n===============")
-					}
-					p.declare(v.Value, nil, scope, ast.Var, ident)
-				}
-			}
-
-			typ = ident
-		}
-		sigs = append(sigs, typ)
-	}
-
-	// Now walk through passed arguments and declare finding the
-	// appropriate matching arg
-	if arguments != nil {
-		for i, arg := range arguments.List {
-			var argident *ast.Ident
-			var sigident *ast.Ident
-			switch v := arg.Type.(type) {
-			case *ast.Ident, *ast.BasicLit:
-				argident = ast.IdentCopy(ast.ToIdent(v))
-				sigident = sigs[i]
-				// p.declare(ident, nil, scope, ast.Var, sigs[i])
-			case *ast.KeyValueExpr:
-				sigident = ast.ToIdent(v.Key)
-				argident = ast.IdentCopy(ast.ToIdent(v.Value))
-				// Resolve Value
-				p.resolve(argident)
-				if ident, ok := argident.Obj.Decl.(*ast.Ident); ok {
-					if ident.Obj != nil {
-						assign, ok := ident.Obj.Decl.(*ast.AssignStmt)
-						if ok {
-							argident.Obj.Decl = assign
-							//assign.Lhs[0], assign.Rhs[0]
-						} else {
-							argident.Obj.Decl = ident.Obj.Decl
-						}
-					}
-				}
-			}
-			n := 0
-			if argident == nil {
-				fmt.Println("skipped argument %s", sigident.Name)
-				continue
-			}
-			fmt.Println("resolved argument %s", sigident.Name)
-			obj := ast.NewObj(ast.Var, sigident.Name)
-			obj.Decl = argident
-			if sigident.Name != "_" {
-				if alt := p.topScope.Insert(obj); alt != nil {
-					sigident.Obj = alt
-					fmt.Printf("arg redeclare: %s(%p): % #v\n",
-						sigident, sigident, sigident.Obj.Decl)
-				} else {
-					fmt.Printf("arg   declare: %s(%p): % #v\n",
-						sigident, sigident, obj.Decl)
-					n++
-				}
-			}
-		}
-	}
+	p.processFuncArgs(scope, signature, arguments)
 
 	ret := make([]ast.Stmt, 0, len(stmts))
 	// fmt.Println("visit Resolve Stmt")
@@ -2808,21 +2802,23 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	}
 	ident := spec.Name
 	p.resolve(ident)
-	fmt.Printf("%s % #v\n", ident, ident.Obj)
 	assert(ident.Obj != nil, "failed to retrieve mixin: "+ident.Name)
 	args := spec.Params
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
+
 	// Walk through all statements performing a copy of each
 	list := fnDecl.Body.List
 	for i := range list {
 		stmt := ast.StmtCopy(list[i])
 		spec.List = append(spec.List, stmt)
 	}
+	copyparams := ast.FieldListCopy(fnDecl.Type.Params)
+	copyargs := ast.FieldListCopy(args)
 
 	// All the identifiers within this list need to be re-resolved
 	// with the args passed in the include
 	p.openScope()
-	spec.List = p.resolveStmts(p.topScope, fnDecl.Type.Params, args, spec.List)
+	spec.List = p.resolveStmts(p.topScope, copyparams, copyargs, spec.List)
 	p.closeScope()
 }
 
@@ -2867,7 +2863,6 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	pos := p.expect(token.MIXIN)
 	// Mixins do not resolve or define variables in any scope
 	var scope *ast.Scope //ast.NewScope(nil) // function scope
-	fmt.Printf("created bogus scope (%p)\n", scope)
 	ident := p.parseIdent()
 
 	params, _ := p.parseSignature(scope)

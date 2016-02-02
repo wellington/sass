@@ -82,7 +82,7 @@ func TestRun(t *testing.T) {
 		}
 
 		if e := string(f.expect); e != sout {
-			//t.Fatalf("got:\n%s", out)
+			// t.Fatalf("got:\n%s", out)
 			// t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 			t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}

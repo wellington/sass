@@ -69,7 +69,6 @@ func ExprsCopy(in []Expr) []Expr {
 func ExprCopy(in Expr) (out Expr) {
 	switch expr := in.(type) {
 	case *Ident:
-		log.Println("use ident copy directly", expr)
 		out = IdentCopy(expr)
 	case *BasicLit:
 		out = &BasicLit{
@@ -174,7 +173,6 @@ func DeclCopy(in Decl) (out Decl) {
 	switch v := in.(type) {
 	case *GenDecl:
 		decl := *v
-		fmt.Printf("% #v\n", decl)
 		list := make([]Spec, 0, len(decl.Specs))
 		for i := range decl.Specs {
 			if decl.Specs[i] != nil {
@@ -188,6 +186,5 @@ func DeclCopy(in Decl) (out Decl) {
 	default:
 		log.Fatalf("unsupported decl copy %T: % #v\n", v, v)
 	}
-	// fmt.Printf("DeclCopy (%p)% #v\n      ~> (%p)% #v\n", in, in, out, out)
 	return
 }

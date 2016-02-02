@@ -620,6 +620,8 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 		// mixin or func ident
 		// IDENT()
 		tok = token.IDENT
+	case ')':
+		tok = token.STRING
 	case ';':
 		tok = token.STRING
 	default:
