@@ -8,9 +8,12 @@ This project is currently in alpha, and contains no compiler. A scanner and pars
 To help, check out [parser](https://github.com/wellington/sass/tree/master/parser). This project contains tests that iterate through sass-spec running the parser against example inputs. Errors detected by the parser are reported. However, you could also set the Parser mode to `Trace` and verify proper ast trees are being built from the input. As the parser matures, output can automatically be verified by the example outputs in these directories.
 
 Glossary
-- Partial Support :question:
+- [ ] Partial Support :question:
 - [x] Full Support
 - [ ] No Support
+
+### Compiler Status
+Passing 20 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
 
 ### Parser Status
 - [x] Nested Rules
@@ -21,16 +24,16 @@ Glossary
 - SassScript :question:
 - Variables: $ :question:
 - Data Types :question:
-- [ ] Strings
-- [ ] Lists
+- [x] Strings
+- [ ] Lists :question:
 - [ ] Maps
 - [x] Colors
 - Operations
   - [x] Number Operations
   - [x] Division and /
   - [x] Subtraction, Negative Numbers, and -
-  - [ ] Color Operations
-  - [ ] String Operations
+  - [x] Color Operations
+  - [x] String Operations
   - [ ] Boolean Operations
   - [ ] List Operations
   - Parentheses :question:
@@ -67,12 +70,13 @@ Glossary
   - [ ] url(http://remote/path)
 - Mixin Directives
   - [x] Defining a Mixin: @mixin
-  - [ ] Including a Mixin: @include
+  - [x] Including a Mixin: @include
 - Arguments
-  - [x] Keyword Arguments
-  - Variable Arguments :question:
-- Passing Content Blocks to a Mixin
-- Variable Scope and Content Blocks
+  - [x] Literal arguments foo(one, two)
+  - [x] Keyword Arguments foo($y: two, $x: one)
+  - [ ] Variable Arguments :question:
+- [x] Passing Content Blocks to a Mixin
+- [x] Variable Scope and Content Blocks
 - Function Directives :question:
 - [ ] Extending Sass
 - [ ] Defining Custom Sass Functions
