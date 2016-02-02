@@ -190,6 +190,7 @@ const (
 	Var                // variable
 	Fun                // function or method
 	Lbl                // label
+	Sel                // selector
 )
 
 var objKindStrings = [...]string{
@@ -200,6 +201,7 @@ var objKindStrings = [...]string{
 	Var: "var",
 	Fun: "func",
 	Lbl: "label",
+	Sel: "selector",
 }
 
 func (kind ObjKind) String() string { return objKindStrings[kind] }

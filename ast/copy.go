@@ -31,14 +31,16 @@ func StmtCopy(in Stmt) (out Stmt) {
 		out = block
 	case *SelStmt:
 		stmt := &SelStmt{
-			Name: NewIdent(v.Name.Name),
+			Name:    IdentCopy(v.Name),
+			NamePos: v.NamePos,
+			Body:    StmtCopy(v.Body).(*BlockStmt),
+			// SelDecl: DeclCopy(v.SelDecl).(*SelDecl),
 		}
 		names := make([]*Ident, 0, len(v.Names))
 		for _, ident := range v.Names {
-			names = append(names, NewIdent(ident.Name))
+			names = append(names, IdentCopy(ident))
 		}
 		stmt.Names = names
-		stmt.Body = StmtCopy(v.Body).(*BlockStmt)
 		out = stmt
 	case *CommStmt:
 		out = v
@@ -171,6 +173,11 @@ func SpecCopy(in Spec) (out Spec) {
 
 func DeclCopy(in Decl) (out Decl) {
 	switch v := in.(type) {
+	case *SelDecl:
+		decl := &SelDecl{
+			SelStmt: StmtCopy(v.SelStmt).(*SelStmt),
+		}
+		out = decl
 	case *GenDecl:
 		decl := *v
 		list := make([]Spec, 0, len(decl.Specs))

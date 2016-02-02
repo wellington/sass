@@ -34,11 +34,13 @@ func findPaths() []file {
 		if !strings.Contains(input, "22_") {
 			// continue
 		}
+		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
 		}
+		// back references
 		if strings.Contains(input, "13_") {
-			continue
+			// continue
 		}
 		if strings.Contains(input, "14_") {
 			continue
@@ -46,6 +48,10 @@ func findPaths() []file {
 
 		// parser skips
 		if strings.Contains(input, "15_") {
+			continue
+		}
+		// Skip for built-in rules
+		if strings.Contains(input, "16_") {
 			continue
 		}
 		if strings.Contains(input, "24_") {
@@ -84,7 +90,7 @@ func TestRun(t *testing.T) {
 		if e := string(f.expect); e != sout {
 			// t.Fatalf("got:\n%s", out)
 			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
-			//t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+			// t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
 	}
 

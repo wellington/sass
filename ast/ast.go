@@ -749,6 +749,7 @@ type (
 		Name    *Ident
 		NamePos token.Pos
 		Names   []*Ident
+		Doc     *CommentGroup
 		Body    *BlockStmt
 	}
 
@@ -787,9 +788,10 @@ func (s *CommClause) Pos() token.Pos     { return s.Case }
 func (s *SelectStmt) Pos() token.Pos     { return s.Select }
 func (s *ForStmt) Pos() token.Pos        { return s.For }
 func (s *RangeStmt) Pos() token.Pos      { return s.For }
-func (s *SelStmt) Pos() token.Pos        { return s.NamePos }
-func (s *IncludeStmt) Pos() token.Pos    { return s.Spec.Pos() }
-func (s *MediaStmt) Pos() token.Pos      { return s.Spec.Pos() }
+
+func (s *SelStmt) Pos() token.Pos     { return s.NamePos }
+func (s *IncludeStmt) Pos() token.Pos { return s.Spec.Pos() }
+func (s *MediaStmt) Pos() token.Pos   { return s.Spec.Pos() }
 
 func (s *BadStmt) End() token.Pos  { return s.To }
 func (s *DeclStmt) End() token.Pos { return s.Decl.End() }
@@ -842,9 +844,10 @@ func (s *CommClause) End() token.Pos {
 	}
 	return s.Colon + 1
 }
-func (s *SelectStmt) End() token.Pos  { return s.Body.End() }
-func (s *ForStmt) End() token.Pos     { return s.Body.End() }
-func (s *RangeStmt) End() token.Pos   { return s.Body.End() }
+func (s *SelectStmt) End() token.Pos { return s.Body.End() }
+func (s *ForStmt) End() token.Pos    { return s.Body.End() }
+func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
+
 func (s *SelStmt) End() token.Pos     { return s.Body.End() }
 func (s *IncludeStmt) End() token.Pos { return s.Spec.End() }
 func (s *MediaStmt) End() token.Pos   { return s.Spec.End() }
@@ -1068,12 +1071,7 @@ type (
 	//
 	// As a shortcut, RULE are identified as token.IDENT
 	SelDecl struct {
-		Raw    *Ident
-		Names  []*Ident
-		TokPos token.Pos
-		Doc    *CommentGroup
-		Tok    token.Token
-		Body   *BlockStmt
+		*SelStmt
 	}
 )
 
@@ -1082,7 +1080,8 @@ type (
 func (d *BadDecl) Pos() token.Pos  { return d.From }
 func (d *GenDecl) Pos() token.Pos  { return d.TokPos }
 func (d *FuncDecl) Pos() token.Pos { return d.Type.Pos() }
-func (d *SelDecl) Pos() token.Pos  { return d.TokPos }
+
+// func (d *SelDecl) Pos() token.Pos  { return d.NamePos }
 
 func (d *BadDecl) End() token.Pos { return d.To }
 func (d *GenDecl) End() token.Pos {
@@ -1097,12 +1096,13 @@ func (d *FuncDecl) End() token.Pos {
 	}
 	return d.Type.End()
 }
-func (d *SelDecl) End() token.Pos {
-	if d.Body != nil {
-		return d.Body.End()
-	}
-	return token.Pos(int(d.TokPos) + len(d.Tok.String()))
-}
+
+// func (d *SelDecl) End() token.Pos {
+// 	if d.Body != nil {
+// 		return d.Body.End()
+// 	}
+// 	return token.Pos(int(d.NamePos) + len(d.Name.String()))
+// }
 
 // declNode() ensures that only declaration nodes can be
 // assigned to a Decl.

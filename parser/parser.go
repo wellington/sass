@@ -110,6 +110,10 @@ func (p *parser) closeLabelScope() {
 	p.labelScope = p.labelScope.Outer
 }
 
+func (p *parser) declareSelector(sel *ast.SelStmt, scope *ast.Scope) {
+	// p.declare(ast.NewIdent(sel), nil, scope, ast.Sel)
+}
+
 func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjKind, idents ...*ast.Ident) {
 	for _, ident := range idents {
 		if ident.Obj != nil {
@@ -138,9 +142,8 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 				}
 				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
 			} else {
-				fmt.Printf("declaring %15s(%p): scope(%p): % #v\n",
-					ident, ident, scope, obj.Decl)
-				// p.tryResolve(ident, false)
+				// fmt.Printf("declaring %15s(%p): scope(%p): % #v\n",
+				//	ident, ident, scope, obj.Decl)
 			}
 		}
 	}
@@ -152,7 +155,6 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 	// the same type, and at least one of the non-blank variables is new.
 	n := 0 // number of new variables
 	for _, x := range list {
-		fmt.Println("shortVar", x)
 		if ident, isIdent := x.(*ast.Ident); isIdent {
 			assert(ident.Obj == nil, "identifier already declared or resolved")
 			obj := ast.NewObj(ast.Var, ident.Name)
@@ -1224,10 +1226,10 @@ func (p *parser) parseBody(scope *ast.Scope) *ast.BlockStmt {
 	list = append(list, p.parseStmtList()...)
 	p.closeLabelScope()
 	p.topScope = oldScope
-	rbrace := p.expect(token.RBRACE)
 	if cmt := p.checkComment(); cmt != nil {
 		list = append(list, cmt)
 	}
+	rbrace := p.expect(token.RBRACE)
 
 	return &ast.BlockStmt{Lbrace: lbrace, List: list, Rbrace: rbrace}
 }
@@ -1337,14 +1339,14 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	return &ast.BadExpr{From: pos, To: p.pos}
 }
 
-func (p *parser) parseSelector(x ast.Expr) ast.Expr {
-	if p.trace {
-		defer un(trace(p, "Selector"))
-	}
-	sel := p.parseIdent()
-
-	return &ast.SelectorExpr{X: x, Sel: sel}
-}
+// func (p *parser) parseSelector(x ast.Expr) ast.Expr {
+// 	if p.trace {
+// 		defer un(trace(p, "Selector"))
+// 	}
+// 	sel := p.parseIdent()
+// 	fmt.Println("sel", sel)
+// 	return &ast.SelectorExpr{X: x, Sel: sel}
+// }
 
 func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
 	if p.trace {
@@ -1660,8 +1662,9 @@ L:
 				p.resolve(x)
 			}
 			switch p.tok {
-			case token.IDENT:
-				x = p.parseSelector(p.checkExprOrType(x))
+			// Is this necessary?
+			// case token.IDENT:
+			// 	x = p.parseSelector(p.checkExprOrType(x))
 			case token.LPAREN:
 				x = p.parseTypeAssertion(p.checkExpr(x))
 			default:
@@ -2044,30 +2047,6 @@ func (p *parser) parseTypeList() (list []ast.Expr) {
 	return
 }
 
-func (p *parser) parseSelStmt() ast.Stmt {
-	if p.trace {
-		defer un(trace(p, "SelStmt"))
-	}
-	lit := p.lit
-	pos := p.expect(token.SELECTOR)
-	assert(pos != 0, "Selector position is zero")
-	body := p.parseBlockStmt()
-	fset := token.NewFileSet()
-	ast.Print(fset, body.List)
-	// ast.SortStatements(body.List)
-	idents := parseSelectors(lit, pos)
-
-	return &ast.SelStmt{
-		NamePos: pos,
-		Names:   idents,
-		Name: &ast.Ident{
-			Name:    lit,
-			NamePos: pos,
-		},
-		Body: body,
-	}
-}
-
 func (p *parser) parseForStmt() ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "ForStmt"))
@@ -2282,6 +2261,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 }
 
 func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
+	log.Fatal("boom!")
 	if p.trace {
 		defer un(trace(p, keyword.String()+"InferSelSpec"))
 	}
@@ -2519,15 +2499,24 @@ func trimSelSpace(lit []byte) []byte {
 	return lit
 }
 
+var amperByte = []byte("&")
+
 // Breaks selectors into individual groups
 // "a, b" => ["a", "b"]
-func parseSelectors(lit string, pos token.Pos) []*ast.Ident {
+// reports an error if back references are not okay (base-rule)
+// div { & { color: red; }}
+func (p *parser) processSelectors(scope *ast.Scope, lit string, pos token.Pos, backrefOk bool) []*ast.Ident {
 
 	lits := strings.SplitAfter(lit, ",")
 	idents := make([]*ast.Ident, len(lits))
 	var l int
 	for i, olit := range lits {
 		lit := []byte(olit)
+		if bytes.Contains(lit, amperByte) {
+			if !backrefOk {
+				p.error(pos, "Back references (&) are not allowed in base-rule")
+			}
+		}
 		if lr, _ := utf8.DecodeLastRune(lit); lr == ',' {
 			lit = lit[:len(lit)-1]
 		}
@@ -2539,7 +2528,34 @@ func parseSelectors(lit string, pos token.Pos) []*ast.Ident {
 		}
 		l = l + len(olit)
 	}
+
 	return idents
+}
+
+func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
+	lit := p.lit
+	pos := p.expect(token.SELECTOR)
+	assert(pos != 0, "invalid selector position")
+	scope := ast.NewScope(p.topScope)
+	idents := p.processSelectors(scope, lit, pos, backrefOk)
+	body := p.parseBody(scope)
+
+	return &ast.SelStmt{
+		Name: &ast.Ident{
+			NamePos: pos,
+			Name:    lit,
+		},
+		Names:   idents,
+		NamePos: pos,
+		Body:    body,
+	}
+}
+
+func (p *parser) parseSelStmt() ast.Stmt {
+	if p.trace {
+		defer un(trace(p, "SelStmt"))
+	}
+	return p.parseSelector(true)
 }
 
 func (p *parser) parseSelDecl() *ast.SelDecl {
@@ -2547,24 +2563,11 @@ func (p *parser) parseSelDecl() *ast.SelDecl {
 		defer un(trace(p, "SelDecl"))
 	}
 
-	lit := p.lit
-	pos := p.expect(token.SELECTOR)
-	assert(pos != 0, "invalid selector position")
-	scope := ast.NewScope(p.topScope)
-	idents := parseSelectors(lit, pos)
+	stmt := p.parseSelector(false)
 
-	decl := &ast.SelDecl{
-		Names:  idents,
-		TokPos: pos,
-		Raw: &ast.Ident{
-			NamePos: pos,
-			Name:    lit,
-		},
+	return &ast.SelDecl{
+		SelStmt: stmt,
 	}
-	decl.Tok = p.tok
-	body := p.parseBody(scope)
-	decl.Body = body
-	return decl
 
 }
 
@@ -2668,8 +2671,8 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 	if arguments != nil {
 		for i, arg := range arguments.List {
 			ident := sigs[i]
-			fmt.Printf("inspecting sigs[%d](%p) %s: % #v\n",
-				i, ident, ident, arg.Type)
+			// fmt.Printf("inspecting sigs[%d](%p) %s: % #v\n",
+			// 	i, ident, ident, arg.Type)
 			var val interface{}
 			switch v := arg.Type.(type) {
 			case *ast.BasicLit:
