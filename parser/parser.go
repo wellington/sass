@@ -196,16 +196,13 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		panic("ugh")
 		return
 	}
-	// assert(ident.Obj == nil, "identifier already declared or resolved")
+
+	assert(ident.Obj == nil, "identifier already declared or resolved")
 	if ident.Name == "_" {
 		return
 	}
-	var leak *ast.Scope
-	_ = leak
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
-		// fmt.Printf("up scope(%p) ", s)
-		leak = s
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
 			if ok {
@@ -219,23 +216,19 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 			return
 		}
 	}
-	// fmt.Printf("top scope(%p)\n", leak)
 
 	// This is a significant failure scenario. However, inside
 	// mixins failing to resolve identifiers are perfectly valid.
 	// So produce annoying output for somebody to eventually come fix
 	// this.
-	fmt.Printf("failed to resolve must?(%t) % #v\n",
-		collectUnresolved, ident)
-	// if ident.Name == "foo" {
-	// 	panic("boom")
-	// }
 
 	// all local scopes are known, so any unresolved identifier
 	// must be found either in the file scope, package scope
 	// (perhaps in another file), or universe scope --- collect
 	// them so that they can be resolved later
-	if collectUnresolved {
+	if collectUnresolved && !p.inMixin {
+		fmt.Printf("failed to resolve % #v\n", ident)
+
 		ident.Obj = unresolved
 		p.unresolved = append(p.unresolved, ident)
 	}

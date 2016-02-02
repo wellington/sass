@@ -74,7 +74,7 @@ func TestRun(t *testing.T) {
 		fmt.Println("exited on: ", f.input)
 	}()
 	for _, f = range files {
-		fmt.Println("reading", f.input)
+		fmt.Println("compiling", f.input)
 		out, err := fileRun(f.input)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
@@ -83,8 +83,8 @@ func TestRun(t *testing.T) {
 
 		if e := string(f.expect); e != sout {
 			// t.Fatalf("got:\n%s", out)
-			// t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
-			t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
+			//t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
 	}
 

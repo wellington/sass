@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -365,6 +366,11 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 
 	bx := x.(*ast.BasicLit)
 	by := y.(*ast.BasicLit)
+
+	if bx == nil || by == nil {
+		return "", errors.New("operand is nil")
+	}
+
 	// Attempt color math
 	if bx.Kind == token.COLOR {
 		z := bx.Op(bin.Op, by)

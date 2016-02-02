@@ -35,10 +35,10 @@ func TestParse_files(t *testing.T) {
 		}
 		fmt.Println("Parsing", name)
 		_, err := ParseFile(token.NewFileSet(), name, nil, mode)
-		fmt.Println("Done", name)
 		if err != nil {
 			t.Fatalf("ParseFile(%s): %v", name, err)
 		}
+		fmt.Println("Parsed", name)
 	}
 }
 
