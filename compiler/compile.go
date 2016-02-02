@@ -2,7 +2,6 @@ package compiler
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -16,6 +15,8 @@ import (
 type Context struct {
 	buf      *bytes.Buffer
 	fileName *ast.Ident
+
+	err error
 	// Records the current level of selectors
 	// Each time a selector is encountered, increase
 	// by one. Each time a block is exited, remove
@@ -139,7 +140,10 @@ func walkSelectors(in [][]*ast.Ident) []string {
 }
 
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
-
+	if ctx.err != nil {
+		fmt.Println(ctx.err)
+		return nil
+	}
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
@@ -291,7 +295,9 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 	spec := n.(*ast.RuleSpec)
 	ctx.scope.RuleAdd(spec)
 	ctx.out(fmt.Sprintf("  %s: ", spec.Name))
-	fmt.Fprintf(ctx.buf, "%s;", simplifyExprs(ctx, spec.Values))
+	var s string
+	s, ctx.err = simplifyExprs(ctx, spec.Values)
+	fmt.Fprintf(ctx.buf, "%s;", s)
 }
 
 func printPropValueSpec(ctx *Context, n ast.Node) {
@@ -368,7 +374,7 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 	by := y.(*ast.BasicLit)
 
 	if bx == nil || by == nil {
-		return "", errors.New("operand is nil")
+		return "", fmt.Errorf("operand is nil % #v: % #v", bx, by)
 	}
 
 	// Attempt color math
@@ -474,16 +480,12 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 	return
 }
 
-func resolveExpr(ctx *Context, expr ast.Expr) (out string) {
+func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 	switch v := expr.(type) {
 	case *ast.Value:
 		panic("ast.Value")
 	case *ast.BinaryExpr:
-		s, err := calculateExprs(ctx, v)
-		if err != nil {
-			log.Fatal(err)
-		}
-		out = s
+		out, err = calculateExprs(ctx, v)
 	case *ast.CallExpr:
 		s, err := evaluateCall(v)
 		if err != nil || s == nil {
@@ -494,7 +496,7 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string) {
 		}
 		out = s.Value
 	case *ast.ParenExpr:
-		out = simplifyExprs(ctx, []ast.Expr{v.X})
+		out, ctx.err = simplifyExprs(ctx, []ast.Expr{v.X})
 	case *ast.Ident:
 		out = resolveIdent(ctx, v)
 	case *ast.BasicLit:
@@ -513,14 +515,18 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string) {
 	return
 }
 
-func simplifyExprs(ctx *Context, exprs []ast.Expr) string {
+func simplifyExprs(ctx *Context, exprs []ast.Expr) (string, error) {
 
 	sums := make([]string, 0, len(exprs))
 	for _, expr := range exprs {
-		sums = append(sums, resolveExpr(ctx, expr))
+		s, err := resolveExpr(ctx, expr)
+		if err != nil {
+			return "", err
+		}
+		sums = append(sums, s)
 	}
 
-	return strings.Join(sums, " ")
+	return strings.Join(sums, " "), nil
 }
 
 func printDecl(ctx *Context, node ast.Node) {
