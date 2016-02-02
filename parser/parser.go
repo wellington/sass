@@ -2700,13 +2700,10 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 		}
 	}
 
-	fmt.Printf("Args+Defaults % #v\n", toDeclare)
-
 	if len(toDeclare) > 0 {
 		fmt.Println("Declaring include mixin arguments")
 	}
 	for k, v := range toDeclare {
-		fmt.Printf("%s: % #v\n", k, v)
 		p.declare(v, nil, scope, ast.Var, k)
 	}
 }
