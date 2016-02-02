@@ -2669,7 +2669,7 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 		// Preserve sig
 		sigs = append(sigs, key)
 	}
-	fmt.Printf("Defaults found? % #v\n", toDeclare)
+
 	// Now walk through passed arguments and toDeclare finding the
 	// appropriate matching arg
 	if arguments != nil {
@@ -2700,9 +2700,6 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 		}
 	}
 
-	if len(toDeclare) > 0 {
-		fmt.Println("Declaring include mixin arguments")
-	}
 	for k, v := range toDeclare {
 		p.declare(v, nil, scope, ast.Var, k)
 	}
@@ -2717,7 +2714,6 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 	ret := make([]ast.Stmt, 0, len(stmts))
 	// fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
-		// fmt.Printf("stmts[i] % #v\n", stmts[i])
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
@@ -2755,33 +2751,15 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 		for _, spec := range v.Specs {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
-				for _, val := range sv.Values {
+				for i, val := range sv.Values {
 					ident, ok := val.(*ast.Ident)
 					if !ok {
 						// Not ident, already resolved
 						continue
 					}
-					var new bool
-					if ident.Obj != nil {
-						fmt.Printf("existing %s(%p) scope (%p): % #v\n",
-							ident, ident, p.topScope, ident.Obj.Decl.(*ast.Ident))
-					} else {
-						new = true
-					}
-					p.resolve(val)
-					if new {
-						if ident.Obj != nil && ident.Obj.Decl != nil {
-							ident, _ := ident.Obj.Decl.(*ast.Ident)
-							fmt.Printf("new      %s(%p) scope (%p): % #v\n",
-								ident, ident, p.topScope,
-								ident)
-						}
-					} else {
-						fmt.Printf("second re %s(%p) scope (%p): % #v\n",
-							ident, ident, p.topScope, ident.Obj.Decl.(*ast.Ident))
-					}
-					// fmt.Println("weird resolve", ident)
-					// This feels weird, but what can you do?
+					assert(ident.Obj == nil, "statement had previous value, was it copied correctly?")
+					p.resolve(ident)
+					sv.Values[i] = basicLitFromIdent(ident)
 				}
 			default:
 				log.Fatalf("spec not supported % #v\n", v)
@@ -2790,7 +2768,53 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 	default:
 		log.Fatalf("decl not supported %T: % #v\n", v, v)
 	}
+}
 
+// basicLitFromIdent recursively resolves an Ident until a
+// basic lit is uncovered
+func basicLitFromIdent(ident *ast.Ident) (lit *ast.BasicLit) {
+	assert(ident.Obj != nil, "ident has not been resolved")
+	decl := ident.Obj.Decl
+	switch typ := decl.(type) {
+	case *ast.Ident:
+		return basicLitFromIdent(typ)
+	case *ast.AssignStmt:
+		lits := make([]*ast.BasicLit, 0, len(typ.Rhs))
+		for _, rhs := range typ.Rhs {
+			var lit *ast.BasicLit
+			switch rtyp := rhs.(type) {
+			case *ast.Ident:
+				lit = basicLitFromIdent(rtyp)
+			case *ast.BasicLit:
+				lit = rtyp
+			default:
+				log.Fatalf("illegal Rhs expr % #v\n", rtyp)
+			}
+			lits = append(lits, lit)
+		}
+		if len(lits) > 1 {
+			log.Println("good thing this looked at multiple rhs values",
+				lits)
+		}
+		s := joinLits(lits, " ")
+		// Combine all lit values using the Kind of the first lit
+		lits[0].Value = s
+		return lits[0]
+		// I guess combine all of the lits and add the values
+	case *ast.BasicLit:
+		return typ
+	default:
+		panic(fmt.Sprintf("invalid Obj.Decl % #v", typ))
+	}
+}
+
+// joinLits acts like strings.Join
+func joinLits(a []*ast.BasicLit, sep string) string {
+	s := make([]string, len(a))
+	for i := range a {
+		s[i] = a[i].Value
+	}
+	return strings.Join(s, sep)
 }
 
 func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
