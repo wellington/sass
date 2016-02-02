@@ -10,7 +10,6 @@ import (
 	"github.com/wellington/sass/token"
 
 	"github.com/wellington/sass/ast"
-	"github.com/wellington/sass/compiler/builtin"
 )
 
 var ErrNotFound = errors.New("function does not exist")
@@ -142,9 +141,4 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 func notfoundCall(call *ast.CallExpr) (lit *ast.BasicLit) {
 
 	return
-}
-
-func init() {
-	Register("rgb($red:0, $green:0, $blue:0)", builtin.RGB)
-	// Register("rgba($red:0, $green:0, $blue:0, $alpha:0)", builtin.RGBA)
 }
