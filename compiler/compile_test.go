@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wellington/sass/token"
 )
 
 type file struct {
@@ -40,7 +42,7 @@ func findPaths() []file {
 		}
 		// back references
 		if strings.Contains(input, "13_") {
-			// continue
+			continue
 		}
 		if strings.Contains(input, "14_") {
 			continue
@@ -92,6 +94,31 @@ func TestRun(t *testing.T) {
 			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 			// t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
+	}
+
+}
+
+func TestAmpersand(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `div {
+& { color: red; }
+}
+c, d { & + & { plus: ampersand; } }`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `div {
+  color: red; }
+
+c + c, d + c, c + d, d + d {
+  plus: ampersand; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
 	}
 
 }

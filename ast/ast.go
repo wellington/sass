@@ -751,6 +751,7 @@ type (
 		Names   []*Ident
 		Doc     *CommentGroup
 		Body    *BlockStmt
+		Parents []*SelStmt
 	}
 
 	// A IncludeStmt wraps an IncludeSpec

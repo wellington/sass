@@ -39,12 +39,11 @@ func fileRun(path string) (string, error) {
 	return out, err
 }
 
-// Run takes a single Sass file and compiles it
-func (ctx *Context) Run(path string) (string, error) {
+func (ctx *Context) run(path string, src interface{}) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
 	ctx.fset = token.NewFileSet()
-	// pf, err := parser.ParseFile(ctx.fset, path, nil, parser.ParseComments)
-	pf, err := parser.ParseFile(ctx.fset, path, nil, parser.ParseComments|parser.Trace)
+	pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments)
+	// pf, err := parser.ParseFile(ctx.fset, path, nil, parser.ParseComments|parser.Trace)
 	if err != nil {
 		return "", err
 	}
@@ -57,6 +56,11 @@ func (ctx *Context) Run(path string) (string, error) {
 	}
 	// ctx.printSels(pf.Decls)
 	return ctx.buf.String(), nil
+}
+
+// Run takes a single Sass file and compiles it
+func (ctx *Context) Run(path string) (string, error) {
+	return ctx.run(path, nil)
 }
 
 // out prints with the appropriate indention, selectors always have indent
@@ -94,9 +98,13 @@ func (ctx *Context) blockIntro() {
 		}
 	}
 
-	// Will probably need better logic around this
-	sels := strings.Join(ctx.combineSels(), ", ")
-	ctx.out(fmt.Sprintf("%s {\n", sels))
+	// Simplify sel idents into []string of selectors
+	sels := ctx.sels[len(ctx.sels)-1]
+	s := make([]string, len(sels))
+	for i := range sels {
+		s[i] = sels[i].Name
+	}
+	ctx.out(fmt.Sprintf("%s {\n", strings.Join(s, ", ")))
 }
 
 func (ctx *Context) blockOutro() {

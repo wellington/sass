@@ -1,14 +1,11 @@
 package parser
 
 import (
-	"bytes"
 	"fmt"
 	"log"
-	"regexp"
 	"strconv"
 	"strings"
 	"unicode"
-	"unicode/utf8"
 
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/scanner"
@@ -45,17 +42,16 @@ type parser struct {
 	syncCnt int       // number of calls to syncXXX without progress
 
 	// Non-syntactic parser control
-	exprLev int  // < 0: in control clause, >= 0: in expression
-	inRhs   bool // if set, the parser is parsing a rhs expression
+	exprLev int            // < 0: in control clause, >= 0: in expression
+	inRhs   bool           // if set, the parser is parsing a rhs expression
+	inMixin bool           // special rules for mixins
+	sels    []*ast.SelStmt // current list of nested selectors
 
 	// Ordinary identifier scopes
 	pkgScope   *ast.Scope        // pkgScope.Outer == nil
 	topScope   *ast.Scope        // top-most scope; may be pkgScope
 	unresolved []*ast.Ident      // unresolved identifiers
 	imports    []*ast.ImportSpec // list of imports
-
-	// special rules for mixins
-	inMixin bool
 
 	// Label scopes
 	// (maintained by open/close LabelScope)
@@ -2480,56 +2476,15 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 	}
 }
 
-var regWs = regexp.MustCompile("\\s+").ReplaceAllLiteral
-var regEql = regexp.MustCompile("\\s*(\\*?=)\\s*").ReplaceAll
-var regBkt = regexp.MustCompile("\\s*(\\[)\\s*(\\S+)\\s*(\\])").ReplaceAll
-
-// Applies unique spacing rules to selectors
-// a  +  b => a + b
-// [hey = 'ho'] => [hey='ho']
-func trimSelSpace(lit []byte) []byte {
-	// Regexps are the worst way to do this
-
-	// Remove extra spaces
-	lit = regWs(lit, []byte(" "))
-	lit = regEql(lit, []byte("$1"))
-	lit = regBkt(lit, []byte("$1$2$3"))
-	// Remove spaces around '=' blocks
-
-	return lit
+// resolve the selector against its parent and add to the selector stack
+func (p *parser) openSelector(sel *ast.SelStmt) {
+	sel.Collapse(p.sels, len(p.sels) != 0, p.error)
+	p.sels = append(p.sels, sel)
 }
 
-var amperByte = []byte("&")
-
-// Breaks selectors into individual groups
-// "a, b" => ["a", "b"]
-// reports an error if back references are not okay (base-rule)
-// div { & { color: red; }}
-func (p *parser) processSelectors(scope *ast.Scope, lit string, pos token.Pos, backrefOk bool) []*ast.Ident {
-
-	lits := strings.SplitAfter(lit, ",")
-	idents := make([]*ast.Ident, len(lits))
-	var l int
-	for i, olit := range lits {
-		lit := []byte(olit)
-		if bytes.Contains(lit, amperByte) {
-			if !backrefOk {
-				p.error(pos, "Back references (&) are not allowed in base-rule")
-			}
-		}
-		if lr, _ := utf8.DecodeLastRune(lit); lr == ',' {
-			lit = lit[:len(lit)-1]
-		}
-		lit = bytes.TrimSpace(lit)
-		idents[i] = &ast.Ident{
-			// TODO: NamePos will point to whitespace following ,
-			NamePos: pos + token.Pos(l),
-			Name:    string(trimSelSpace(lit)),
-		}
-		l = l + len(olit)
-	}
-
-	return idents
+// remove the selector from the nested stack
+func (p *parser) closeSelector() {
+	p.sels = p.sels[:len(p.sels)-1]
 }
 
 func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
@@ -2537,18 +2492,20 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 	pos := p.expect(token.SELECTOR)
 	assert(pos != 0, "invalid selector position")
 	scope := ast.NewScope(p.topScope)
-	idents := p.processSelectors(scope, lit, pos, backrefOk)
-	body := p.parseBody(scope)
-
-	return &ast.SelStmt{
+	// idents := p.processSelectors(scope, lit, pos, backrefOk)
+	sel := &ast.SelStmt{
 		Name: &ast.Ident{
 			NamePos: pos,
 			Name:    lit,
 		},
-		Names:   idents,
-		NamePos: pos,
-		Body:    body,
+		// Names: idents,
 	}
+
+	p.openSelector(sel)
+	sel.Body = p.parseBody(scope)
+	p.closeSelector()
+
+	return sel
 }
 
 func (p *parser) parseSelStmt() ast.Stmt {
@@ -2720,9 +2677,11 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.IncludeStmt:
 			p.resolveIncludeSpec(decl.Spec)
 		case *ast.SelStmt:
+			p.openSelector(decl)
 			decl.Body.List = p.resolveStmts(scope,
 				&ast.FieldList{},
 				&ast.FieldList{}, decl.Body.List)
+			p.closeSelector()
 		case *ast.EmptyStmt, nil:
 			// Trim from result
 			continue
