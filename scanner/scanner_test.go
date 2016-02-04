@@ -123,12 +123,18 @@ func TestScan(t *testing.T) {
 func TestScan_selectors(t *testing.T) {
 	// selectors are so flexible, that they must be tested in isolation
 	testScan(t, []elt{
-		{token.SELECTOR, "& > boo"},
+		// {token.SELECTOR, "& > boo"},
+		{token.AND, "&"},
+		{token.GTR, ">"},
+		{token.STRING, "boo"},
 		{token.LBRACE, "{"},
 	})
 
 	testScan(t, []elt{
-		{token.SELECTOR, "&.goo"},
+		// {token.SELECTOR, "&.goo"},
+		{token.AND, "&"},
+		{token.PERIOD, "."},
+		{token.STRING, "goo"},
 		{token.LBRACE, "{"},
 		{token.COMMENT, "// blah blah blah \n"},
 		{token.COMMENT, "/* hola */"},
@@ -140,7 +146,9 @@ func TestScan_selectors(t *testing.T) {
 	})
 
 	testScan(t, []elt{
-		{token.SELECTOR, ".color"},
+		// {token.SELECTOR, ".color"},
+		{token.PERIOD, "."},
+		{token.STRING, "color"},
 		{token.LBRACE, "{"},
 		{token.RULE, "color"},
 		{token.COLON, ":"},
@@ -151,9 +159,11 @@ func TestScan_selectors(t *testing.T) {
 
 func TestScan_nested(t *testing.T) {
 	testScan(t, []elt{
-		{token.SELECTOR, "&.goo"},
+		{token.AND, "&"},
+		{token.PERIOD, "."},
+		{token.STRING, "goo"},
 		{token.LBRACE, "{"},
-		{token.SELECTOR, "div"},
+		{token.STRING, "div"},
 		{token.LBRACE, "{"},
 		{token.RULE, "color"},
 		{token.COLON, ":"},
@@ -168,7 +178,7 @@ func TestScan_nested(t *testing.T) {
 func TestScan_media(t *testing.T) {
 	testScan(t, []elt{
 		{token.MEDIA, "@media"},
-		{token.SELECTOR, "print and (foo: 1 2 3)"},
+		{token.STRING, "print and (foo: 1 2 3)"},
 		{token.LBRACE, "{"},
 	})
 }
@@ -228,9 +238,14 @@ func testScan(t *testing.T, tokens []elt) {
 	index := 0
 	for {
 		pos, tok, lit := s.Scan()
+
 		if tok == token.EOF {
 			epos.Line = newlineCount(string(src))
 			epos.Column = 2
+		}
+		// Selectors are magical and they appear when you least expect them
+		if tok == token.SELECTOR {
+			continue
 		}
 		checkPos(t, lit, pos, epos)
 
@@ -269,6 +284,7 @@ func testScan(t *testing.T, tokens []elt) {
 				elit = e.lit
 			}
 		}
+
 		if lit != elit {
 			t.Errorf("bad literal for %q: got %q, expected %q",
 				lit, lit, elit)

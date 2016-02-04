@@ -421,8 +421,13 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	// for more scanning
 	switch ch {
 	case '{':
-		return pos, token.SELECTOR,
-			string(bytes.TrimSpace(sel))
+		// Break apart selector into requisite parts
+		s.scanSel(offs, s.offset)
+		tok = token.SELECTOR
+		lit = string(bytes.TrimSpace(sel))
+		return
+		// return pos, token.SELECTOR,
+		// string(bytes.TrimSpace(sel))
 	case ':':
 		return pos, token.RULE,
 			string(bytes.TrimSpace(sel))
@@ -430,45 +435,89 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	// fmt.Printf("               rewinding: %q\n", string(sel))
 	s.rewind(offs)
 	return
-	// case '(':
-	// 	tok = token.IDENT
-	// default:
-	// 	tok = token.VALUE
-	// }
+}
 
-	// // Do we have a rule or a value?
-	// parts := bytes.Split(sel, colondelim)
-	// first := parts[0]
-	// l := len(first)
-	// lit = string(sel)
+func (s *Scanner) scanSel(offs, end int) {
+	s.rewind(offs)
+	// Now that the string has been identified as a selector parse it
+	// and prefetch the pieces
 
-	// if len(parts) > 1 {
-	// 	tok = token.RULE
-	// 	lit = string(bytes.TrimSpace(first))
+	for {
+		if s.offset >= end {
+			return
+		}
 
-	// 	switch s.ch {
-	// 	case '(':
-	// 		for s.ch != ':' {
-	// 			s.backup()
-	// 		}
-	// 		return
-	// 	}
+		pos, tok, lit := s.selLoop(end)
+		switch tok {
+		case token.ILLEGAL, token.EOF:
+			return
+		default:
+			s.queue <- prefetch{
+				pos: pos,
+				tok: tok,
+				lit: lit,
+			}
+		}
+	}
+}
 
-	// 	s.queue <- prefetch{
-	// 		pos: s.file.Pos(offs + l),
-	// 		tok: token.COLON,
-	// 	}
+func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) {
+	s.skipWhitespace()
 
-	// 	// Strip leading space to find start of value
-	// 	trim := bytes.TrimLeftFunc(parts[1], isSpace)
-	// 	s.queue <- prefetch{
-	// 		pos: s.file.Pos(offs + l + 1 + len(parts[1]) - len(trim)),
-	// 		tok: token.VALUE,
-	// 		lit: string(bytes.TrimSpace(parts[1])),
-	// 	}
-	// }
-
-	// return
+	pos = s.file.Pos(s.offset)
+	offs := s.offset
+	if offs >= end {
+		return
+	}
+	switch ch := s.ch; {
+	case isLetter(ch):
+		tok = token.STRING
+		for !unicode.IsSpace(s.ch) {
+			if s.offset > end {
+				s.error(offs, "failed to parse selector string")
+				return
+			}
+			s.next()
+		}
+		lit = string(s.src[offs:s.offset])
+	default:
+		s.next()
+		switch ch {
+		case -1:
+			lit = ""
+			tok = token.EOF
+		case '.':
+			tok = token.PERIOD
+		case '&':
+			tok = token.AND
+		case '>':
+			tok = token.GTR
+		case '+':
+			tok = token.ADD
+		case ',':
+			tok = token.COMMA
+		case '[':
+			tok = token.ATTRIBUTE
+			for s.ch != ']' {
+				s.next()
+			}
+			s.next()
+			lit = string(s.src[offs:s.offset])
+		case ':':
+			tok = token.PSEUDO
+			for s.ch != ',' && !unicode.IsSpace(s.ch) {
+				if s.offset > end {
+					s.error(offs, "failed to parse pseudo selector")
+					return
+				}
+				s.next()
+			}
+		default:
+			tok = token.ILLEGAL
+			lit = string(ch)
+		}
+	}
+	return
 }
 
 // ScanText is responsible for gobbling non-whitespace characters
@@ -584,7 +633,7 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 		lit := s.src[offs:s.offset]
 		s.queue <- prefetch{
 			pos: s.file.Pos(offs),
-			tok: token.SELECTOR,
+			tok: token.STRING,
 			lit: string(bytes.TrimSpace(lit)),
 		}
 	case "@mixin":
