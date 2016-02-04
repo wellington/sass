@@ -23,12 +23,14 @@ const (
 	TEXT
 	SELECTOR // a { rules... }
 	RULE
-	STRING   // word
-	QSTRING  // "word"
-	QSSTRING // 'word'
-	COLOR    // #000
-	INTERP   // #{value}
-	VALUE    // value (rhs of rule)
+	STRING    // word
+	QSTRING   // "word"
+	QSSTRING  // 'word'
+	COLOR     // #000
+	INTERP    // #{value}
+	VALUE     // value (rhs of rule)
+	ATTRIBUTE // [disabled] [type='button']
+	PSEUDO    // :first-child :nth-last-child
 	literal_end
 
 	cssnums_beg
@@ -40,6 +42,10 @@ const (
 	cssnums_end
 
 	operator_beg
+	selector_beg
+	// Are these necessary?
+	// BACKREF // &
+	selector_end
 	ADD // +
 	SUB // -
 	MUL // *
@@ -142,6 +148,10 @@ var Tokens = [...]string{
 	QSSTRING: `'string'`,
 	COLOR:    "color",
 	INTERP:   "INTERPOLATION",
+	// Selector tokens
+	ATTRIBUTE: "attribute",
+	// BACKREF: "&",
+	PSEUDO: "pseudo-selector",
 
 	TEXT:     "text",
 	SELECTOR: "selector",
