@@ -10,9 +10,10 @@ import (
 	"github.com/wellington/sass/token"
 )
 
-var regWs = regexp.MustCompile("\\s+").ReplaceAllLiteral
-var regEql = regexp.MustCompile("\\s*(\\*?=)\\s*").ReplaceAll
-var regBkt = regexp.MustCompile("\\s*(\\[)\\s*(\\S+)\\s*(\\])").ReplaceAll
+var (
+	regEql = regexp.MustCompile("\\s*(\\*?=)\\s*").ReplaceAll
+	regBkt = regexp.MustCompile("\\s*(\\[)\\s*(\\S+)\\s*(\\])").ReplaceAll
+)
 
 func NewSelStmt(lit string, pos token.Pos) *SelStmt {
 	sel := &SelStmt{
@@ -37,16 +38,20 @@ func (s *SelStmt) init() {
 // Applies unique spacing rules to selectors
 // a  +  b => a + b
 // [hey = 'ho'] => [hey='ho']
-func trimSelSpace(lit []byte) []byte {
+func trimSelSpace(lit []byte) ([]byte, int) {
 	// Regexps are the worst way to do this
 
+	var offset int
+	l := len(lit)
+	lit = bytes.TrimLeft(lit, " ")
+	offset = l - len(lit)
 	// Remove extra spaces
-	lit = regWs(lit, []byte(" "))
+	lit = bytes.TrimRight(lit, " ")
 	lit = regEql(lit, []byte("$1"))
 	lit = regBkt(lit, []byte("$1$2$3"))
 	// Remove spaces around '=' blocks
 
-	return lit
+	return lit, offset
 }
 
 const seldelims string = "&>+,"
@@ -60,15 +65,16 @@ func selExpand(lit string, start token.Pos, runes string) []*BasicLit {
 	var parts []string
 	var lits []*BasicLit
 	_, _ = parts, lits
-	sublit := lit
+	sublit := []byte(lit)
 
-	cur = strings.IndexAny(sublit, seldelims)
+	cur = bytes.IndexAny(sublit, seldelims)
 	for cur != -1 {
 		s := sublit[:cur]
-		parts = append(parts, s)
+
+		val, offset := trimSelSpace([]byte(s))
 		lits = append(lits, &BasicLit{
-			Value:    s,
-			ValuePos: token.Pos(pos),
+			Value:    string(val),
+			ValuePos: token.Pos(pos + offset),
 			Kind:     token.STRING,
 		})
 		delim := sublit[cur : cur+1]
@@ -84,17 +90,15 @@ func selExpand(lit string, start token.Pos, runes string) []*BasicLit {
 		case ',':
 			tok = token.COMMA
 		}
-		parts = append(parts, delim)
+
 		lits = append(lits, &BasicLit{
-			Value:    delim,
+			Value:    string(delim),
 			ValuePos: token.Pos(pos + cur),
 			Kind:     tok,
 		})
-		// parts = append(parts, sublit[:cur])
-		// parts = append(parts, sublit[cur:cur+1])
 		sublit = sublit[cur+1:]
 		pos = pos + cur + 1
-		cur = strings.IndexAny(sublit, seldelims)
+		cur = bytes.IndexAny(sublit, seldelims)
 	}
 	return lits
 }
@@ -113,11 +117,11 @@ func selExpandComma(lit string, pos token.Pos) []*Ident {
 		if lr, _ := utf8.DecodeLastRune(lit); lr == ',' {
 			lit = lit[:len(lit)-1]
 		}
-		lit = bytes.TrimSpace(lit)
+		lit, offset := trimSelSpace(lit)
 		idents[i] = &Ident{
 			// TODO: NamePos will point to whitespace following ,
-			NamePos: pos + token.Pos(l),
-			Name:    string(trimSelSpace(lit)),
+			NamePos: pos + token.Pos(l+offset),
+			Name:    string(lit),
 		}
 		l = l + len(olit)
 	}

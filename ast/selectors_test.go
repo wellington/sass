@@ -67,16 +67,16 @@ type elt struct {
 }
 
 func TestSelExpand(t *testing.T) {
-	s := "a + b > c &"
+	s := "a + b >  c  &"
 	parts := selExpand(s, 10, "")
 
 	var elts = []elt{
-		{token.STRING, "a ", 0},
+		{token.STRING, "a", 0},
 		{token.ADD, "+", 2},
-		{token.STRING, " b ", 3},
+		{token.STRING, "b", 4},
 		{token.GTR, ">", 6},
-		{token.STRING, " c ", 7},
-		{token.AND, "&", 10},
+		{token.STRING, "c", 9},
+		{token.AND, "&", 12},
 	}
 
 	for i := range parts {
@@ -86,12 +86,13 @@ func TestSelExpand(t *testing.T) {
 		}
 
 		if parts[i].ValuePos != elts[i].pos {
-			t.Errorf("token mismatch got: %s wanted: %s",
+			t.Logf("% #v\n", parts[i])
+			t.Errorf("token mismatch got: %d wanted: %d",
 				parts[i].ValuePos, elts[i].pos)
 		}
 
 		if parts[i].Value != elts[i].lit {
-			t.Errorf("token mismatch got: %s wanted: %s",
+			t.Errorf("token mismatch got: %q wanted: %q",
 				parts[i].Value, elts[i].lit)
 		}
 	}
