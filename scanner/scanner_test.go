@@ -133,8 +133,7 @@ func TestScan_selectors(t *testing.T) {
 	testScan(t, []elt{
 		// {token.SELECTOR, "&.goo"},
 		{token.AND, "&"},
-		{token.PERIOD, "."},
-		{token.STRING, "goo"},
+		{token.STRING, ".goo"},
 		{token.LBRACE, "{"},
 		{token.COMMENT, "// blah blah blah \n"},
 		{token.COMMENT, "/* hola */"},
@@ -147,8 +146,7 @@ func TestScan_selectors(t *testing.T) {
 
 	testScan(t, []elt{
 		// {token.SELECTOR, ".color"},
-		{token.PERIOD, "."},
-		{token.STRING, "color"},
+		{token.STRING, ".color"},
 		{token.LBRACE, "{"},
 		{token.RULE, "color"},
 		{token.COLON, ":"},
@@ -160,8 +158,7 @@ func TestScan_selectors(t *testing.T) {
 func TestScan_nested(t *testing.T) {
 	testScan(t, []elt{
 		{token.AND, "&"},
-		{token.PERIOD, "."},
-		{token.STRING, "goo"},
+		{token.STRING, ".goo"},
 		{token.LBRACE, "{"},
 		{token.STRING, "div"},
 		{token.LBRACE, "{"},

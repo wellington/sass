@@ -471,6 +471,9 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 		return
 	}
 	switch ch := s.ch; {
+	case ch == '#' || ch == '.':
+		s.next()
+		fallthrough
 	case isLetter(ch):
 		tok = token.STRING
 		for !unicode.IsSpace(s.ch) {

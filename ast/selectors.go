@@ -190,7 +190,6 @@ func (s *SelStmt) Collapse(parents []*SelStmt, backRefOk bool, errFn func(token.
 	))}
 	fmt.Println("we found", s.Names)
 
-	// Print(token.NewFileSet(), s)
 }
 
 // selMultiply takes two selectors and multiplies them
