@@ -746,12 +746,13 @@ type (
 
 	// A SelectorStmt represents a selector "a" + block "{}"
 	SelStmt struct {
-		Name    *Ident
-		NamePos token.Pos
-		Names   []*Ident
-		Doc     *CommentGroup
-		Body    *BlockStmt
-		Parents []*SelStmt
+		Name      *Ident
+		NamePos   token.Pos
+		Names     []*Ident
+		Selectors []Expr
+		Doc       *CommentGroup
+		Body      *BlockStmt
+		Parents   []*SelStmt
 		// Thorough breaking of a selector into it's maining separatable
 		// parts
 		lexemes []*BasicLit

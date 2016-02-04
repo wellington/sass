@@ -99,7 +99,8 @@ func (s *Scanner) Init(file *token.File, src []byte, err ErrorHandler, mode Mode
 	s.mode = mode
 	// There should never more than 2 in the queue, but buffer to 10
 	// just to be safe
-	s.queue = make(chan prefetch, 10)
+	// Correction, selectors now use the queue and it can grow large
+	s.queue = make(chan prefetch, 25)
 	s.rhs = false
 
 	s.ch = ' '

@@ -2501,6 +2501,11 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 		// Names: idents,
 	}
 
+	// Flushes the scanner queue
+	for p.tok != token.LBRACE {
+		p.next()
+	}
+
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
