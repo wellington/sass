@@ -14,6 +14,26 @@ var regWs = regexp.MustCompile("\\s+").ReplaceAllLiteral
 var regEql = regexp.MustCompile("\\s*(\\*?=)\\s*").ReplaceAll
 var regBkt = regexp.MustCompile("\\s*(\\[)\\s*(\\S+)\\s*(\\])").ReplaceAll
 
+func NewSelStmt(lit string, pos token.Pos) *SelStmt {
+	sel := &SelStmt{
+		Name: &Ident{
+			NamePos: pos,
+			Name:    lit,
+		},
+	}
+	// Parse Ident looking goodies
+	sel.init()
+	return sel
+}
+
+// Init preps a SelStmt by rendering Individual selectors ',' delimited
+// and expanding again with CSS operators '+', '>'
+func (s *SelStmt) init() {
+	// Break selectors on commas
+	s.Names = selExpandComma(s.Name.Name, s.Pos())
+	s.lexemes = selExpand(s.Name.Name, s.Pos(), "")
+}
+
 // Applies unique spacing rules to selectors
 // a  +  b => a + b
 // [hey = 'ho'] => [hey='ho']
@@ -29,8 +49,58 @@ func trimSelSpace(lit []byte) []byte {
 	return lit
 }
 
+const seldelims string = "&>+,"
+
+func IsSelDelim(r rune) bool {
+	return strings.ContainsRune(seldelims, r)
+}
+
+func selExpand(lit string, start token.Pos, runes string) []*BasicLit {
+	var cur, pos int
+	var parts []string
+	var lits []*BasicLit
+	_, _ = parts, lits
+	sublit := lit
+
+	cur = strings.IndexAny(sublit, seldelims)
+	for cur != -1 {
+		s := sublit[:cur]
+		parts = append(parts, s)
+		lits = append(lits, &BasicLit{
+			Value:    s,
+			ValuePos: token.Pos(pos),
+			Kind:     token.STRING,
+		})
+		delim := sublit[cur : cur+1]
+		r := rune(delim[0])
+		var tok token.Token
+		switch r {
+		case '+':
+			tok = token.ADD
+		case '&':
+			tok = token.AND
+		case '>':
+			tok = token.GTR
+		case ',':
+			tok = token.COMMA
+		}
+		parts = append(parts, delim)
+		lits = append(lits, &BasicLit{
+			Value:    delim,
+			ValuePos: token.Pos(pos + cur),
+			Kind:     tok,
+		})
+		// parts = append(parts, sublit[:cur])
+		// parts = append(parts, sublit[cur:cur+1])
+		sublit = sublit[cur+1:]
+		pos = pos + cur + 1
+		cur = strings.IndexAny(sublit, seldelims)
+	}
+	return lits
+}
+
 // expand separates comma separated CSS rules into []Names
-func selIdentExpand(lit string, pos token.Pos) []*Ident {
+func selExpandComma(lit string, pos token.Pos) []*Ident {
 	// lit := s.Name.Name
 	// pos := s.NamePos
 	lits := strings.SplitAfter(lit, ",")
@@ -103,7 +173,7 @@ func (s *SelStmt) Collapse(parents []*SelStmt, backRefOk bool, errFn func(token.
 		if strings.Contains(s.Name.Name, "&") {
 			errFn(s.NamePos, "Back references (&) are not allowed in base-rule")
 		}
-		s.Names = selIdentExpand(s.Name.Name, s.NamePos)
+		s.Names = selExpandComma(s.Name.Name, s.NamePos)
 		return
 	}
 
@@ -141,8 +211,8 @@ func selMultiply(sep string, sels ...string) string {
 		return a
 	}
 
-	aa := selExpand(a)
-	bb := selExpand(b)
+	aa := selStringExpandComma(a)
+	bb := selStringExpandComma(b)
 	laa := len(aa)
 	lbb := len(bb)
 	ct := strings.Count(b, "&")
@@ -176,9 +246,9 @@ func selMultiply(sep string, sels ...string) string {
 	return s
 }
 
-func selExpand(s string) []string {
+func selStringExpandComma(s string) []string {
 	// FIXME: backreference work is two steps back 0 steps forward
-	idents := selIdentExpand(s, 0)
+	idents := selExpandComma(s, 0)
 	return identsToSlice(idents)
 
 	sels := strings.Split(s, ",")

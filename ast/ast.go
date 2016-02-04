@@ -752,6 +752,9 @@ type (
 		Doc     *CommentGroup
 		Body    *BlockStmt
 		Parents []*SelStmt
+		// Thorough breaking of a selector into it's maining separatable
+		// parts
+		lexemes []*BasicLit
 	}
 
 	// A IncludeStmt wraps an IncludeSpec
