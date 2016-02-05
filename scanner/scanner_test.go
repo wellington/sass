@@ -131,6 +131,14 @@ func TestScan_selectors(t *testing.T) {
 	})
 
 	testScan(t, []elt{
+		// {token.SELECTOR},
+		{token.STRING, "a"},
+		{token.COMMA, ","},
+		{token.STRING, "b"},
+		// {token.STRING, "{"},
+	})
+
+	testScan(t, []elt{
 		// {token.SELECTOR, "&.goo"},
 		{token.AND, "&"},
 		{token.STRING, ".goo"},
@@ -255,7 +263,6 @@ func testScan(t *testing.T, tokens []elt) {
 		if tok != e.tok {
 			t.Errorf("bad token for %q: got %s, expected %s", lit, tok, e.tok)
 		}
-
 		// check literal
 		elit := ""
 		switch e.tok {

@@ -421,6 +421,9 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	// This is where we should evaluate the next rune and then kick back up
 	// for more scanning
 	switch ch {
+	case -1:
+		// TODO: this is wrong, but prevents hanging forever on invalid text
+		fallthrough
 	case '{':
 		// Break apart selector into requisite parts
 		s.scanSel(offs, s.offset)
@@ -470,13 +473,14 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 	if offs >= end {
 		return
 	}
+
 	switch ch := s.ch; {
 	case ch == '#' || ch == '.':
 		s.next()
 		fallthrough
 	case isLetter(ch):
 		tok = token.STRING
-		for !unicode.IsSpace(s.ch) {
+		for isLetter(s.ch) {
 			if s.offset > end {
 				s.error(offs, "failed to parse selector string")
 				return
