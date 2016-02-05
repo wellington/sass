@@ -496,6 +496,8 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 			tok = token.EOF
 		case '.':
 			tok = token.PERIOD
+		case '~':
+			tok = token.TIL
 		case '&':
 			tok = token.AND
 		case '>':
