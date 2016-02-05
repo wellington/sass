@@ -137,6 +137,8 @@ func TestScan_selectors(t *testing.T) {
 		{token.STRING, "b"},
 		{token.TIL, "~"},
 		{token.STRING, "c"},
+		{token.ADD, "+"},
+		{token.STRING, "*"},
 		// {token.STRING, "{"},
 	})
 
