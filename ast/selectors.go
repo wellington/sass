@@ -188,7 +188,6 @@ func (s *SelStmt) Collapse(parents []*SelStmt, backRefOk bool, errFn func(token.
 		strings.Join(identsToSlice(lastParent.Names), ", "),
 		s.Name.Name,
 	))}
-	fmt.Println("we found", s.Names)
 
 }
 

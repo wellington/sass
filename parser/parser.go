@@ -2487,6 +2487,9 @@ func (p *parser) closeSelector() {
 }
 
 func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
+	if p.trace {
+		defer un(trace(p, "SelStmt"))
+	}
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	assert(pos != 0, "invalid selector position")
@@ -2500,13 +2503,8 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		// Names: idents,
 	}
 
-	// Flushes the scanner queue
-	// for p.tok != token.LBRACE {
-	// 	p.next()
-	// }
-	expr := p.parseSel()
-
-	sel.Selectors = []ast.Expr{expr}
+	// Parse selector tree
+	sel.Sel = p.parseSelTree()
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
@@ -2515,7 +2513,14 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 }
 
 // similar to inferExpr, but for selectors
-func (p *parser) parseSel() ast.Expr {
+func (p *parser) parseSelTree() ast.Expr {
+	switch p.tok {
+	case token.AND:
+		p.next()
+		// back reference, pull parent
+		lastParent := p.sels[len(p.sels)-1]
+		return ast.ExprCopy(lastParent.Sel)
+	}
 	return p.parseCombSel(token.LowestPrec + 1)
 }
 
@@ -2525,14 +2530,11 @@ func (p *parser) parseComb() ast.Expr {
 	}
 
 	switch p.tok {
-	case token.ADD, token.SUB, token.GTR, token.XOR, token.AND, token.TIL:
+	case token.ADD, token.GTR, token.TIL:
 		pos, op := p.pos, p.tok
 		p.next()
 		x := p.parseComb()
-		log.Println("recognized  ", p.tok)
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
-	default:
-		log.Println("unrecognized", p.tok, p.lit)
 	}
 	return p.parsePrimaryExpr(true)
 }
@@ -2571,14 +2573,14 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 
 func (p *parser) parseRuleSelStmt() ast.Stmt {
 	if p.trace {
-		defer un(trace(p, "SelStmt"))
+		defer un(trace(p, "RuleSelStmt"))
 	}
 	return p.parseSelStmt(true)
 }
 
 func (p *parser) parseRuleSelDecl() *ast.SelDecl {
 	if p.trace {
-		defer un(trace(p, "SelDecl"))
+		defer un(trace(p, "RuleSelDecl"))
 	}
 
 	stmt := p.parseSelStmt(false)
