@@ -45,6 +45,7 @@ const (
 	selector_beg
 	// Are these necessary?
 	// BACKREF // &
+	TIL // ~
 	selector_end
 	ADD // +
 	SUB // -
@@ -171,6 +172,7 @@ var Tokens = [...]string{
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
 
+	TIL: "~",
 	ADD: "+",
 	SUB: "-",
 	MUL: "*",
@@ -266,6 +268,16 @@ const (
 	UnaryPrec   = 6
 	HighestPrec = 7
 )
+
+func (op Token) SelPrecedence() int {
+	switch op {
+	case ADD, GTR, TIL:
+		return 4
+	case COMMA:
+		return 5
+	}
+	return LowestPrec
+}
 
 // Precedence returns the operator precedence of the binary
 // operator op. If op is not a binary operator, the result

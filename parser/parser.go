@@ -1256,7 +1256,7 @@ func (p *parser) parseMediaStmt() *ast.MediaStmt {
 			Name: &ast.Ident{
 				NamePos: pos,
 			},
-			Sel: p.parseSelDecl(),
+			Sel: p.parseRuleSelDecl(),
 		}}
 }
 
@@ -2177,7 +2177,7 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 	case token.INCLUDE:
 		s = &ast.IncludeStmt{Spec: p.parseIncludeSpec(!p.inMixin)}
 	case token.SELECTOR:
-		s = p.parseSelStmt()
+		s = p.parseRuleSelStmt()
 		isSelector = true
 	case token.SEMICOLON:
 		// Is it ever possible to have an implicit semicolon
@@ -2261,7 +2261,7 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 		defer un(trace(p, keyword.String()+"InferSelSpec"))
 	}
 	fmt.Println("inferSel", p.lineComment)
-	decl := p.parseSelDecl()
+	decl := p.parseRuleSelDecl()
 
 	return &ast.SelSpec{
 		Decl: decl,
@@ -2486,7 +2486,7 @@ func (p *parser) closeSelector() {
 	p.sels = p.sels[:len(p.sels)-1]
 }
 
-func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
+func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	assert(pos != 0, "invalid selector position")
@@ -2504,9 +2504,8 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 	// for p.tok != token.LBRACE {
 	// 	p.next()
 	// }
-	expr := p.inferExpr(true)
+	expr := p.parseSel()
 
-	ast.Print(token.NewFileSet(), expr)
 	sel.Selectors = []ast.Expr{expr}
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
@@ -2517,45 +2516,51 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 
 // similar to inferExpr, but for selectors
 func (p *parser) parseSel() ast.Expr {
-	return p.parseBinarySel(token.LowestPrec + 1)
+	return p.parseCombSel(token.LowestPrec + 1)
 }
 
-func (p *parser) parseAndSel() ast.Expr {
+func (p *parser) parseComb() ast.Expr {
 	if p.trace {
-		defer un(trace(p, "UnarySel"))
+		defer un(trace(p, "CombSel"))
 	}
-	s
+
 	switch p.tok {
-	case token.ADD, token.SUB, token.GTR, token.XOR, token.AND:
+	case token.ADD, token.SUB, token.GTR, token.XOR, token.AND, token.TIL:
 		pos, op := p.pos, p.tok
 		p.next()
-		x := p.parseAndSel()
+		x := p.parseComb()
+		log.Println("recognized  ", p.tok)
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
+	default:
+		log.Println("unrecognized", p.tok, p.lit)
 	}
 	return p.parsePrimaryExpr(true)
 }
 
 // Selectors fall in two buckets AND, OR
-// AND: + >
-// OR: ,
-func (p *parser) parseBinarySel(prec1 int) ast.Expr {
+// Combinators: + > ~
+// Groups: ,
+// https://www.w3.org/TR/selectors/#selectors
+func (p *parser) parseCombSel(prec1 int) ast.Expr {
 	if p.trace {
-		defer un(trace(p, "BinarySel"))
+		defer un(trace(p, "CombSel"))
 	}
 
-	x := p.parseAndSel()
-	for _, prec := p.tokPrec(); prec >= prec1; prec-- {
+	x := p.parseComb()
+
+	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
 		for {
-			op, oprec := p.tokPrec()
+			tok := p.tok
+			oprec := tok.SelPrecedence()
 			if oprec != prec {
 				break
 			}
-			pos := p.expect(op)
-			y := p.parseBinarySel(prec + 1)
+			pos := p.expect(tok)
+			y := p.parseCombSel(prec + 1)
 			x = &ast.BinaryExpr{
 				X:     p.checkExpr(x),
 				OpPos: pos,
-				Op:    op,
+				Op:    tok,
 				Y:     p.checkExpr(y),
 			}
 		}
@@ -2564,19 +2569,19 @@ func (p *parser) parseBinarySel(prec1 int) ast.Expr {
 	return x
 }
 
-func (p *parser) parseSelStmt() ast.Stmt {
+func (p *parser) parseRuleSelStmt() ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "SelStmt"))
 	}
-	return p.parseSelector(true)
+	return p.parseSelStmt(true)
 }
 
-func (p *parser) parseSelDecl() *ast.SelDecl {
+func (p *parser) parseRuleSelDecl() *ast.SelDecl {
 	if p.trace {
 		defer un(trace(p, "SelDecl"))
 	}
 
-	stmt := p.parseSelector(false)
+	stmt := p.parseSelStmt(false)
 
 	return &ast.SelDecl{
 		SelStmt: stmt,
@@ -2989,7 +2994,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		return p.parseFuncDecl()
 	case token.SELECTOR:
 		// Regular CSS
-		return p.parseSelDecl()
+		return p.parseRuleSelDecl()
 	case token.INCLUDE:
 		return p.parseGenDecl("", token.INCLUDE, p.parseIncludeSpecFn)
 	case token.RULE, token.IDENT:

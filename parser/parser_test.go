@@ -42,9 +42,9 @@ func TestParse_files(t *testing.T) {
 	}
 }
 
-func testString(t *testing.T, in string) (*ast.File, *token.FileSet) {
+func testString(t *testing.T, in string, mode Mode) (*ast.File, *token.FileSet) {
 	fset := token.NewFileSet()
-	f, err := ParseFile(fset, "testfile", in, Trace)
+	f, err := ParseFile(fset, "testfile", in, mode)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,8 +55,9 @@ func testString(t *testing.T, in string) (*ast.File, *token.FileSet) {
 func TestSelMath(t *testing.T) {
 	// Selectors act like boolean math
 	in := `
-div + span {}`
-	f, fset := testString(t, in)
+div ~ span { }`
+	f, fset := testString(t, in, Trace)
+	_, _ = f, fset
 	ast.Print(fset, f.Decls[0].(*ast.SelDecl))
 }
 
@@ -66,7 +67,7 @@ func TestExprMath(t *testing.T) {
 div {
   value: 1*(2+3);
 }`
-	f, fset := testString(t, in)
+	f, fset := testString(t, in, 0)
 	ast.Print(fset, f.Decls[0].(*ast.SelDecl).Body.List[0].(*ast.DeclStmt).Decl.(*ast.GenDecl).Specs[0].(*ast.RuleSpec).Values[0])
 }
 
