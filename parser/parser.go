@@ -191,7 +191,6 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
 		fmt.Printf("cant resolve this: % #v\n", x)
-		panic("ugh")
 		return
 	}
 
@@ -2502,15 +2501,67 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 	}
 
 	// Flushes the scanner queue
-	for p.tok != token.LBRACE {
-		p.next()
-	}
+	// for p.tok != token.LBRACE {
+	// 	p.next()
+	// }
+	expr := p.inferExpr(true)
 
+	ast.Print(token.NewFileSet(), expr)
+	sel.Selectors = []ast.Expr{expr}
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
 
 	return sel
+}
+
+// similar to inferExpr, but for selectors
+func (p *parser) parseSel() ast.Expr {
+	return p.parseBinarySel(token.LowestPrec + 1)
+}
+
+func (p *parser) parseAndSel() ast.Expr {
+	if p.trace {
+		defer un(trace(p, "UnarySel"))
+	}
+	s
+	switch p.tok {
+	case token.ADD, token.SUB, token.GTR, token.XOR, token.AND:
+		pos, op := p.pos, p.tok
+		p.next()
+		x := p.parseAndSel()
+		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
+	}
+	return p.parsePrimaryExpr(true)
+}
+
+// Selectors fall in two buckets AND, OR
+// AND: + >
+// OR: ,
+func (p *parser) parseBinarySel(prec1 int) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "BinarySel"))
+	}
+
+	x := p.parseAndSel()
+	for _, prec := p.tokPrec(); prec >= prec1; prec-- {
+		for {
+			op, oprec := p.tokPrec()
+			if oprec != prec {
+				break
+			}
+			pos := p.expect(op)
+			y := p.parseBinarySel(prec + 1)
+			x = &ast.BinaryExpr{
+				X:     p.checkExpr(x),
+				OpPos: pos,
+				Op:    op,
+				Y:     p.checkExpr(y),
+			}
+		}
+	}
+
+	return x
 }
 
 func (p *parser) parseSelStmt() ast.Stmt {
