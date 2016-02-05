@@ -2519,7 +2519,7 @@ func (p *parser) parseSelTree() ast.Expr {
 		p.next()
 		// back reference, pull parent
 		lastParent := p.sels[len(p.sels)-1]
-		return ast.ExprCopy(lastParent.Sel)
+		return lastParent.Sel
 	}
 	return p.parseCombSel(token.LowestPrec + 1)
 }
@@ -2535,7 +2535,23 @@ func (p *parser) parseComb() ast.Expr {
 		p.next()
 		x := p.parseComb()
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
+	case token.STRING:
+		pos := p.pos
+		lits := []string{p.lit}
+		// eat all the strings
+		for p.tok == token.STRING {
+			p.next()
+			lits = append(lits, p.lit)
+		}
+		// TODO: inferExpr should be creating this or the scanner
+		// should combine adjacent strings
+		return &ast.BasicLit{
+			Kind:     token.STRING,
+			Value:    strings.Join(lits, " "),
+			ValuePos: pos,
+		}
 	}
+	// This should never happen, but left here to confound future Drew
 	return p.parsePrimaryExpr(true)
 }
 
