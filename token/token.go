@@ -71,6 +71,7 @@ const (
 	GTR    // >
 	ASSIGN // =
 	NOT    // !
+	NEST   // div span
 
 	NEQ      // !=
 	LEQ      // <=
@@ -271,7 +272,7 @@ const (
 
 func (op Token) SelPrecedence() int {
 	switch op {
-	case ADD, GTR, TIL:
+	case ADD, GTR, TIL, NEST:
 		return 4
 	case COMMA:
 		return 5

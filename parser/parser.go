@@ -2526,7 +2526,7 @@ func (p *parser) parseSelTree() ast.Expr {
 
 func (p *parser) parseComb() ast.Expr {
 	if p.trace {
-		defer un(trace(p, "CombSel"))
+		defer un(trace(p, "Comb"))
 	}
 
 	switch p.tok {
@@ -2555,7 +2555,7 @@ func (p *parser) parseComb() ast.Expr {
 	return p.parsePrimaryExpr(true)
 }
 
-// Selectors fall in two buckets AND, OR
+// Selectors fall in two buckets Combinators and Groups
 // Combinators: + > ~
 // Groups: ,
 // https://www.w3.org/TR/selectors/#selectors
