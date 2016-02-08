@@ -165,6 +165,13 @@ func TestScan_selectors(t *testing.T) {
 		{token.VAR, "$blah"},
 		{token.RBRACE, "}"},
 	})
+
+	testScan(t, []elt{
+		// {token.SELECTOR, ".color"},
+		{token.STRING, ".color1"},
+		{token.LBRACE, "{"},
+		{token.RBRACE, "}"},
+	})
 }
 
 func TestScan_nested(t *testing.T) {

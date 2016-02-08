@@ -480,7 +480,7 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 		fallthrough
 	case isLetter(ch):
 		tok = token.STRING
-		for isLetter(s.ch) {
+		for isLetter(s.ch) || isDigit(s.ch) {
 			if s.offset > end {
 				s.error(offs, "failed to parse selector string")
 				return
