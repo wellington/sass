@@ -17,13 +17,16 @@ func TestParse_files(t *testing.T) {
 	}
 
 	mode := DeclarationErrors
-	mode = Trace | ParseComments
+	mode = 0 //Trace | ParseComments
 	var name string
 	defer func() { fmt.Println("exit parsing", name) }()
 	for _, name = range inputs {
 
-		if !strings.Contains(name, "17_") {
-			// continue
+		if !strings.Contains(name, "13_") {
+			continue
+		}
+		if strings.Contains(name, "06_") {
+			continue
 		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {

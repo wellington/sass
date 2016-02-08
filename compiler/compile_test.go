@@ -33,8 +33,8 @@ func findPaths() []file {
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
-		if !strings.Contains(input, "22_") {
-			// continue
+		if !strings.Contains(input, "13_") {
+			continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
@@ -98,14 +98,35 @@ func TestRun(t *testing.T) {
 
 }
 
-func TestAmpersand(t *testing.T) {
+func TestSelector_nesting(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a {
+d { color: red; }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a d {
+  color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
+func TestSelector_ampersand(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
 	input := `div {
 & { color: red; }
 }
-c, d { & + & { plus: ampersand; } }`
+`
 	out, err := ctx.run("", input)
 	if err != nil {
 		t.Fatal(err)

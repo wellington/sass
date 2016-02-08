@@ -2477,7 +2477,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 
 // resolve the selector against its parent and add to the selector stack
 func (p *parser) openSelector(sel *ast.SelStmt) {
-	sel.Collapse(p.sels, len(p.sels) != 0, p.error)
+	// sel.Collapse(p.sels, len(p.sels) != 0, p.error)
 	p.sels = append(p.sels, sel)
 }
 
@@ -2502,8 +2502,13 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		},
 	}
 
+	if len(p.sels) > 0 {
+		sel.Parent = p.sels[len(p.sels)-1]
+	}
+
 	// Parse selector tree
 	sel.Sel = p.parseCombSel(token.LowestPrec + 1)
+	sel.Resolve()
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
@@ -2536,17 +2541,19 @@ func (p *parser) parseSel() ast.Expr {
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
 	case token.STRING:
 		pos := p.pos
-		lits := []string{p.lit}
+		var lits []string
 		// eat all the strings
 		for p.tok == token.STRING {
-			p.next()
 			lits = append(lits, p.lit)
+			p.next()
 		}
+		s := strings.Join(lits, " ")
+
 		// TODO: inferExpr should be creating this or the scanner
 		// should combine adjacent strings
 		return &ast.BasicLit{
 			Kind:     token.STRING,
-			Value:    strings.Join(lits, " "),
+			Value:    s,
 			ValuePos: pos,
 		}
 	}

@@ -173,12 +173,13 @@ var Tokens = [...]string{
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
 
-	TIL: "~",
-	ADD: "+",
-	SUB: "-",
-	MUL: "*",
-	QUO: "/",
-	REM: "%",
+	NEST: "nest",
+	TIL:  "~",
+	ADD:  "+",
+	SUB:  "-",
+	MUL:  "*",
+	QUO:  "/",
+	REM:  "%",
 
 	AND: "&",
 	//OR: "|",
@@ -272,9 +273,11 @@ const (
 
 func (op Token) SelPrecedence() int {
 	switch op {
-	case ADD, GTR, TIL, NEST:
-		return 4
 	case COMMA:
+		return 3
+	case ADD, GTR, TIL:
+		return 4
+	case NEST:
 		return 5
 	}
 	return LowestPrec

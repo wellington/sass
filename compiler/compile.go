@@ -22,6 +22,7 @@ type Context struct {
 	// by one. Each time a block is exited, remove
 	// the last selector
 	sels      [][]*ast.Ident
+	activeSel *ast.BasicLit
 	firstRule bool
 	level     int
 	printers  map[ast.Node]func(*Context, ast.Node)
@@ -97,21 +98,15 @@ func (ctx *Context) blockIntro() {
 
 		}
 	}
-
-	// Simplify sel idents into []string of selectors
-	sels := ctx.sels[len(ctx.sels)-1]
-	s := make([]string, len(sels))
-	for i := range sels {
-		s[i] = sels[i].Name
-	}
-	ctx.out(fmt.Sprintf("%s {\n", strings.Join(s, ", ")))
+	sel := ctx.activeSel.Value
+	ctx.out(fmt.Sprintf("%s {\n", sel))
 }
 
 func (ctx *Context) blockOutro() {
 	// Remove the innermost selector scope
-	if len(ctx.sels) > 0 {
-		ctx.sels = ctx.sels[:len(ctx.sels)-1]
-	}
+	// if len(ctx.sels) > 0 {
+	// 	ctx.sels = ctx.sels[:len(ctx.sels)-1]
+	// }
 	// Don't print } if there are no rules at this level
 	if ctx.firstRule {
 		return
@@ -121,30 +116,6 @@ func (ctx *Context) blockOutro() {
 	// if !skipParen {
 	fmt.Fprintf(ctx.buf, " }\n")
 	// }
-}
-
-func (ctx *Context) combineSels() []string {
-	return walkSelectors(ctx.sels)
-}
-
-func walkSelectors(in [][]*ast.Ident) []string {
-	if len(in) == 1 {
-		ret := make([]string, len(in[0]))
-		for i, ident := range in[0] {
-			ret[i] = ident.String()
-		}
-		return ret
-	}
-
-	d := in[0]
-	w := walkSelectors(in[1:])
-	var ret []string
-	for i := 0; i < len(d); i++ {
-		for j := 0; j < len(w); j++ {
-			ret = append(ret, d[i].String()+" "+w[j])
-		}
-	}
-	return ret
 }
 
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
@@ -176,7 +147,6 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		// fmt.Fprintf(ctx.buf, "}")
 		return nil
 	case *ast.SelDecl:
-		key = selDecl
 	case *ast.File, *ast.GenDecl, *ast.Value:
 		// Nothing to print for these
 	case *ast.Ident:
@@ -250,7 +220,6 @@ func (ctx *Context) Init() {
 	ctx.printers[includeSpec] = printInclude
 	ctx.printers[declStmt] = printDecl
 	ctx.printers[ruleSpec] = printRuleSpec
-	ctx.printers[selDecl] = printSelDecl
 	ctx.printers[selStmt] = printSelStmt
 	ctx.printers[propSpec] = printPropValueSpec
 	ctx.printers[expr] = printExpr
@@ -280,18 +249,10 @@ func printExpr(ctx *Context, n ast.Node) {
 	}
 }
 
-func (ctx *Context) storeSelector(idents []*ast.Ident) {
-	ctx.sels = append(ctx.sels, idents)
-}
-
 func printSelStmt(ctx *Context, n ast.Node) {
 	stmt := n.(*ast.SelStmt)
-	ctx.storeSelector(stmt.Names)
-}
-
-func printSelDecl(ctx *Context, n ast.Node) {
-	decl := n.(*ast.SelDecl)
-	ctx.storeSelector(decl.Names)
+	ctx.activeSel = stmt.Resolved
+	// ctx.storeSelector(stmt.Names)
 }
 
 func printRuleSpec(ctx *Context, n ast.Node) {

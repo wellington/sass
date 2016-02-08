@@ -746,16 +746,16 @@ type (
 
 	// A SelectorStmt represents a selector "a" + block "{}"
 	SelStmt struct {
-		Name    *Ident
-		NamePos token.Pos
-		Names   []*Ident
-		Sel     Expr
-		Doc     *CommentGroup
-		Body    *BlockStmt
-		Parents []*SelStmt
+		Name     *Ident    // Original selector block
+		Resolved *BasicLit // Resolved Selector to a token.STRING
+		NamePos  token.Pos
+		Names    []*Ident
+		Sel      Expr
+		Doc      *CommentGroup
+		Body     *BlockStmt
+		Parent   *SelStmt
 		// Thorough breaking of a selector into it's maining separatable
 		// parts
-		lexemes []*BasicLit
 	}
 
 	// A IncludeStmt wraps an IncludeSpec
