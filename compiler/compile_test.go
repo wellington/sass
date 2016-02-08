@@ -119,6 +119,26 @@ d { color: red; }
 	}
 }
 
+func TestSelector_combinators(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a + b ~ c { color: red; }
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a + b ~ c {
+  color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+
+}
+
 func TestSelector_ampersand(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
@@ -134,9 +154,6 @@ func TestSelector_ampersand(t *testing.T) {
 
 	e := `div {
   color: red; }
-
-c + c, d + c, c + d, d + d {
-  plus: ampersand; }
 `
 	if e != out {
 		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
