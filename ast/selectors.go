@@ -15,14 +15,15 @@ var (
 
 // Resolves walks selector operations removing nested Op by prepending X
 // on Y.
-func (stmt *SelStmt) Resolve() {
+func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 
 	s := &sel{
 		parent: stmt.Parent,
 		stmt:   stmt,
 		prec:   token.LowestPrec + 1,
+		parts:  make(map[token.Pos]*BasicLit),
 	}
-	Print(token.NewFileSet(), s.stmt.Sel)
+	Print(fset, s.stmt.Sel)
 	// This could be more efficient, it should inspect precision of
 	// the top node
 	for prec := token.UnaryPrec; prec > 1; prec-- {
@@ -32,12 +33,11 @@ func (stmt *SelStmt) Resolve() {
 			s.inject = true
 		}
 		s.prec = prec
-		fmt.Printf("Let's walk (%p)\n", s.stmt.Sel)
 		Walk(s, s.stmt.Sel)
 	}
 
 	// stmt.Resolved = stmt.Sel.(*BasicLit)
-	Print(token.NewFileSet(), s.stmt.Sel)
+	Print(fset, s.stmt.Sel)
 	fmt.Println("parts len", len(s.parts))
 	var vals []string
 	for i, part := range s.parts {
@@ -52,25 +52,40 @@ func (stmt *SelStmt) Resolve() {
 type sel struct {
 	stmt   *SelStmt
 	parent *SelStmt
-	parts  []*BasicLit
+	parts  map[token.Pos]*BasicLit
 	prec   int    // Resolve each precendence in order
 	stack  []Expr // Nesting stack
 	inject bool   // inject parent to start
 }
 
+func (s *sel) add(pos token.Pos, lit *BasicLit) {
+	s.parts[pos] = lit
+	// FIXME: walk through all available positions and remove
+	// any higher than pos. This indicates a reduce happened
+	// and something was reported prematurely
+	for i := range s.parts {
+		if i > pos {
+			delete(s.parts, i)
+		}
+	}
+}
+
 func (s *sel) Visit(node Node) Visitor {
+	var pos token.Pos
 	var add *BasicLit
 	defer func() {
 		if add != nil && add.Kind != token.ILLEGAL {
-			s.parts = append(s.parts, add)
-			fmt.Println("adding", add)
+			s.add(pos, add)
+			// s.parts = append(s.parts, add)
+			fmt.Printf("adding %d: % #v\n", pos, add)
 		}
 	}()
-	fmt.Printf("%d: (%p) % #v\n", s.prec, node, node)
+	// fmt.Printf("%d: (%p) % #v\n", s.prec, node, node)
 	switch v := node.(type) {
 	case *UnaryExpr:
+		fmt.Println("unary")
 		// Nesting, collapse &
-		if v.Op == token.ILLEGAL {
+		if v.Visited {
 			return nil
 		}
 		if s.prec < 5 {
@@ -80,10 +95,12 @@ func (s *sel) Visit(node Node) Visitor {
 			return nil
 		}
 		s.inject = false
-		v.Op = token.ILLEGAL
+		v.Visited = true
 		x := s.switchExpr(v.X)
+		x.ValuePos = v.Pos()
 		_ = x
-		// add = x
+		pos = x.Pos()
+		add = x
 		return nil
 	case *BasicLit:
 		if v.Kind == token.ILLEGAL {
@@ -102,6 +119,8 @@ func (s *sel) Visit(node Node) Visitor {
 		add = v
 		return nil
 	case *BinaryExpr:
+		pos = v.Pos()
+		fmt.Printf("binary %d % #v\n", v.Pos(), v)
 		switch v.Op {
 		case token.NEST:
 			if s.prec < 5 {
@@ -119,7 +138,6 @@ func (s *sel) Visit(node Node) Visitor {
 				return s
 			}
 			add = s.joinBinary(v)
-			fmt.Println("join bin", add)
 		case token.COMMA:
 			if s.prec < 3 {
 				return nil
@@ -136,6 +154,7 @@ func (s *sel) Visit(node Node) Visitor {
 			}
 			add = s.joinBinary(v)
 		}
+
 		// v.Op = token.ILLEGAL
 		return nil
 	}
@@ -146,7 +165,7 @@ func (s *sel) Visit(node Node) Visitor {
 func (s *sel) switchExpr(expr Expr) *BasicLit {
 	switch v := expr.(type) {
 	case *BasicLit:
-		v.Kind = token.ILLEGAL
+		// v.Kind = token.ILLEGAL
 		return v
 	case *UnaryExpr:
 		return s.switchExpr(v.X)
@@ -172,7 +191,6 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 		val = strings.Join(vals, delim)
 	}
 
-	// Mark Op as illegal to indicate resolved
 	lit := &BasicLit{
 		ValuePos: bin.Pos(),
 		Value:    val,

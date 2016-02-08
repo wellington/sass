@@ -34,7 +34,7 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 		if !strings.Contains(input, "13_") {
-			continue
+			//continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
@@ -75,7 +75,7 @@ func findPaths() []file {
 	return files
 }
 
-func TestRun(t *testing.T) {
+func TestCompile_files(t *testing.T) {
 	files := findPaths()
 	var f file
 	defer func() {
@@ -90,7 +90,7 @@ func TestRun(t *testing.T) {
 		}
 
 		if e := string(f.expect); e != sout {
-			// t.Fatalf("got:\n%s", out)
+			t.Fatalf("got:\n%s", out)
 			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 			// t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
@@ -119,6 +119,28 @@ d { color: red; }
 	}
 }
 
+func TestSelector_nesting_group(t *testing.T) {
+	t.Skip("")
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a, b {
+d { color: red; }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a d, b d {
+  color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
 func TestSelector_combinators(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
@@ -139,7 +161,7 @@ func TestSelector_combinators(t *testing.T) {
 
 }
 
-func TestSelector_ampersand(t *testing.T) {
+func TestSelector_singleampersand(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
@@ -171,7 +193,7 @@ func TestSelector_comboampersand(t *testing.T) {
 `
 	out, err := ctx.run("", input)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatal("compilation fail", err)
 	}
 
 	e := `div ~ b + div ~ b {

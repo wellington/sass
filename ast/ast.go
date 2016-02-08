@@ -350,17 +350,19 @@ type (
 	// Unary "*" expressions are represented via StarExpr nodes.
 	//
 	UnaryExpr struct {
-		OpPos token.Pos   // position of Op
-		Op    token.Token // operator
-		X     Expr        // operand
+		OpPos   token.Pos   // position of Op
+		Op      token.Token // operator
+		X       Expr        // operand
+		Visited bool
 	}
 
 	// A BinaryExpr node represents a binary expression.
 	BinaryExpr struct {
-		X     Expr        // left operand
-		OpPos token.Pos   // position of Op
-		Op    token.Token // operator
-		Y     Expr        // right operand
+		X       Expr        // left operand
+		OpPos   token.Pos   // position of Op
+		Op      token.Token // operator
+		Y       Expr        // right operand
+		Visited bool
 	}
 
 	// A KeyValueExpr node represents (key : value) pairs

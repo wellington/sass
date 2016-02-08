@@ -59,8 +59,10 @@ type parser struct {
 	targetStack [][]*ast.Ident // stack of unresolved labels
 }
 
-func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
+var Globalfset *token.FileSet
 
+func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
+	Globalfset = fset
 	p.file = fset.AddFile(filename, -1, len(src))
 	var m scanner.Mode
 	if mode&ParseComments != 0 {
@@ -2508,7 +2510,7 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 
 	// Parse selector tree
 	sel.Sel = p.parseCombSel(token.LowestPrec + 1)
-	sel.Resolve()
+	sel.Resolve(Globalfset)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
