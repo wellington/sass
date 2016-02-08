@@ -70,6 +70,15 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 	}
 }
 
+func ghettoParentInject(parent, node, delim string) string {
+	parts := strings.Split(parent, ", ")
+	for i := range parts {
+		parts[i] = parts[i] + " " + node
+	}
+	d := "," + delim
+	return strings.Join(parts, d)
+}
+
 func (s *sel) Visit(node Node) Visitor {
 	var pos token.Pos
 	var add *BasicLit
@@ -113,7 +122,9 @@ func (s *sel) Visit(node Node) Visitor {
 		var val = v.Value
 		fmt.Printf("prec %d inject? %t\n", s.prec, s.inject)
 		if s.inject && s.parent != nil {
-			val = s.parent.Resolved.Value + delim + v.Value
+			// FIXME: have no way to merge trees right now, so ghetto style
+			val = ghettoParentInject(s.parent.Resolved.Value, v.Value, delim)
+			// val = s.parent.Resolved.Value + delim + v.Value
 		}
 		v.Value = val
 		add = v

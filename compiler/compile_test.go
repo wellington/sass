@@ -120,7 +120,7 @@ d { color: red; }
 }
 
 func TestSelector_nesting_group(t *testing.T) {
-	t.Skip("")
+
 	ctx := &Context{}
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
