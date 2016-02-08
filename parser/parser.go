@@ -2500,7 +2500,6 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 			NamePos: pos,
 			Name:    lit,
 		},
-		// Names: idents,
 	}
 
 	// Parse selector tree
@@ -2524,16 +2523,16 @@ func (p *parser) parseSelTree() ast.Expr {
 	return p.parseCombSel(token.LowestPrec + 1)
 }
 
-func (p *parser) parseComb() ast.Expr {
+func (p *parser) parseSel() ast.Expr {
 	if p.trace {
-		defer un(trace(p, "Comb"))
+		defer un(trace(p, "Sel"))
 	}
 
 	switch p.tok {
 	case token.ADD, token.GTR, token.TIL:
 		pos, op := p.pos, p.tok
 		p.next()
-		x := p.parseComb()
+		x := p.parseSel()
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
 	case token.STRING:
 		pos := p.pos
@@ -2564,7 +2563,7 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 		defer un(trace(p, "CombSel"))
 	}
 
-	x := p.parseComb()
+	x := p.parseSel()
 
 	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
 		for {
