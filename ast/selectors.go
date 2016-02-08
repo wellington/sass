@@ -122,6 +122,7 @@ func (s *sel) Visit(node Node) Visitor {
 			fmt.Println("join bin", add)
 		case token.COMMA:
 			if s.prec < 3 {
+				return nil
 				panic(fmt.Errorf("invalid group token: %s prec: %d", v.Op, s.prec))
 			}
 			if s.prec != 3 {
@@ -163,8 +164,13 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 
 	delim := " " // This will change with compiler mode
 
-	vals := []string{x.Value, bin.Op.String(), y.Value}
-	val := strings.Join(vals, delim)
+	var val string
+	if bin.Op == token.COMMA {
+		val = x.Value + bin.Op.String() + delim + y.Value
+	} else {
+		vals := []string{x.Value, bin.Op.String(), y.Value}
+		val = strings.Join(vals, delim)
+	}
 
 	// Mark Op as illegal to indicate resolved
 	lit := &BasicLit{
