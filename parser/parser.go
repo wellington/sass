@@ -2503,7 +2503,7 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 	}
 
 	// Parse selector tree
-	sel.Sel = p.parseSelTree()
+	sel.Sel = p.parseCombSel(token.LowestPrec + 1)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
@@ -2512,23 +2512,23 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 }
 
 // similar to inferExpr, but for selectors
-func (p *parser) parseSelTree() ast.Expr {
-	switch p.tok {
-	case token.AND:
-		p.next()
-		// back reference, pull parent
-		lastParent := p.sels[len(p.sels)-1]
-		return lastParent.Sel
-	}
-	return p.parseCombSel(token.LowestPrec + 1)
-}
-
 func (p *parser) parseSel() ast.Expr {
 	if p.trace {
 		defer un(trace(p, "Sel"))
 	}
 
 	switch p.tok {
+	case token.AND:
+		// Backreference create a nested Op
+		// with the parent as X and child as Y
+		pos := p.pos
+		p.next()
+		parent := p.sels[len(p.sels)-1]
+		return &ast.UnaryExpr{
+			X:     p.checkExpr(ast.ExprCopy(parent.Sel)),
+			OpPos: pos,
+			Op:    token.NEST,
+		}
 	case token.ADD, token.GTR, token.TIL:
 		pos, op := p.pos, p.tok
 		p.next()
