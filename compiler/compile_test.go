@@ -160,3 +160,25 @@ func TestSelector_ampersand(t *testing.T) {
 	}
 
 }
+
+func TestSelector_comboampersand(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `div ~ b {
+& + & { color: red; }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `div ~ b + div ~ b {
+  color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+
+}

@@ -61,8 +61,9 @@ type sel struct {
 func (s *sel) Visit(node Node) Visitor {
 	var add *BasicLit
 	defer func() {
-		if add != nil {
+		if add != nil && add.Kind != token.ILLEGAL {
 			s.parts = append(s.parts, add)
+			fmt.Println("adding", add)
 		}
 	}()
 	fmt.Printf("%d: (%p) % #v\n", s.prec, node, node)
@@ -76,14 +77,18 @@ func (s *sel) Visit(node Node) Visitor {
 			panic(fmt.Errorf("invalid nest token: %s prec: %d", v.Op, s.prec))
 		}
 		if s.prec != 5 {
-			return s
+			return nil
 		}
 		s.inject = false
 		v.Op = token.ILLEGAL
-		x := v.X.(*BasicLit)
-		add = x
+		x := s.switchExpr(v.X)
+		_ = x
+		// add = x
 		return nil
 	case *BasicLit:
+		if v.Kind == token.ILLEGAL {
+			return nil
+		}
 		if s.prec != 2 {
 			return nil
 		}
@@ -107,12 +112,14 @@ func (s *sel) Visit(node Node) Visitor {
 			}
 		case token.ADD, token.GTR, token.TIL:
 			if s.prec < 4 {
+				return nil
 				panic(fmt.Errorf("invalid Op token: %s prec: %d", v.Op, s.prec))
 			}
 			if s.prec != 4 {
 				return s
 			}
 			add = s.joinBinary(v)
+			fmt.Println("join bin", add)
 		case token.COMMA:
 			if s.prec < 3 {
 				panic(fmt.Errorf("invalid group token: %s prec: %d", v.Op, s.prec))
@@ -128,31 +135,43 @@ func (s *sel) Visit(node Node) Visitor {
 			}
 			add = s.joinBinary(v)
 		}
-		v.Op = token.ILLEGAL
+		// v.Op = token.ILLEGAL
 		return nil
 	}
 
 	return s
 }
 
+func (s *sel) switchExpr(expr Expr) *BasicLit {
+	switch v := expr.(type) {
+	case *BasicLit:
+		v.Kind = token.ILLEGAL
+		return v
+	case *UnaryExpr:
+		return s.switchExpr(v.X)
+	case *BinaryExpr:
+		return s.joinBinary(v)
+	default:
+		panic(fmt.Errorf("switch expr: % #v\n", v))
+	}
+}
+
 func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
-	x, ok := bin.X.(*BasicLit)
-	if !ok {
-		x = s.joinBinary(bin.X.(*BinaryExpr))
-	}
-	y, ok := bin.Y.(*BasicLit)
-	if !ok {
-		y = s.joinBinary(bin.Y.(*BinaryExpr))
-	}
+	var x, y *BasicLit
+	x = s.switchExpr(bin.X)
+	y = s.switchExpr(bin.Y)
+
 	delim := " " // This will change with compiler mode
 
 	vals := []string{x.Value, bin.Op.String(), y.Value}
 	val := strings.Join(vals, delim)
 
 	// Mark Op as illegal to indicate resolved
-	return &BasicLit{
+	lit := &BasicLit{
 		ValuePos: bin.Pos(),
 		Value:    val,
 		Kind:     token.STRING,
 	}
+	fmt.Printf("joinBin ret %s\n", val)
+	return lit
 }
