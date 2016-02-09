@@ -90,7 +90,7 @@ func TestCompile_files(t *testing.T) {
 		}
 
 		if e := string(f.expect); e != sout {
-			t.Fatalf("got:\n%s", out)
+			//t.Fatalf("got:\n%s", out)
 			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 			// t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
@@ -156,6 +156,27 @@ b, c { color: red; }
 	}
 
 	e := `a b, a c {
+  color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
+func TestSelector_many_nests(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a, b {
+c, d { color: red; }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a c, a d, b c, b d {
   color: red; }
 `
 	if e != out {

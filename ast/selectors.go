@@ -70,18 +70,26 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 	}
 }
 
-func ghettoParentInject(parent *SelStmt, node, delim string) string {
+// FIXME: have no way to merge trees right now, so ghetto style
+func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
+	sdelim := ", "
 	var pval string
 	if parent != nil {
 		pval = parent.Resolved.Value
-		parts := strings.Split(pval, ","+delim)
+		fmt.Println("resolved?", pval)
+		parts := strings.Split(pval, sdelim)
+		ret := make([]string, 0, len(parts)*len(nodes))
+		fmt.Printf("entry: %q\n    %q\n", parts, nodes)
 		for i := range parts {
-			parts[i] = parts[i] + " " + node
+			for j := range nodes {
+				fmt.Println(parts[i], nodes[j])
+				ret = append(ret, parts[i]+" "+nodes[j])
+			}
 		}
-		d := "," + delim
-		return strings.Join(parts, d)
+		fmt.Printf("ret:  %q\n", ret)
+		return strings.Join(ret, delim)
 	}
-	return node
+	return strings.Join(nodes, delim)
 }
 
 func (s *sel) Visit(node Node) Visitor {
@@ -126,8 +134,7 @@ func (s *sel) Visit(node Node) Visitor {
 		var val = v.Value
 		fmt.Printf("prec %d inject? %t\n", s.prec, s.inject)
 		if s.inject && s.parent != nil {
-			// FIXME: have no way to merge trees right now, so ghetto style
-			val = ghettoParentInject(s.parent, v.Value, delim)
+			val = ghettoParentInject(delim, s.parent, v.Value)
 			// val = s.parent.Resolved.Value + delim + v.Value
 		}
 		v.Value = val
@@ -161,6 +168,7 @@ func (s *sel) Visit(node Node) Visitor {
 			if s.prec != 3 {
 				return nil
 			}
+			fmt.Println("COMMMA!")
 			// Reset parent injector
 			s.inject = true
 			fmt.Println("walk left", s.stmt.Resolved)
@@ -171,12 +179,11 @@ func (s *sel) Visit(node Node) Visitor {
 			litX := s.switchExpr(v.X)
 			litY := s.switchExpr(v.Y)
 
-			sx := ghettoParentInject(s.parent, litX.Value, " ")
-			sy := ghettoParentInject(s.parent, litY.Value, " ")
+			sx := ghettoParentInject(","+delim, s.parent, litX.Value, litY.Value)
 			add = &BasicLit{
 				Kind:     token.STRING,
 				ValuePos: pos,
-				Value:    sx + "," + delim + sy,
+				Value:    sx,
 			}
 
 			return nil
