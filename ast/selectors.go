@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 
@@ -96,16 +97,22 @@ func (s *sel) Visit(node Node) Visitor {
 	var add *BasicLit
 	delim := " "
 	defer func() {
-		if add != nil && add.Kind != token.ILLEGAL {
+		if add != nil && add.Kind != token.ILLEGAL && pos >= 0 {
 			s.add(pos, add)
 			// s.parts = append(s.parts, add)
 			fmt.Printf("adding %d: % #v\n", pos, add)
 		}
 	}()
-	// fmt.Printf("%d: (%p) % #v\n", s.prec, node, node)
+
 	switch v := node.(type) {
 	case *UnaryExpr:
-		// Nesting, collapse &
+		// UnaryExpr come in two flavors & (backref) and + ~ > (operators).
+		// In any case, it must be nested selector or it is an error.
+		if s.parent == nil {
+			// TODO: pass through parser's exception logic
+			log.Fatal("unary operator must be a nested selector",
+				node.Pos())
+		}
 		if v.Visited {
 			return nil
 		}
@@ -115,13 +122,32 @@ func (s *sel) Visit(node Node) Visitor {
 		if s.prec != 5 {
 			return nil
 		}
-		s.inject = false
+
 		v.Visited = true
-		x := s.switchExpr(v.X)
-		x.ValuePos = v.Pos()
-		_ = x
-		pos = x.Pos()
-		add = x
+
+		plit := ExprCopy(s.parent.Resolved).(*BasicLit)
+		plit.Kind = token.STRING
+		plit.ValuePos = -1
+		pos = v.OpPos
+		switch v.Op {
+		case token.NEST:
+
+			fmt.Println("unary nest add!", v)
+			add = plit
+		case token.GTR, token.TIL, token.ADD:
+			bin := &BinaryExpr{}
+			bin.OpPos = v.Pos()
+			bin.Op = v.Op
+			left := plit
+			// Override position to be where the current Unary is
+			left.ValuePos = v.Pos()
+			bin.X = left
+			bin.Y = v.X
+			fmt.Println("unary binary add!")
+			add = s.joinBinary(bin)
+		default:
+			log.Fatal("invalid unary operation: ", v.Op)
+		}
 		return nil
 	case *BasicLit:
 		if v.Kind == token.ILLEGAL {
@@ -130,13 +156,10 @@ func (s *sel) Visit(node Node) Visitor {
 		if s.prec != 2 {
 			return nil
 		}
-		var val = v.Value
-		fmt.Printf("prec %d inject? %t\n", s.prec, s.inject)
+
 		if s.inject && s.parent != nil {
-			val = ghettoParentInject(delim, s.parent, v.Value)
-			// val = s.parent.Resolved.Value + delim + v.Value
+			v.Value = ghettoParentInject(","+delim, s.parent, v.Value)
 		}
-		v.Value = val
 		add = v
 		return nil
 	case *BinaryExpr:

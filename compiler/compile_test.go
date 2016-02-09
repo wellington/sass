@@ -50,7 +50,7 @@ func findPaths() []file {
 		}
 		// back references
 		if strings.Contains(input, "13_") {
-			continue
+			//continue
 		}
 		if strings.Contains(input, "14_") {
 			continue
@@ -150,8 +150,8 @@ func TestSelector_deep_nesting(t *testing.T) {
 	}
 }
 
-func TestSelector_imbalanced_nesting(t *testing.T) {
-	t.Skip("skipping invalid binary math")
+func TestSelector_nesting_unary(t *testing.T) {
+
 	// This is bizarre, may never support this odd syntax
 	ctx := &Context{}
 	ctx.Init()
