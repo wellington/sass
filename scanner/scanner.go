@@ -230,6 +230,8 @@ scanAgain:
 		fallthrough
 	case ch == '.':
 		fallthrough
+	case ch == '>' || ch == '+' || ch == '~':
+		fallthrough
 	case isLetter(ch):
 		// Scan until encountering {};
 		// selector: { termination
@@ -320,7 +322,7 @@ scanAgain:
 	case '<':
 		tok = s.switch2(token.LSS, token.LEQ)
 	case '>':
-		tok = s.switch2(token.GTR, token.GEQ)
+		tok = token.GTR
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
 	case '!':
