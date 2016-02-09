@@ -119,7 +119,7 @@ d { color: red; }
 	}
 }
 
-func TestSelector_nesting_group(t *testing.T) {
+func TestSelector_nesting_parent_group(t *testing.T) {
 
 	ctx := &Context{}
 	ctx.Init()
@@ -134,6 +134,28 @@ d { color: red; }
 	}
 
 	e := `a d, b d {
+  color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
+func TestSelector_nesting_child_group(t *testing.T) {
+
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a {
+b, c { color: red; }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a b, a c {
   color: red; }
 `
 	if e != out {

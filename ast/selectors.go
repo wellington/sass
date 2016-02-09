@@ -70,18 +70,24 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 	}
 }
 
-func ghettoParentInject(parent, node, delim string) string {
-	parts := strings.Split(parent, ", ")
-	for i := range parts {
-		parts[i] = parts[i] + " " + node
+func ghettoParentInject(parent *SelStmt, node, delim string) string {
+	var pval string
+	if parent != nil {
+		pval = parent.Resolved.Value
+		parts := strings.Split(pval, ","+delim)
+		for i := range parts {
+			parts[i] = parts[i] + " " + node
+		}
+		d := "," + delim
+		return strings.Join(parts, d)
 	}
-	d := "," + delim
-	return strings.Join(parts, d)
+	return node
 }
 
 func (s *sel) Visit(node Node) Visitor {
 	var pos token.Pos
 	var add *BasicLit
+	delim := " "
 	defer func() {
 		if add != nil && add.Kind != token.ILLEGAL {
 			s.add(pos, add)
@@ -92,7 +98,6 @@ func (s *sel) Visit(node Node) Visitor {
 	// fmt.Printf("%d: (%p) % #v\n", s.prec, node, node)
 	switch v := node.(type) {
 	case *UnaryExpr:
-		fmt.Println("unary")
 		// Nesting, collapse &
 		if v.Visited {
 			return nil
@@ -118,12 +123,11 @@ func (s *sel) Visit(node Node) Visitor {
 		if s.prec != 2 {
 			return nil
 		}
-		delim := " "
 		var val = v.Value
 		fmt.Printf("prec %d inject? %t\n", s.prec, s.inject)
 		if s.inject && s.parent != nil {
 			// FIXME: have no way to merge trees right now, so ghetto style
-			val = ghettoParentInject(s.parent.Resolved.Value, v.Value, delim)
+			val = ghettoParentInject(s.parent, v.Value, delim)
 			// val = s.parent.Resolved.Value + delim + v.Value
 		}
 		v.Value = val
@@ -155,15 +159,27 @@ func (s *sel) Visit(node Node) Visitor {
 				panic(fmt.Errorf("invalid group token: %s prec: %d", v.Op, s.prec))
 			}
 			if s.prec != 3 {
-				// Reset parent injector
-				s.inject = true
-				Walk(s, v.X)
-				// Reset parent injector
-				s.inject = true
-				Walk(s, v.Y)
 				return nil
 			}
-			add = s.joinBinary(v)
+			// Reset parent injector
+			s.inject = true
+			fmt.Println("walk left", s.stmt.Resolved)
+			// Reset parent injector
+			s.inject = true
+			Walk(s, v.Y)
+
+			litX := s.switchExpr(v.X)
+			litY := s.switchExpr(v.Y)
+
+			sx := ghettoParentInject(s.parent, litX.Value, " ")
+			sy := ghettoParentInject(s.parent, litY.Value, " ")
+			add = &BasicLit{
+				Kind:     token.STRING,
+				ValuePos: pos,
+				Value:    sx + "," + delim + sy,
+			}
+
+			return nil
 		}
 
 		// v.Op = token.ILLEGAL
