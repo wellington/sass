@@ -24,6 +24,7 @@ func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 		prec:   token.LowestPrec + 1,
 		parts:  make(map[token.Pos]*BasicLit),
 	}
+	fmt.Println("Selector Resolve")
 	Print(fset, s.stmt.Sel)
 	// This could be more efficient, it should inspect precision of
 	// the top node
@@ -38,8 +39,6 @@ func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 	}
 
 	// stmt.Resolved = stmt.Sel.(*BasicLit)
-	Print(fset, s.stmt.Sel)
-	fmt.Println("parts len", len(s.parts))
 	var vals []string
 	for i, part := range s.parts {
 		fmt.Printf("%d: % #v\n", i, part)
@@ -47,7 +46,7 @@ func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 	}
 	val := strings.Join(vals, " ")
 	stmt.Resolved = &BasicLit{Value: val}
-
+	fmt.Println("Resolver Output", val)
 }
 
 type sel struct {
@@ -71,25 +70,46 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 	}
 }
 
-// FIXME: have no way to merge trees right now, so ghetto style
-func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
-	sdelim := ", "
-	var pval string
-	if parent != nil {
-		pval = parent.Resolved.Value
+var amper = "&"
+
+func ghettoResolvedParentInject(delim string, pval string, nodes ...string) string {
+	fmt.Printf("==========\nghettoing (%q) parent: %q childs: %q\n=========\n",
+		delim, pval, nodes,
+	)
+	gdelim := ", "
+	if len(pval) > 0 {
+		sdelim := ", "
 		parts := strings.Split(pval, sdelim)
 		ret := make([]string, 0, len(parts)*len(nodes))
 		fmt.Printf("paren: %q\nnodes: %q\n", parts, nodes)
 		for i := range parts {
 			for j := range nodes {
 				fmt.Println(parts[i], nodes[j])
-				ret = append(ret, parts[i]+" "+nodes[j])
+				// if no &, prepend to start
+				var s string
+				if strings.Contains(nodes[j], amper) {
+					// ret = append(ret, parts[i]+delim+nodes[j])
+
+					s = strings.Replace(nodes[j], "&", parts[i], -1)
+				} else {
+					s = parts[i] + delim + nodes[j]
+				}
+				ret = append(ret, s)
 			}
 		}
-		fmt.Printf("ret:  %q\n", ret)
-		return strings.Join(ret, delim)
+		fmt.Printf("============\nghetto ret:  %q\n============\n", ret)
+		return strings.Join(ret, gdelim)
 	}
-	return strings.Join(nodes, delim)
+	return strings.Join(nodes, gdelim)
+}
+
+// FIXME: have no way to merge trees right now, so ghetto style
+func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
+	var pval string
+	if parent != nil {
+		pval = parent.Resolved.Value
+	}
+	return ghettoResolvedParentInject(delim, pval, nodes...)
 }
 
 func (s *sel) Visit(node Node) Visitor {
@@ -131,9 +151,8 @@ func (s *sel) Visit(node Node) Visitor {
 		pos = v.OpPos
 		switch v.Op {
 		case token.NEST:
-
 			fmt.Println("unary nest add!", v)
-			add = plit
+			add = s.switchExpr(v)
 		case token.GTR, token.TIL, token.ADD:
 			bin := &BinaryExpr{}
 			bin.OpPos = v.Pos()
@@ -158,13 +177,12 @@ func (s *sel) Visit(node Node) Visitor {
 		}
 
 		if s.inject && s.parent != nil {
-			v.Value = ghettoParentInject(","+delim, s.parent, v.Value)
+			v.Value = ghettoParentInject(delim, s.parent, v.Value)
 		}
 		add = v
 		return nil
 	case *BinaryExpr:
 		pos = v.Pos()
-		fmt.Printf("binary %d % #v\n", v.Pos(), v)
 		switch v.Op {
 		case token.NEST:
 			if s.prec < 5 {
@@ -202,7 +220,7 @@ func (s *sel) Visit(node Node) Visitor {
 			lits := append(
 				strings.Split(litX.Value, ","+delim),
 				strings.Split(litY.Value, ","+delim)...)
-			sx := ghettoParentInject(","+delim, s.parent, lits...) //litX.Value, litY.Value)
+			sx := ghettoParentInject(delim, s.parent, lits...) //litX.Value, litY.Value)
 			add = &BasicLit{
 				Kind:     token.STRING,
 				ValuePos: pos,
@@ -219,14 +237,42 @@ func (s *sel) Visit(node Node) Visitor {
 	return s
 }
 
+func parseBackRef(parent *BasicLit, in *BasicLit) *BasicLit {
+	if in.Value == "&" {
+		return ExprCopy(parent).(*BasicLit)
+	}
+	delim := " "
+	pval := parent.Value
+	// parts := strings.Split(in.Value, " ")
+	// ret := make([]string, len(parts))
+	// for i, part := range parts {
+	// 	fmt.Println("parseBackRef part", i, part)
+	// 	fmt.Println("parseBackRef ret ", i, ghettoResolvedParentInject(delim,
+	// 		pval, part))
+	// 	ret[i] = ghettoResolvedParentInject(delim, pval, part)
+	// }
+	ret := ghettoResolvedParentInject(delim, pval, in.Value)
+	fmt.Printf("parseBackRef final return %q\n", ret)
+	return &BasicLit{
+		Kind:     token.STRING,
+		Value:    ret, //strings.Join(ret, "*"),
+		ValuePos: in.Pos(),
+	}
+}
+
 func (s *sel) switchExpr(expr Expr) *BasicLit {
 	switch v := expr.(type) {
 	case *BasicLit:
 		// v.Kind = token.ILLEGAL
 		return v
 	case *UnaryExpr:
-		return s.switchExpr(v.X)
+		fmt.Println("UnaryExpr", v.X)
+		// plit := ExprCopy(s.parent.Resolved).(*BasicLit)
+		plit := parseBackRef(s.parent.Resolved, v.X.(*BasicLit))
+		fmt.Println("UnaryRet ", plit)
+		return plit
 	case *BinaryExpr:
+		fmt.Printf("switching bin\n  X:% #v\n  Y:% #v\n", v.X, v.Y)
 		return s.joinBinary(v)
 	default:
 		panic(fmt.Errorf("switch expr: % #v\n", v))
@@ -234,20 +280,35 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 }
 
 func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
-	fmt.Printf("joinBinary (%p): % #v\n", bin, bin)
 	var x, y *BasicLit
+	// If either are Unary, must use ghetto math to multiply them
+	_, unx := bin.X.(*UnaryExpr)
+	_, uny := bin.Y.(*UnaryExpr)
+	_, _ = unx, uny
 	x = s.switchExpr(bin.X)
 	y = s.switchExpr(bin.Y)
 
 	delim := " " // This will change with compiler mode
+	switch bin.Op {
+	case token.COMMA:
+		delim = "," + delim
+	default:
+		delim = delim + bin.Op.String() + delim
+	}
 
+	fmt.Printf("joining with (%q)\n  X: % #v\n  Y: % #v\n", delim, x, y)
 	var val string
-	if bin.Op == token.COMMA {
+	if unx {
+		val = ghettoResolvedParentInject(delim, x.Value, y.Value)
+	} else if uny {
+		// This won't actually work, but hey have fun kid
+		val = ghettoResolvedParentInject(delim, y.Value, x.Value)
+	} else if bin.Op == token.COMMA {
 		// Ghetto to the max, do the right side
 		// val = ghettoParentInject(","+delim, s.parent, x.Value, y.Value)
-		val = x.Value + bin.Op.String() + delim + y.Value
+		val = x.Value + delim + y.Value
 	} else {
-		vals := []string{x.Value, bin.Op.String(), y.Value}
+		vals := []string{x.Value, y.Value}
 		val = strings.Join(vals, delim)
 	}
 
@@ -256,6 +317,6 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 		Value:    val,
 		Kind:     token.STRING,
 	}
-	fmt.Printf("joinBin ret %s\n", val)
+	fmt.Printf("binJoined: %s\n", val)
 	return lit
 }

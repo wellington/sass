@@ -482,14 +482,19 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 		fallthrough
 	case isLetter(ch):
 		tok = token.STRING
-		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' || s.ch == '#' {
+		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' ||
+			s.ch == '#' || s.ch == '&' {
 			if s.offset > end {
 				s.error(offs, "failed to parse selector string")
 				return
 			}
 			s.next()
+			s.skipWhitespace()
 		}
-		lit = string(s.src[offs:s.offset])
+		if bytes.Contains(s.src[offs:s.offset], []byte{'&'}) {
+			tok = token.AND
+		}
+		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	default:
 		s.next()
 		switch ch {

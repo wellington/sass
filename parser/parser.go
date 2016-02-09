@@ -2533,13 +2533,16 @@ func (p *parser) parseSel() ast.Expr {
 	case token.AND:
 		// Backreference create a nested Op
 		// with the parent as X and child as Y
-		pos := p.pos
+		pos, lit := p.pos, p.lit
 		p.next()
-		parent := p.sels[len(p.sels)-1]
 		return &ast.UnaryExpr{
-			X:     p.checkExpr(ast.ExprCopy(parent.Sel)),
 			OpPos: pos,
 			Op:    token.NEST,
+			X: &ast.BasicLit{
+				Kind:     token.STRING,
+				ValuePos: pos,
+				Value:    lit,
+			},
 		}
 	case token.ADD, token.GTR, token.TIL:
 		pos, op := p.pos, p.tok
@@ -2580,6 +2583,7 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 	x := p.parseSel()
 
 	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
+		fmt.Println("parsing prec", prec)
 		for {
 			tok := p.tok
 			oprec := tok.SelPrecedence()
@@ -2594,9 +2598,9 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 				Op:    tok,
 				Y:     p.checkExpr(y),
 			}
+			fmt.Println("binary", x, y)
 		}
 	}
-
 	return x
 }
 

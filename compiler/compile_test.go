@@ -25,16 +25,13 @@ func findPaths() []file {
 	var input string
 	defer func() {
 		fmt.Println("Exited on", input)
-		if r := recover(); r != nil {
-			log.Fatal("Recovered from", input)
-		}
 	}()
 
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 		if !strings.Contains(input, "13_") {
-			//continue
+			// continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
@@ -90,7 +87,11 @@ func TestCompile_files(t *testing.T) {
 		fmt.Println("exited on: ", f.input)
 	}()
 	for _, f = range files {
-		fmt.Println("compiling", f.input)
+		fmt.Printf(`
+=================================
+compiling: %s\n
+=================================
+`, f.input)
 		out, err := fileRun(f.input)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
@@ -102,6 +103,11 @@ func TestCompile_files(t *testing.T) {
 			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
 			// t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
+		fmt.Printf(`
+=================================
+compiled: %s\n
+=================================
+`, f.input)
 	}
 
 }
@@ -121,6 +127,29 @@ d { color: red; }
 
 	e := `a d {
   color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
+func TestSelector_inplace_nesting(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `hey, ho {
+  foo &.goo {
+    color: blue;
+  }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `foo hey.goo, foo ho.goo {
+  color: blue; }
 `
 	if e != out {
 		t.Errorf("got:\n%s\nwanted:\n%s", out, e)

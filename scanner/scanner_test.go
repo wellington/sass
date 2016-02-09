@@ -132,7 +132,7 @@ func TestScan_selectors(t *testing.T) {
 
 	testScan(t, []elt{
 		// {token.SELECTOR, ""},
-		{token.AND, "&.goo"},
+		{token.AND, "foo &.goo"},
 		{token.LBRACE, "{"},
 	})
 
