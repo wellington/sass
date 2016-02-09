@@ -480,7 +480,7 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 		fallthrough
 	case isLetter(ch):
 		tok = token.STRING
-		for isLetter(s.ch) || isDigit(s.ch) {
+		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' || s.ch == '#' {
 			if s.offset > end {
 				s.error(offs, "failed to parse selector string")
 				return
@@ -511,11 +511,16 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 			tok = token.COMMA
 		case '[':
 			tok = token.ATTRIBUTE
+			runes := []rune{ch, s.ch}
 			for s.ch != ']' {
 				s.next()
+				if !unicode.IsSpace(s.ch) {
+					runes = append(runes, s.ch)
+				}
 			}
 			s.next()
-			lit = string(s.src[offs:s.offset])
+			//lit = string(s.src[offs:s.offset])
+			lit = string(runes)
 		case ':':
 			tok = token.PSEUDO
 			for s.ch != ',' && !unicode.IsSpace(s.ch) {

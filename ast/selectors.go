@@ -76,10 +76,9 @@ func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
 	var pval string
 	if parent != nil {
 		pval = parent.Resolved.Value
-		fmt.Println("resolved?", pval)
 		parts := strings.Split(pval, sdelim)
 		ret := make([]string, 0, len(parts)*len(nodes))
-		fmt.Printf("entry: %q\n    %q\n", parts, nodes)
+		fmt.Printf("paren: %q\nnodes: %q\n", parts, nodes)
 		for i := range parts {
 			for j := range nodes {
 				fmt.Println(parts[i], nodes[j])
@@ -170,22 +169,23 @@ func (s *sel) Visit(node Node) Visitor {
 			}
 			fmt.Println("COMMMA!")
 			// Reset parent injector
-			s.inject = true
-			fmt.Println("walk left", s.stmt.Resolved)
+			// s.inject = true
 			// Reset parent injector
-			s.inject = true
-			Walk(s, v.Y)
+			// s.inject = true
+			// Walk(s, v.Y)
 
 			litX := s.switchExpr(v.X)
 			litY := s.switchExpr(v.Y)
-
-			sx := ghettoParentInject(","+delim, s.parent, litX.Value, litY.Value)
+			lits := append(
+				strings.Split(litX.Value, ","+delim),
+				strings.Split(litY.Value, ","+delim)...)
+			sx := ghettoParentInject(","+delim, s.parent, lits...) //litX.Value, litY.Value)
 			add = &BasicLit{
 				Kind:     token.STRING,
 				ValuePos: pos,
 				Value:    sx,
 			}
-
+			fmt.Println("returned comma")
 			return nil
 		}
 
@@ -211,6 +211,7 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 }
 
 func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
+	fmt.Printf("joinBinary (%p): % #v\n", bin, bin)
 	var x, y *BasicLit
 	x = s.switchExpr(bin.X)
 	y = s.switchExpr(bin.Y)
@@ -219,6 +220,8 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 
 	var val string
 	if bin.Op == token.COMMA {
+		// Ghetto to the max, do the right side
+		// val = ghettoParentInject(","+delim, s.parent, x.Value, y.Value)
 		val = x.Value + bin.Op.String() + delim + y.Value
 	} else {
 		vals := []string{x.Value, bin.Op.String(), y.Value}

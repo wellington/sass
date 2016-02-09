@@ -1869,6 +1869,10 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 	}
 
 	if len(x) > 1 {
+		for _, expr := range x {
+			fmt.Printf("% #v\n", expr)
+		}
+		panic("boom")
 		p.errorExpected(x[0].Pos(), "1 expression")
 		// continue with first expression
 	}
@@ -2155,6 +2159,7 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 		token.INT, token.FLOAT, token.STRING, token.FUNC, token.LPAREN, // operands
 		token.LBRACK,
 		// composite types
+		token.GTR, token.TIL,
 		token.ADD, token.SUB, token.MUL, token.AND, token.XOR, token.NOT: // unary operators
 		s, _ = p.parseSimpleStmt(labelOk)
 		// because of the required look-ahead, labeled statements are

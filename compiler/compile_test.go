@@ -40,6 +40,14 @@ func findPaths() []file {
 		if strings.Contains(input, "06_") {
 			continue
 		}
+		// bad math `> e`
+		if strings.Contains(input, "09_") {
+			continue
+		}
+		// ditto
+		if strings.Contains(input, "10_") {
+			continue
+		}
 		// back references
 		if strings.Contains(input, "13_") {
 			continue
@@ -50,7 +58,7 @@ func findPaths() []file {
 
 		// parser skips
 		if strings.Contains(input, "15_") {
-			continue
+			//continue
 		}
 		// Skip for built-in rules
 		if strings.Contains(input, "16_") {
@@ -113,6 +121,54 @@ d { color: red; }
 
 	e := `a d {
   color: red; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
+func TestSelector_deep_nesting(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a {
+	c, d, e {
+    color: blue;
+	}
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a c, a d, a e {
+  color: blue; }
+`
+	if e != out {
+		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
+func TestSelector_imbalanced_nesting(t *testing.T) {
+	t.Skip("skipping invalid binary math")
+	// This is bizarre, may never support this odd syntax
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a {
+  > e {
+    color: blue;
+  }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a > e {
+  color: blue; }
 `
 	if e != out {
 		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
