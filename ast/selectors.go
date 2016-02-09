@@ -73,7 +73,13 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 var amper = "&"
 
 func ghettoResolvedParentInject(delim string, pval string, nodes ...string) string {
-	fmt.Printf("==========\nghettoing (%q) parent: %q childs: %q\n=========\n",
+	fmt.Printf(`
+=ghetto=============================
+     op: %q
+ parent: %q
+ childs: %q
+====================================
+`,
 		delim, pval, nodes,
 	)
 	gdelim := ", "
@@ -81,10 +87,8 @@ func ghettoResolvedParentInject(delim string, pval string, nodes ...string) stri
 		sdelim := ", "
 		parts := strings.Split(pval, sdelim)
 		ret := make([]string, 0, len(parts)*len(nodes))
-		fmt.Printf("paren: %q\nnodes: %q\n", parts, nodes)
 		for i := range parts {
 			for j := range nodes {
-				fmt.Println(parts[i], nodes[j])
 				// if no &, prepend to start
 				var s string
 				if strings.Contains(nodes[j], amper) {
@@ -97,7 +101,11 @@ func ghettoResolvedParentInject(delim string, pval string, nodes ...string) stri
 				ret = append(ret, s)
 			}
 		}
-		fmt.Printf("============\nghetto ret:  %q\n============\n", ret)
+		fmt.Printf(`
+=ghetto return======================
+ %q
+====================================
+`, ret)
 		return strings.Join(ret, gdelim)
 	}
 	return strings.Join(nodes, gdelim)
@@ -266,10 +274,8 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 		// v.Kind = token.ILLEGAL
 		return v
 	case *UnaryExpr:
-		fmt.Println("UnaryExpr", v.X)
 		// plit := ExprCopy(s.parent.Resolved).(*BasicLit)
 		plit := parseBackRef(s.parent.Resolved, v.X.(*BasicLit))
-		fmt.Println("UnaryRet ", plit)
 		return plit
 	case *BinaryExpr:
 		fmt.Printf("switching bin\n  X:% #v\n  Y:% #v\n", v.X, v.Y)
