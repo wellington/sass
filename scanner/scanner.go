@@ -503,6 +503,11 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 			tok = token.TIL
 		case '&':
 			tok = token.AND
+			for IsSymbol(s.ch) || isLetter(s.ch) || isDigit(s.ch) ||
+				s.ch == '.' || s.ch == '#' {
+				s.next()
+			}
+			lit = string(s.src[offs:s.offset])
 		case '>':
 			tok = token.GTR
 		case '+':
