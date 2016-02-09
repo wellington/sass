@@ -31,7 +31,7 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 		if !strings.Contains(input, "13_") {
-			// continue
+			//continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
@@ -152,7 +152,7 @@ func TestSelector_inplace_nesting(t *testing.T) {
   color: blue; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
 
@@ -175,7 +175,7 @@ func TestSelector_deep_nesting(t *testing.T) {
   color: blue; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
 
@@ -200,7 +200,7 @@ func TestSelector_nesting_unary(t *testing.T) {
   color: blue; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
 
@@ -222,7 +222,7 @@ d { color: red; }
   color: red; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
 
@@ -244,7 +244,7 @@ b, c { color: red; }
   color: red; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
 
@@ -265,7 +265,7 @@ c, d { color: red; }
   color: red; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
 
@@ -284,7 +284,7 @@ func TestSelector_combinators(t *testing.T) {
   color: red; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 
 }
@@ -306,7 +306,7 @@ func TestSelector_singleampersand(t *testing.T) {
   color: red; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 
 }
@@ -328,7 +328,7 @@ func TestSelector_comboampersand(t *testing.T) {
   color: red; }
 `
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 
 }

@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"log"
+	"math"
 	"regexp"
 	"strings"
 
@@ -73,8 +74,7 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 var amper = "&"
 
 func ghettoResolvedParentInject(delim string, pval string, nodes ...string) string {
-	fmt.Printf(`
-=ghetto=============================
+	fmt.Printf(`=ghetto=============================
      op: %q
  parent: %q
  childs: %q
@@ -82,6 +82,9 @@ func ghettoResolvedParentInject(delim string, pval string, nodes ...string) stri
 `,
 		delim, pval, nodes,
 	)
+	if len(nodes) > 3 {
+		panic("too many")
+	}
 	gdelim := ", "
 	if len(pval) > 0 {
 		sdelim := ", "
@@ -101,8 +104,7 @@ func ghettoResolvedParentInject(delim string, pval string, nodes ...string) stri
 				ret = append(ret, s)
 			}
 		}
-		fmt.Printf(`
-=ghetto return======================
+		fmt.Printf(`=ghetto return======================
  %q
 ====================================
 `, ret)
@@ -121,14 +123,21 @@ func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
 }
 
 func (s *sel) Visit(node Node) Visitor {
+	fmt.Printf("Visit %T: % #v\n", node, node)
 	var pos token.Pos
 	var add *BasicLit
 	delim := " "
 	defer func() {
-		if add != nil && add.Kind != token.ILLEGAL && pos >= 0 {
+		if add == nil {
+			return
+		}
+		if add.Kind == token.ILLEGAL {
+			log.Println("Warning invalid Kind for", add)
+		}
+		// Do not add Lits with invalid positions
+		if pos >= 0 {
 			s.add(pos, add)
-			// s.parts = append(s.parts, add)
-			fmt.Printf("adding %d: % #v\n", pos, add)
+			fmt.Printf("adding %s at %d: % #v\n", add.Kind, pos, add)
 		}
 	}()
 
@@ -159,7 +168,6 @@ func (s *sel) Visit(node Node) Visitor {
 		pos = v.OpPos
 		switch v.Op {
 		case token.NEST:
-			fmt.Println("unary nest add!", v)
 			add = s.switchExpr(v)
 		case token.GTR, token.TIL, token.ADD:
 			bin := &BinaryExpr{}
@@ -209,6 +217,7 @@ func (s *sel) Visit(node Node) Visitor {
 			}
 			add = s.joinBinary(v)
 		case token.COMMA:
+			fmt.Println("COMMA")
 			if s.prec < 3 {
 				return nil
 				panic(fmt.Errorf("invalid group token: %s prec: %d", v.Op, s.prec))
@@ -216,25 +225,25 @@ func (s *sel) Visit(node Node) Visitor {
 			if s.prec != 3 {
 				return nil
 			}
-			fmt.Println("COMMMA!")
-			// Reset parent injector
-			// s.inject = true
-			// Reset parent injector
-			// s.inject = true
-			// Walk(s, v.Y)
 
 			litX := s.switchExpr(v.X)
 			litY := s.switchExpr(v.Y)
+			// Now to piece together both operations
+			// xs := strings.Split(litX.Value, ","+delim)
+			// ys := strings.Split(litY.Value, ","+delim)
 			lits := append(
 				strings.Split(litX.Value, ","+delim),
 				strings.Split(litY.Value, ","+delim)...)
-			sx := ghettoParentInject(delim, s.parent, lits...) //litX.Value, litY.Value)
+			_ = lits
+			// sx := ghettoParentInject(delim, s.parent, lits...) //litX.Value, litY.Value)
+			// sx := litX.Value + ", " + litY.Value
+
+			sx := mergeLits(","+delim, litX.Value, litY.Value)
 			add = &BasicLit{
 				Kind:     token.STRING,
 				ValuePos: pos,
 				Value:    sx,
 			}
-			fmt.Println("returned comma")
 			return nil
 		}
 
@@ -245,22 +254,41 @@ func (s *sel) Visit(node Node) Visitor {
 	return s
 }
 
+// after parent multiplication, lits are out of order. Fix the ordering
+// Examples of out of orderness
+// [1 3] [2] => [1 2 3]
+// [1 3] [2 4] => [1 2 3 4]
+func mergeLits(delim, left, right string) string {
+	lefts, rights := strings.Split(left, delim), strings.Split(right, delim)
+	ll, lr := len(lefts), len(rights)
+	fmt.Printf("reordering %d %d\nleft: %q\nrigh: %q\n",
+		ll, lr, lefts, rights)
+
+	if math.Remainder(float64(ll), float64(lr)) > 0 {
+		panic(fmt.Errorf("Incompatible lengths left:%d right:%d", ll, lr))
+	}
+	var ss []string
+	mod := ll / lr
+	for i := range lefts {
+		ss = append(ss, lefts[i])
+		if (i+1)%mod == 0 {
+			ss = append(ss, rights[i/mod])
+		}
+	}
+	fmt.Printf("%q\n", ss)
+	r := strings.Join(ss, delim)
+	fmt.Println("mergeLits returns", r)
+	return r
+}
+
 func parseBackRef(parent *BasicLit, in *BasicLit) *BasicLit {
+	fmt.Printf("parseBackRef % #v\n", in)
 	if in.Value == "&" {
 		return ExprCopy(parent).(*BasicLit)
 	}
 	delim := " "
 	pval := parent.Value
-	// parts := strings.Split(in.Value, " ")
-	// ret := make([]string, len(parts))
-	// for i, part := range parts {
-	// 	fmt.Println("parseBackRef part", i, part)
-	// 	fmt.Println("parseBackRef ret ", i, ghettoResolvedParentInject(delim,
-	// 		pval, part))
-	// 	ret[i] = ghettoResolvedParentInject(delim, pval, part)
-	// }
 	ret := ghettoResolvedParentInject(delim, pval, in.Value)
-	fmt.Printf("parseBackRef final return %q\n", ret)
 	return &BasicLit{
 		Kind:     token.STRING,
 		Value:    ret, //strings.Join(ret, "*"),
@@ -269,13 +297,15 @@ func parseBackRef(parent *BasicLit, in *BasicLit) *BasicLit {
 }
 
 func (s *sel) switchExpr(expr Expr) *BasicLit {
+	fmt.Printf("switchExpr %T: % #v\n", expr, expr)
 	switch v := expr.(type) {
 	case *BasicLit:
 		// v.Kind = token.ILLEGAL
+		v.Value = ghettoParentInject(" ", s.parent, v.Value)
 		return v
 	case *UnaryExpr:
-		// plit := ExprCopy(s.parent.Resolved).(*BasicLit)
 		plit := parseBackRef(s.parent.Resolved, v.X.(*BasicLit))
+		fmt.Printf("switchExpr exit % #v\n", plit)
 		return plit
 	case *BinaryExpr:
 		fmt.Printf("switching bin\n  X:% #v\n  Y:% #v\n", v.X, v.Y)
@@ -286,6 +316,7 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 }
 
 func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
+	fmt.Println("joinBinary")
 	var x, y *BasicLit
 	// If either are Unary, must use ghetto math to multiply them
 	_, unx := bin.X.(*UnaryExpr)
@@ -305,15 +336,16 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 	fmt.Printf("joining with (%q)\n  X: % #v\n  Y: % #v\n", delim, x, y)
 	var val string
 	if unx {
+		fmt.Println("join unx")
 		val = ghettoResolvedParentInject(delim, x.Value, y.Value)
 	} else if uny {
+		fmt.Println("join uny")
 		// This won't actually work, but hey have fun kid
 		val = ghettoResolvedParentInject(delim, y.Value, x.Value)
 	} else if bin.Op == token.COMMA {
-		// Ghetto to the max, do the right side
-		// val = ghettoParentInject(","+delim, s.parent, x.Value, y.Value)
-		val = x.Value + delim + y.Value
+		val = mergeLits(delim, x.Value, y.Value)
 	} else {
+		fmt.Println("join other")
 		vals := []string{x.Value, y.Value}
 		val = strings.Join(vals, delim)
 	}
