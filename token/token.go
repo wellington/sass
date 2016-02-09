@@ -31,6 +31,7 @@ const (
 	VALUE     // value (rhs of rule)
 	ATTRIBUTE // [disabled] [type='button']
 	PSEUDO    // :first-child :nth-last-child
+	AND       // & backreference
 	literal_end
 
 	cssnums_beg
@@ -53,7 +54,6 @@ const (
 	QUO // /
 	REM // %
 
-	AND     // &
 	OR      // |
 	XOR     // ^
 	SHL     // <<

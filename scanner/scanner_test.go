@@ -121,7 +121,21 @@ func TestScan(t *testing.T) {
 }
 
 func TestScan_selectors(t *testing.T) {
+
 	// selectors are so flexible, that they must be tested in isolation
+	testScan(t, []elt{
+		// {token.SELECTOR, "}
+		{token.ADD, "+"},
+		{token.STRING, "div"},
+		{token.LBRACE, "{"},
+	})
+
+	testScan(t, []elt{
+		// {token.SELECTOR, ""},
+		{token.AND, "&.goo"},
+		{token.LBRACE, "{"},
+	})
+
 	testScan(t, []elt{
 		// {token.SELECTOR, "& > boo"},
 		{token.AND, "&"},
