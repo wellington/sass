@@ -1,3 +1,6 @@
+[![Circle CI](https://circleci.com/gh/wellington/sass/tree/master.svg?style=svg)](https://circleci.com/gh/wellington/sass/tree/master)
+[![Report Card](http://goreportcard.com/badge/wellington/sass)](http://goreportcard.com/report/wellington/sass)
+
 # sass
 Pure Go sass scanner, ast, and parser
 
@@ -17,8 +20,8 @@ Passing 20 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-s
 
 ### Parser Status
 - [x] Nested Rules
-- [ ] Referencing Parent Selectors: &
-- [ ] Nested Properties
+- [x] Referencing Parent Selectors: &
+- [x] Nested Properties
 - [ ] Placeholder Selectors: %foo
 - [x] Comments: /* */ and //
 - SassScript :question:
