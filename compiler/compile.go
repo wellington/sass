@@ -98,8 +98,11 @@ func (ctx *Context) blockIntro() {
 
 		}
 	}
+	sel := "MISSING"
+	if ctx.activeSel != nil {
+		sel = ctx.activeSel.Value
+	}
 
-	sel := ctx.activeSel.Value
 	ctx.out(fmt.Sprintf("%s {\n", sel))
 }
 
@@ -253,7 +256,6 @@ func printExpr(ctx *Context, n ast.Node) {
 func printSelStmt(ctx *Context, n ast.Node) {
 	stmt := n.(*ast.SelStmt)
 	ctx.activeSel = stmt.Resolved
-	// ctx.storeSelector(stmt.Names)
 }
 
 func printRuleSpec(ctx *Context, n ast.Node) {

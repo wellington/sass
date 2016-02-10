@@ -18,7 +18,9 @@ var (
 // Resolves walks selector operations removing nested Op by prepending X
 // on Y.
 func (stmt *SelStmt) Resolve(fset *token.FileSet) {
-
+	if stmt.Sel == nil {
+		panic(fmt.Errorf("invalid selector: % #v\n", stmt))
+	}
 	s := &sel{
 		parent: stmt.Parent,
 		stmt:   stmt,
@@ -202,7 +204,6 @@ func (s *sel) Visit(node Node) Visitor {
 			}
 			add = s.joinBinary(v)
 		case token.COMMA:
-			fmt.Println("COMMA")
 			if s.prec < 3 {
 				return nil
 				panic(fmt.Errorf("invalid group token: %s prec: %d", v.Op, s.prec))

@@ -2773,6 +2773,10 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.IncludeStmt:
 			p.resolveIncludeSpec(decl.Spec)
 		case *ast.SelStmt:
+			if len(p.sels) > 0 {
+				decl.Parent = p.sels[len(p.sels)-1]
+			}
+			decl.Resolve(Globalfset)
 			p.openSelector(decl)
 			decl.Body.List = p.resolveStmts(scope,
 				&ast.FieldList{},
@@ -2943,7 +2947,6 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	if p.tok == token.LBRACE {
 		p.inMixin = true
 		body = p.parseBody(scope)
-		fmt.Printf("body % #v\n", body)
 		p.inMixin = false
 	}
 

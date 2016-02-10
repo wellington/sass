@@ -30,9 +30,6 @@ func findPaths() []file {
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
-		if !strings.Contains(input, "13_") {
-			//continue
-		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
@@ -45,17 +42,14 @@ func findPaths() []file {
 		if strings.Contains(input, "10_") {
 			continue
 		}
-		// back references
-		if strings.Contains(input, "13_") {
-			//continue
-		}
+		// imports
 		if strings.Contains(input, "14_") {
 			continue
 		}
 
 		// parser skips
 		if strings.Contains(input, "15_") {
-			//continue
+			continue
 		}
 		// Skip for built-in rules
 		if strings.Contains(input, "16_") {
