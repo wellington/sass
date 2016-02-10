@@ -1710,7 +1710,8 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		pos, op := p.pos, p.tok
 		p.next()
 		x := p.parseUnaryExpr(false)
-		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
+		un := &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
+		return un
 
 	case token.ARROW:
 		// channel type or receive expression
@@ -2583,7 +2584,6 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 	x := p.parseSel()
 
 	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
-		fmt.Println("parsing prec", prec)
 		for {
 			tok := p.tok
 			oprec := tok.SelPrecedence()
@@ -2598,7 +2598,6 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 				Op:    tok,
 				Y:     p.checkExpr(y),
 			}
-			fmt.Println("binary", x, y)
 		}
 	}
 	return x

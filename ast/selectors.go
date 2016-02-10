@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"math"
@@ -13,6 +14,7 @@ import (
 var (
 	regEql = regexp.MustCompile("\\s*(\\*?=)\\s*").ReplaceAll
 	regBkt = regexp.MustCompile("\\s*(\\[)\\s*(\\S+)\\s*(\\])").ReplaceAll
+	nilW   = bytes.NewBuffer(nil)
 )
 
 // Resolves walks selector operations removing nested Op by prepending X
@@ -21,14 +23,18 @@ func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 	if stmt.Sel == nil {
 		panic(fmt.Errorf("invalid selector: % #v\n", stmt))
 	}
+	// log.SetOutput(os.Stderr)
+	stmt.Resolved = Selector(stmt)
+	return
+	// log.SetOutput(nilW)
 	s := &sel{
 		parent: stmt.Parent,
 		stmt:   stmt,
 		prec:   token.LowestPrec + 1,
 		parts:  make(map[token.Pos]*BasicLit),
 	}
-	fmt.Println("Selector Resolve")
-	Print(fset, s.stmt.Sel)
+	log.Println("Selector Resolve")
+	// Print(fset, s.stmt.Sel)
 	// This could be more efficient, it should inspect precision of
 	// the top node
 	for prec := token.UnaryPrec; prec > 1; prec-- {
@@ -44,12 +50,14 @@ func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 	// stmt.Resolved = stmt.Sel.(*BasicLit)
 	var vals []string
 	for i, part := range s.parts {
-		fmt.Printf("%d: % #v\n", i, part)
+		log.Printf("%d: % #v\n", i, part)
 		vals = append(vals, part.Value)
 	}
 	val := strings.Join(vals, " ")
-	stmt.Resolved = &BasicLit{Value: val}
-	fmt.Println("Resolver Output", val)
+	_ = val
+	// stmt.Resolved = &BasicLit{Value: val}
+	fmt.Printf("Selector1           %q\n", strings.Split(val, ", "))
+	log.Println("Resolver Output", val)
 }
 
 type sel struct {
@@ -76,7 +84,7 @@ func (s *sel) add(pos token.Pos, lit *BasicLit) {
 var amper = "&"
 
 func ghettoResolvedParentInject(delim string, pval string, nodes ...string) string {
-	fmt.Printf(`=ghetto=============================
+	log.Printf(`=ghetto=============================
      op: %q
  parent: %q
  childs: %q
@@ -105,7 +113,7 @@ func ghettoResolvedParentInject(delim string, pval string, nodes ...string) stri
 			ret = append(ret, s)
 		}
 	}
-	fmt.Printf(`=ghetto return======================
+	log.Printf(`=ghetto return======================
  %q
 ====================================
 `, ret)
@@ -122,7 +130,7 @@ func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
 }
 
 func (s *sel) Visit(node Node) Visitor {
-	// fmt.Printf("Visit %T: % #v\n", node, node)
+	// log.Printf("Visit %T: % #v\n", node, node)
 	var pos token.Pos
 	var add *BasicLit
 	delim := " "
@@ -136,7 +144,7 @@ func (s *sel) Visit(node Node) Visitor {
 		// Do not add Lits with invalid positions
 		if pos >= 0 {
 			s.add(pos, add)
-			fmt.Printf("adding %s at %d: % #v\n", add.Kind, pos, add)
+			log.Printf("adding %s at %d: % #v\n", add.Kind, pos, add)
 		}
 	}()
 
@@ -164,7 +172,7 @@ func (s *sel) Visit(node Node) Visitor {
 		pos = v.OpPos
 		switch v.Op {
 		case token.NEST, token.GTR, token.TIL, token.ADD:
-			fmt.Println("unary binary add!")
+			log.Println("unary binary add!")
 			add = s.switchExpr(v)
 		default:
 			log.Fatal("invalid unary operation: ", v.Op)
@@ -227,7 +235,7 @@ func (s *sel) Visit(node Node) Visitor {
 func mergeLits(delim, left, right string) string {
 	lefts, rights := strings.Split(left, delim), strings.Split(right, delim)
 	ll, lr := len(lefts), len(rights)
-	fmt.Printf("reordering %d %d\nleft: %q\nrigh: %q\n",
+	log.Printf("reordering %d %d\nleft: %q\nrigh: %q\n",
 		ll, lr, lefts, rights)
 
 	if math.Remainder(float64(ll), float64(lr)) > 0 {
@@ -241,14 +249,14 @@ func mergeLits(delim, left, right string) string {
 			ss = append(ss, rights[i/mod])
 		}
 	}
-	fmt.Printf("%q\n", ss)
+	log.Printf("%q\n", ss)
 	r := strings.Join(ss, delim)
-	fmt.Println("mergeLits returns", r)
+	log.Println("mergeLits returns", r)
 	return r
 }
 
 func parseBackRef(delim string, parent *BasicLit, in *BasicLit) *BasicLit {
-	fmt.Printf("parseBackRef % #v\n", in)
+	log.Printf("parseBackRef % #v\n", in)
 	if in.Value == "&" {
 		return ExprCopy(parent).(*BasicLit)
 	}
@@ -262,7 +270,7 @@ func parseBackRef(delim string, parent *BasicLit, in *BasicLit) *BasicLit {
 }
 
 func (s *sel) switchExpr(expr Expr) *BasicLit {
-	fmt.Printf("switchExpr %T: % #v\n", expr, expr)
+	log.Printf("switchExpr %T: % #v\n", expr, expr)
 	delim := " "
 	switch v := expr.(type) {
 	case *BasicLit:
@@ -272,10 +280,10 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 		return copy
 	case *UnaryExpr:
 		plit := parseBackRef(delim+v.Op.String()+delim, s.parent.Resolved, v.X.(*BasicLit))
-		fmt.Printf("switchExpr exit % #v\n", plit)
+		log.Printf("switchExpr exit % #v\n", plit)
 		return plit
 	case *BinaryExpr:
-		fmt.Printf("switching bin\n  X:% #v\n  Y:% #v\n", v.X, v.Y)
+		log.Printf("switching bin\n  X:% #v\n  Y:% #v\n", v.X, v.Y)
 		return s.joinBinary(v)
 	default:
 		panic(fmt.Errorf("switch expr: % #v\n", v))
@@ -283,7 +291,7 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 }
 
 func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
-	fmt.Println("joinBinary")
+	log.Println("joinBinary")
 	delim := " " // This will change with compiler mode
 	switch bin.Op {
 	case token.COMMA:
@@ -297,26 +305,26 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 
 	x := s.switchExpr(bin.X)
 	y := s.switchExpr(bin.Y)
-	fmt.Printf("joining with (%q)\n  X: % #v\n  Y: % #v\n", delim, x, y)
+	log.Printf("joining with (%q)\n  X: % #v\n  Y: % #v\n", delim, x, y)
 	var val string
 	if unx && uny {
 		// If both are Unary, must use ghetto math to multiply them
-		fmt.Println("join unx&uny\nleft:", x.Value, "\nright:", y.Value)
+		log.Println("join unx&uny\nleft:", x.Value, "\nright:", y.Value)
 		val = ghettoResolvedParentInject(delim, x.Value, y.Value)
 	} else if unx {
-		fmt.Println("join unx")
+		log.Println("join unx")
 		// This is actually a unary operation, treat as so
 		un := &UnaryExpr{
 			Op:    bin.Op,
 			OpPos: bin.OpPos,
 			X:     bin.Y,
 		}
-		fmt.Printf("unary switch (%q): % #v", bin.Op, bin.Y)
+		log.Printf("unary switch (%q): % #v", bin.Op, bin.Y)
 		return s.switchExpr(un)
 	} else if bin.Op == token.COMMA {
 		val = mergeLits(delim, x.Value, y.Value)
 	} else {
-		fmt.Println("join other")
+		log.Println("join other")
 		vals := []string{x.Value, y.Value}
 		val = strings.Join(vals, delim)
 	}
@@ -326,6 +334,6 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 		Value:    val,
 		Kind:     token.STRING,
 	}
-	fmt.Printf("binJoined: %s\n", val)
+	log.Printf("binJoined: %s\n", val)
 	return lit
 }

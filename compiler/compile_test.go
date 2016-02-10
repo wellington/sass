@@ -163,16 +163,19 @@ func TestSelector_deep_nesting(t *testing.T) {
 	ctx.fset = token.NewFileSet()
 	input := `a {
 	c, d, e {
-    color: blue;
+	  f, g, h {
+      m, n, o {
+        color: blue;
+      }
+    }
 	}
-}
-`
+}`
 	out, err := ctx.run("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	e := `a c, a d, a e {
+	e := `a c f m, a c f n, a c f o, a c g m, a c g n, a c g o, a c h m, a c h n, a c h o, a d f m, a d f n, a d f o, a d g m, a d g n, a d g o, a d h m, a d h n, a d h o, a e f m, a e f n, a e f o, a e g m, a e g n, a e g o, a e h m, a e h n, a e h o {
   color: blue; }
 `
 	if e != out {
