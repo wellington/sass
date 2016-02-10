@@ -15,7 +15,7 @@ const maxUint8 = ^uint8(0)
 
 // Simplify matching color hashes to CSS names
 // https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
-var cssColors map[string]string = map[string]string{
+var cssColors = map[string]string{
 	"#000000": "black",
 	"#c0c0c0": "silver",
 	"#808080": "gray",
@@ -158,6 +158,8 @@ var cssColors map[string]string = map[string]string{
 	"#663399": "rebeccapurple",
 }
 
+// LookupColor finds a CSS name for a hex, if available. Otherwise,
+// it returns the hex representation.
 func LookupColor(s string) string {
 	// check for CSS color name
 	if name, ok := cssColors[s]; ok {
