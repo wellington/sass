@@ -121,7 +121,21 @@ func TestScan(t *testing.T) {
 }
 
 func TestScan_selectors(t *testing.T) {
+
 	// selectors are so flexible, that they must be tested in isolation
+	testScan(t, []elt{
+		// {token.SELECTOR, "}
+		{token.ADD, "+"},
+		{token.STRING, "div"},
+		{token.LBRACE, "{"},
+	})
+
+	testScan(t, []elt{
+		// {token.SELECTOR, ""},
+		{token.AND, "foo &.goo"},
+		{token.LBRACE, "{"},
+	})
+
 	testScan(t, []elt{
 		// {token.SELECTOR, "& > boo"},
 		{token.AND, "&"},
@@ -135,6 +149,10 @@ func TestScan_selectors(t *testing.T) {
 		{token.STRING, "a"},
 		{token.COMMA, ","},
 		{token.STRING, "b"},
+		{token.TIL, "~"},
+		{token.STRING, "c"},
+		{token.ADD, "+"},
+		{token.STRING, "*"},
 		// {token.STRING, "{"},
 	})
 
@@ -159,6 +177,13 @@ func TestScan_selectors(t *testing.T) {
 		{token.RULE, "color"},
 		{token.COLON, ":"},
 		{token.VAR, "$blah"},
+		{token.RBRACE, "}"},
+	})
+
+	testScan(t, []elt{
+		// {token.SELECTOR, ".color"},
+		{token.STRING, ".color1"},
+		{token.LBRACE, "{"},
 		{token.RBRACE, "}"},
 	})
 }

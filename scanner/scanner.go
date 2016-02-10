@@ -230,6 +230,8 @@ scanAgain:
 		fallthrough
 	case ch == '.':
 		fallthrough
+	case ch == '>' || ch == '+' || ch == '~':
+		fallthrough
 	case isLetter(ch):
 		// Scan until encountering {};
 		// selector: { termination
@@ -320,7 +322,7 @@ scanAgain:
 	case '<':
 		tok = s.switch2(token.LSS, token.LEQ)
 	case '>':
-		tok = s.switch2(token.GTR, token.GEQ)
+		tok = token.GTR
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
 	case '!':
@@ -480,24 +482,39 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 		fallthrough
 	case isLetter(ch):
 		tok = token.STRING
-		for isLetter(s.ch) {
+		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' ||
+			s.ch == '#' || s.ch == '&' {
 			if s.offset > end {
 				s.error(offs, "failed to parse selector string")
 				return
 			}
 			s.next()
+			s.skipWhitespace()
 		}
-		lit = string(s.src[offs:s.offset])
+		if bytes.Contains(s.src[offs:s.offset], []byte{'&'}) {
+			tok = token.AND
+		}
+		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	default:
 		s.next()
 		switch ch {
 		case -1:
 			lit = ""
 			tok = token.EOF
+		case '*': // Universal selector
+			lit = "*"
+			tok = token.STRING
 		case '.':
 			tok = token.PERIOD
+		case '~':
+			tok = token.TIL
 		case '&':
 			tok = token.AND
+			for IsSymbol(s.ch) || isLetter(s.ch) || isDigit(s.ch) ||
+				s.ch == '.' || s.ch == '#' {
+				s.next()
+			}
+			lit = string(s.src[offs:s.offset])
 		case '>':
 			tok = token.GTR
 		case '+':
@@ -506,11 +523,16 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 			tok = token.COMMA
 		case '[':
 			tok = token.ATTRIBUTE
+			runes := []rune{ch, s.ch}
 			for s.ch != ']' {
 				s.next()
+				if !unicode.IsSpace(s.ch) {
+					runes = append(runes, s.ch)
+				}
 			}
 			s.next()
-			lit = string(s.src[offs:s.offset])
+			//lit = string(s.src[offs:s.offset])
+			lit = string(runes)
 		case ':':
 			tok = token.PSEUDO
 			for s.ch != ',' && !unicode.IsSpace(s.ch) {

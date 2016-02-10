@@ -17,13 +17,16 @@ func TestParse_files(t *testing.T) {
 	}
 
 	mode := DeclarationErrors
-	mode = Trace | ParseComments
+	mode = 0 //Trace | ParseComments
 	var name string
 	defer func() { fmt.Println("exit parsing", name) }()
 	for _, name = range inputs {
 
-		if !strings.Contains(name, "17_") {
-			// continue
+		if !strings.Contains(name, "13_") {
+			continue
+		}
+		if strings.Contains(name, "06_") {
+			continue
 		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {
@@ -40,6 +43,103 @@ func TestParse_files(t *testing.T) {
 		}
 		fmt.Println("Parsed", name)
 	}
+}
+
+func testString(t *testing.T, in string, mode Mode) (*ast.File, *token.FileSet) {
+	fset := token.NewFileSet()
+	f, err := ParseFile(fset, "testfile", in, mode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f, fset
+
+}
+
+func TestSelMath(t *testing.T) {
+	// Selectors act like boolean math
+	in := `
+div ~ span { }`
+	f, fset := testString(t, in, 0)
+	_ = fset
+	sel, ok := f.Decls[0].(*ast.SelDecl)
+	if !ok {
+		t.Fatal("SelDecl expected")
+	}
+
+	bexpr, ok := sel.Sel.(*ast.BinaryExpr)
+	if !ok {
+		t.Fatal("BinaryExpr expected")
+	}
+
+	lit, ok := bexpr.X.(*ast.BasicLit)
+	if !ok {
+		t.Fatal("BasicLit expected")
+	}
+
+	if e := "div"; lit.Value != e {
+		t.Errorf("got: %s wanted: %s", lit.Value, e)
+	}
+
+	if e := token.TIL; bexpr.Op != e {
+		t.Errorf("got: %s wanted: %s", bexpr.Op, e)
+	}
+
+	lit, ok = bexpr.Y.(*ast.BasicLit)
+	if !ok {
+		t.Fatal("BasicLit expected")
+	}
+
+	if e := "span"; lit.Value != e {
+		t.Errorf("got: %s wanted: %s", lit.Value, e)
+	}
+}
+
+func TestBackRef(t *testing.T) {
+	// Selectors act like boolean math
+	in := `div { & { color: red; } }`
+	f, fset := testString(t, in, 0)
+	_, _ = f, fset
+
+	sel, ok := f.Decls[0].(*ast.SelDecl)
+	if !ok {
+		t.Fatal("SelDecl expected")
+	}
+
+	lit, ok := sel.Sel.(*ast.BasicLit)
+	if !ok {
+		t.Fatal("BasicLit expected")
+	}
+	if e := "div"; lit.Value != e {
+		t.Errorf("got: %s wanted: %s", lit.Value, e)
+	}
+
+	nested, ok := sel.Body.List[0].(*ast.SelStmt)
+	if !ok {
+		t.Fatal("expected SelStmt")
+	}
+
+	if e := "&"; nested.Name.String() != e {
+		t.Fatal("got: %s wanted: %s", nested.Name.String(), e)
+	}
+
+	lit, ok = nested.Sel.(*ast.BasicLit)
+	if !ok {
+		t.Fatal("expected lit")
+	}
+
+	if e := "div"; lit.Value != e {
+		t.Errorf("got: %s wanted: %s", lit.Value, e)
+	}
+}
+
+func TestExprMath(t *testing.T) {
+	// Selectors act like boolean math
+	in := `
+div {
+  value: 1*(2+3);
+}`
+	f, fset := testString(t, in, 0)
+	ast.Print(fset, f.Decls[0].(*ast.SelDecl).Body.List[0].(*ast.DeclStmt).Decl.(*ast.GenDecl).Specs[0].(*ast.RuleSpec).Values[0])
 }
 
 func TestParseDir(t *testing.T) {

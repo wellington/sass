@@ -384,7 +384,7 @@ func Walk(v Visitor, node Node) {
 		if n.Doc != nil {
 			// Walk(v, n.Doc)
 		}
-		Walk(v, n.SelStmt.Body)
+		Walk(v, n.SelStmt)
 
 	case *SelStmt:
 		Walk(v, n.Body)

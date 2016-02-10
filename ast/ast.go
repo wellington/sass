@@ -271,6 +271,7 @@ type (
 		ValuePos token.Pos   // literal position
 		Kind     token.Token // token.INT, token.FLOAT, token.IMAG, token.CHAR, or token.STRING
 		Value    string      // literal string; e.g. 42, 0x7f, 3.14, 1e-9, 2.4i, 'a', '\x7f', "foo" or `\m\n\o`
+		visited  bool
 	}
 
 	// A FuncLit node represents a function literal.
@@ -350,17 +351,19 @@ type (
 	// Unary "*" expressions are represented via StarExpr nodes.
 	//
 	UnaryExpr struct {
-		OpPos token.Pos   // position of Op
-		Op    token.Token // operator
-		X     Expr        // operand
+		OpPos   token.Pos   // position of Op
+		Op      token.Token // operator
+		X       Expr        // operand
+		Visited bool
 	}
 
 	// A BinaryExpr node represents a binary expression.
 	BinaryExpr struct {
-		X     Expr        // left operand
-		OpPos token.Pos   // position of Op
-		Op    token.Token // operator
-		Y     Expr        // right operand
+		X       Expr        // left operand
+		OpPos   token.Pos   // position of Op
+		Op      token.Token // operator
+		Y       Expr        // right operand
+		Visited bool
 	}
 
 	// A KeyValueExpr node represents (key : value) pairs
@@ -746,16 +749,16 @@ type (
 
 	// A SelectorStmt represents a selector "a" + block "{}"
 	SelStmt struct {
-		Name      *Ident
-		NamePos   token.Pos
-		Names     []*Ident
-		Selectors []Expr
-		Doc       *CommentGroup
-		Body      *BlockStmt
-		Parents   []*SelStmt
+		Name     *Ident    // Original selector block
+		Resolved *BasicLit // Resolved Selector to a token.STRING
+		NamePos  token.Pos
+		Names    []*Ident
+		Sel      Expr
+		Doc      *CommentGroup
+		Body     *BlockStmt
+		Parent   *SelStmt
 		// Thorough breaking of a selector into it's maining separatable
 		// parts
-		lexemes []*BasicLit
 	}
 
 	// A IncludeStmt wraps an IncludeSpec

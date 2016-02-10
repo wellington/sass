@@ -59,8 +59,10 @@ type parser struct {
 	targetStack [][]*ast.Ident // stack of unresolved labels
 }
 
-func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
+var Globalfset *token.FileSet
 
+func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mode) {
+	Globalfset = fset
 	p.file = fset.AddFile(filename, -1, len(src))
 	var m scanner.Mode
 	if mode&ParseComments != 0 {
@@ -191,7 +193,6 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
 		fmt.Printf("cant resolve this: % #v\n", x)
-		panic("ugh")
 		return
 	}
 
@@ -1257,7 +1258,7 @@ func (p *parser) parseMediaStmt() *ast.MediaStmt {
 			Name: &ast.Ident{
 				NamePos: pos,
 			},
-			Sel: p.parseSelDecl(),
+			Sel: p.parseRuleSelDecl(),
 		}}
 }
 
@@ -1868,6 +1869,10 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 	}
 
 	if len(x) > 1 {
+		for _, expr := range x {
+			fmt.Printf("% #v\n", expr)
+		}
+		panic("boom")
 		p.errorExpected(x[0].Pos(), "1 expression")
 		// continue with first expression
 	}
@@ -2154,6 +2159,7 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 		token.INT, token.FLOAT, token.STRING, token.FUNC, token.LPAREN, // operands
 		token.LBRACK,
 		// composite types
+		token.GTR, token.TIL,
 		token.ADD, token.SUB, token.MUL, token.AND, token.XOR, token.NOT: // unary operators
 		s, _ = p.parseSimpleStmt(labelOk)
 		// because of the required look-ahead, labeled statements are
@@ -2178,7 +2184,7 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 	case token.INCLUDE:
 		s = &ast.IncludeStmt{Spec: p.parseIncludeSpec(!p.inMixin)}
 	case token.SELECTOR:
-		s = p.parseSelStmt()
+		s = p.parseRuleSelStmt()
 		isSelector = true
 	case token.SEMICOLON:
 		// Is it ever possible to have an implicit semicolon
@@ -2262,7 +2268,7 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 		defer un(trace(p, keyword.String()+"InferSelSpec"))
 	}
 	fmt.Println("inferSel", p.lineComment)
-	decl := p.parseSelDecl()
+	decl := p.parseRuleSelDecl()
 
 	return &ast.SelSpec{
 		Decl: decl,
@@ -2478,7 +2484,7 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 
 // resolve the selector against its parent and add to the selector stack
 func (p *parser) openSelector(sel *ast.SelStmt) {
-	sel.Collapse(p.sels, len(p.sels) != 0, p.error)
+	// sel.Collapse(p.sels, len(p.sels) != 0, p.error)
 	p.sels = append(p.sels, sel)
 }
 
@@ -2487,7 +2493,10 @@ func (p *parser) closeSelector() {
 	p.sels = p.sels[:len(p.sels)-1]
 }
 
-func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
+func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
+	if p.trace {
+		defer un(trace(p, "SelStmt"))
+	}
 	lit := p.lit
 	pos := p.expect(token.SELECTOR)
 	assert(pos != 0, "invalid selector position")
@@ -2498,14 +2507,15 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 			NamePos: pos,
 			Name:    lit,
 		},
-		// Names: idents,
 	}
 
-	// Flushes the scanner queue
-	for p.tok != token.LBRACE {
-		p.next()
+	if len(p.sels) > 0 {
+		sel.Parent = p.sels[len(p.sels)-1]
 	}
 
+	// Parse selector tree
+	sel.Sel = p.parseCombSel(token.LowestPrec + 1)
+	sel.Resolve(Globalfset)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
@@ -2513,19 +2523,100 @@ func (p *parser) parseSelector(backrefOk bool) *ast.SelStmt {
 	return sel
 }
 
-func (p *parser) parseSelStmt() ast.Stmt {
+// similar to inferExpr, but for selectors
+func (p *parser) parseSel() ast.Expr {
 	if p.trace {
-		defer un(trace(p, "SelStmt"))
+		defer un(trace(p, "Sel"))
 	}
-	return p.parseSelector(true)
+
+	switch p.tok {
+	case token.AND:
+		// Backreference create a nested Op
+		// with the parent as X and child as Y
+		pos, lit := p.pos, p.lit
+		p.next()
+		return &ast.UnaryExpr{
+			OpPos: pos,
+			Op:    token.NEST,
+			X: &ast.BasicLit{
+				Kind:     token.STRING,
+				ValuePos: pos,
+				Value:    lit,
+			},
+		}
+	case token.ADD, token.GTR, token.TIL:
+		pos, op := p.pos, p.tok
+		p.next()
+		x := p.parseSel()
+		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
+	case token.STRING:
+		pos := p.pos
+		var lits []string
+		// eat all the strings
+		for p.tok == token.STRING {
+			lits = append(lits, p.lit)
+			p.next()
+		}
+		s := strings.Join(lits, " ")
+
+		// TODO: inferExpr should be creating this or the scanner
+		// should combine adjacent strings
+		return &ast.BasicLit{
+			Kind:     token.STRING,
+			Value:    s,
+			ValuePos: pos,
+		}
+	}
+	// This should never happen, but left here to confound future Drew
+	return p.parsePrimaryExpr(true)
 }
 
-func (p *parser) parseSelDecl() *ast.SelDecl {
+// Selectors fall in two buckets Combinators and Groups
+// Combinators: + > ~
+// Groups: ,
+// https://www.w3.org/TR/selectors/#selectors
+func (p *parser) parseCombSel(prec1 int) ast.Expr {
 	if p.trace {
-		defer un(trace(p, "SelDecl"))
+		defer un(trace(p, "CombSel"))
 	}
 
-	stmt := p.parseSelector(false)
+	x := p.parseSel()
+
+	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
+		fmt.Println("parsing prec", prec)
+		for {
+			tok := p.tok
+			oprec := tok.SelPrecedence()
+			if oprec != prec {
+				break
+			}
+			pos := p.expect(tok)
+			y := p.parseCombSel(prec + 1)
+			x = &ast.BinaryExpr{
+				X:     p.checkExpr(x),
+				OpPos: pos,
+				Op:    tok,
+				Y:     p.checkExpr(y),
+			}
+			fmt.Println("binary", x, y)
+		}
+	}
+	return x
+}
+
+func (p *parser) parseRuleSelStmt() ast.Stmt {
+	if p.trace {
+		defer un(trace(p, "RuleSelStmt"))
+	}
+	return p.parseSelStmt(true)
+}
+
+func (p *parser) parseRuleSelDecl() *ast.SelDecl {
+	if p.trace {
+		defer un(trace(p, "RuleSelDecl"))
+	}
+
+	stmt := p.parseSelStmt(false)
 
 	return &ast.SelDecl{
 		SelStmt: stmt,
@@ -2682,6 +2773,10 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 		case *ast.IncludeStmt:
 			p.resolveIncludeSpec(decl.Spec)
 		case *ast.SelStmt:
+			if len(p.sels) > 0 {
+				decl.Parent = p.sels[len(p.sels)-1]
+			}
+			decl.Resolve(Globalfset)
 			p.openSelector(decl)
 			decl.Body.List = p.resolveStmts(scope,
 				&ast.FieldList{},
@@ -2852,7 +2947,6 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	if p.tok == token.LBRACE {
 		p.inMixin = true
 		body = p.parseBody(scope)
-		fmt.Printf("body % #v\n", body)
 		p.inMixin = false
 	}
 
@@ -2938,7 +3032,7 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		return p.parseFuncDecl()
 	case token.SELECTOR:
 		// Regular CSS
-		return p.parseSelDecl()
+		return p.parseRuleSelDecl()
 	case token.INCLUDE:
 		return p.parseGenDecl("", token.INCLUDE, p.parseIncludeSpecFn)
 	case token.RULE, token.IDENT:

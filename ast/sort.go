@@ -1,7 +1,7 @@
 package ast
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/wellington/sass/token"
 )
@@ -16,12 +16,16 @@ func (s Stmts) lookup(pos int) int {
 	case *DeclStmt, *IncludeStmt, *EmptyStmt,
 		*AssignStmt, *BadStmt:
 	case *CommStmt:
+	case *BlockStmt:
+		// This is an error situation, but better errors are
+		// reported if it just gets sorted
+		i = 1000
 	case *SelStmt:
 		// log.Printf("pushing to end % #v\n", v)
 		//Print(token.NewFileSet(), v)
 		i = 1
 	default:
-		log.Fatalf("failed to sort % #v\n", s[pos])
+		panic(fmt.Errorf("failed to sort % #v\n", s[pos]))
 	}
 	return i
 }

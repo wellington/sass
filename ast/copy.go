@@ -35,7 +35,14 @@ func StmtCopy(in Stmt) (out Stmt) {
 			NamePos: v.NamePos,
 			Body:    StmtCopy(v.Body).(*BlockStmt),
 			// SelDecl: DeclCopy(v.SelDecl).(*SelDecl),
+			Sel: ExprCopy(v.Sel),
 		}
+		if v.Parent != nil {
+			stmt.Parent = &SelStmt{
+				Resolved: v.Parent.Resolved,
+			}
+		}
+
 		names := make([]*Ident, 0, len(v.Names))
 		for _, ident := range v.Names {
 			names = append(names, IdentCopy(ident))
@@ -72,6 +79,13 @@ func ExprCopy(in Expr) (out Expr) {
 	switch expr := in.(type) {
 	case *Ident:
 		out = IdentCopy(expr)
+	case *BinaryExpr:
+		out = &BinaryExpr{
+			X:     ExprCopy(expr.X),
+			Op:    expr.Op,
+			OpPos: expr.OpPos,
+			Y:     ExprCopy(expr.Y),
+		}
 	case *BasicLit:
 		out = &BasicLit{
 			Kind:     expr.Kind,

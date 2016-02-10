@@ -31,6 +31,7 @@ const (
 	VALUE     // value (rhs of rule)
 	ATTRIBUTE // [disabled] [type='button']
 	PSEUDO    // :first-child :nth-last-child
+	AND       // & backreference
 	literal_end
 
 	cssnums_beg
@@ -45,6 +46,7 @@ const (
 	selector_beg
 	// Are these necessary?
 	// BACKREF // &
+	TIL // ~
 	selector_end
 	ADD // +
 	SUB // -
@@ -52,7 +54,6 @@ const (
 	QUO // /
 	REM // %
 
-	AND     // &
 	OR      // |
 	XOR     // ^
 	SHL     // <<
@@ -70,6 +71,7 @@ const (
 	GTR    // >
 	ASSIGN // =
 	NOT    // !
+	NEST   // div span
 
 	NEQ      // !=
 	LEQ      // <=
@@ -171,11 +173,13 @@ var Tokens = [...]string{
 	SPRITEH: "sprite-height",
 	SPRITEW: "sprite-width",
 
-	ADD: "+",
-	SUB: "-",
-	MUL: "*",
-	QUO: "/",
-	REM: "%",
+	NEST: "nest",
+	TIL:  "~",
+	ADD:  "+",
+	SUB:  "-",
+	MUL:  "*",
+	QUO:  "/",
+	REM:  "%",
 
 	AND: "&",
 	//OR: "|",
@@ -266,6 +270,18 @@ const (
 	UnaryPrec   = 6
 	HighestPrec = 7
 )
+
+func (op Token) SelPrecedence() int {
+	switch op {
+	case COMMA:
+		return 3
+	case ADD, GTR, TIL:
+		return 4
+	case NEST:
+		return 5
+	}
+	return LowestPrec
+}
 
 // Precedence returns the operator precedence of the binary
 // operator op. If op is not a binary operator, the result
