@@ -123,7 +123,7 @@ func ghettoParentInject(delim string, parent *SelStmt, nodes ...string) string {
 }
 
 func (s *sel) Visit(node Node) Visitor {
-	fmt.Printf("Visit %T: % #v\n", node, node)
+	// fmt.Printf("Visit %T: % #v\n", node, node)
 	var pos token.Pos
 	var add *BasicLit
 	delim := " "
@@ -170,16 +170,8 @@ func (s *sel) Visit(node Node) Visitor {
 		case token.NEST:
 			add = s.switchExpr(v)
 		case token.GTR, token.TIL, token.ADD:
-			bin := &BinaryExpr{}
-			bin.OpPos = v.Pos()
-			bin.Op = v.Op
-			left := plit
-			// Override position to be where the current Unary is
-			left.ValuePos = v.Pos()
-			bin.X = left
-			bin.Y = v.X
 			fmt.Println("unary binary add!")
-			add = s.joinBinary(bin)
+			add = s.switchExpr(v)
 		default:
 			log.Fatal("invalid unary operation: ", v.Op)
 		}
@@ -200,13 +192,6 @@ func (s *sel) Visit(node Node) Visitor {
 	case *BinaryExpr:
 		pos = v.Pos()
 		switch v.Op {
-		case token.NEST:
-			if s.prec < 5 {
-				panic(fmt.Errorf("invalid binary nest token: %s prec: %d", v.Op, s.prec))
-			}
-			if s.prec != 5 {
-				return s
-			}
 		case token.ADD, token.GTR, token.TIL:
 			if s.prec < 4 {
 				return nil
@@ -281,30 +266,31 @@ func mergeLits(delim, left, right string) string {
 	return r
 }
 
-func parseBackRef(parent *BasicLit, in *BasicLit) *BasicLit {
+func parseBackRef(delim string, parent *BasicLit, in *BasicLit) *BasicLit {
 	fmt.Printf("parseBackRef % #v\n", in)
 	if in.Value == "&" {
 		return ExprCopy(parent).(*BasicLit)
 	}
-	delim := " "
 	pval := parent.Value
 	ret := ghettoResolvedParentInject(delim, pval, in.Value)
 	return &BasicLit{
 		Kind:     token.STRING,
-		Value:    ret, //strings.Join(ret, "*"),
+		Value:    ret,
 		ValuePos: in.Pos(),
 	}
 }
 
 func (s *sel) switchExpr(expr Expr) *BasicLit {
 	fmt.Printf("switchExpr %T: % #v\n", expr, expr)
+	delim := " "
 	switch v := expr.(type) {
 	case *BasicLit:
-		// v.Kind = token.ILLEGAL
-		v.Value = ghettoParentInject(" ", s.parent, v.Value)
-		return v
+		copy := ExprCopy(expr).(*BasicLit)
+		copy.ValuePos = v.ValuePos
+		copy.Value = ghettoParentInject(" ", s.parent, v.Value)
+		return copy
 	case *UnaryExpr:
-		plit := parseBackRef(s.parent.Resolved, v.X.(*BasicLit))
+		plit := parseBackRef(delim+v.Op.String()+delim, s.parent.Resolved, v.X.(*BasicLit))
 		fmt.Printf("switchExpr exit % #v\n", plit)
 		return plit
 	case *BinaryExpr:
@@ -322,9 +308,6 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 	_, unx := bin.X.(*UnaryExpr)
 	_, uny := bin.Y.(*UnaryExpr)
 	_, _ = unx, uny
-	x = s.switchExpr(bin.X)
-	y = s.switchExpr(bin.Y)
-
 	delim := " " // This will change with compiler mode
 	switch bin.Op {
 	case token.COMMA:
@@ -333,13 +316,22 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 		delim = delim + bin.Op.String() + delim
 	}
 
+	x = s.switchExpr(bin.X)
+	y = s.switchExpr(bin.Y)
 	fmt.Printf("joining with (%q)\n  X: % #v\n  Y: % #v\n", delim, x, y)
 	var val string
-	if unx {
-		fmt.Println("join unx")
+	if unx && uny {
+		fmt.Println("join unx&uny\nleft:", x.Value, "\nright:", y.Value)
 		val = ghettoResolvedParentInject(delim, x.Value, y.Value)
-	} else if uny {
-		fmt.Println("join uny")
+	} else if unx {
+		fmt.Println("join unx")
+		// This is actually a unary operation, treat as so
+		un := &UnaryExpr{}
+		un.Op = bin.Op
+		un.OpPos = bin.OpPos
+		un.X = bin.Y
+		fmt.Printf("unary switch (%q): % #v", bin.Op, bin.Y)
+		return s.switchExpr(un)
 		// This won't actually work, but hey have fun kid
 		val = ghettoResolvedParentInject(delim, y.Value, x.Value)
 	} else if bin.Op == token.COMMA {

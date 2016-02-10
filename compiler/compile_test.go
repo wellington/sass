@@ -179,6 +179,30 @@ func TestSelector_deep_nesting(t *testing.T) {
 	}
 }
 
+func TestSelector_nesting_implicit_unary(t *testing.T) {
+
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `a {
+  > e {
+    color: blue;
+  }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `a > e {
+  color: blue; }
+`
+	if e != out {
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
+
 func TestSelector_nesting_unary(t *testing.T) {
 
 	// This is bizarre, may never support this odd syntax
@@ -186,7 +210,7 @@ func TestSelector_nesting_unary(t *testing.T) {
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
 	input := `a {
-  > e {
+  & > e {
     color: blue;
   }
 }
