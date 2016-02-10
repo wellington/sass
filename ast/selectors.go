@@ -161,14 +161,9 @@ func (s *sel) Visit(node Node) Visitor {
 
 		v.Visited = true
 
-		plit := ExprCopy(s.parent.Resolved).(*BasicLit)
-		plit.Kind = token.STRING
-		plit.ValuePos = -1
 		pos = v.OpPos
 		switch v.Op {
-		case token.NEST:
-			add = s.switchExpr(v)
-		case token.GTR, token.TIL, token.ADD:
+		case token.NEST, token.GTR, token.TIL, token.ADD:
 			fmt.Println("unary binary add!")
 			add = s.switchExpr(v)
 		default:
@@ -199,7 +194,7 @@ func (s *sel) Visit(node Node) Visitor {
 			if s.prec != 4 {
 				return s
 			}
-			add = s.joinBinary(v)
+			add = s.switchExpr(v)
 		case token.COMMA:
 			if s.prec < 3 {
 				return nil
@@ -209,6 +204,7 @@ func (s *sel) Visit(node Node) Visitor {
 				return nil
 			}
 
+			// Group (,) can be treated as two separate expressions
 			litX := s.switchExpr(v.X)
 			litY := s.switchExpr(v.Y)
 			sx := mergeLits(","+delim, litX.Value, litY.Value)
@@ -288,11 +284,6 @@ func (s *sel) switchExpr(expr Expr) *BasicLit {
 
 func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 	fmt.Println("joinBinary")
-	var x, y *BasicLit
-	// If either are Unary, must use ghetto math to multiply them
-	_, unx := bin.X.(*UnaryExpr)
-	_, uny := bin.Y.(*UnaryExpr)
-	_, _ = unx, uny
 	delim := " " // This will change with compiler mode
 	switch bin.Op {
 	case token.COMMA:
@@ -301,20 +292,25 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 		delim = delim + bin.Op.String() + delim
 	}
 
-	x = s.switchExpr(bin.X)
-	y = s.switchExpr(bin.Y)
+	_, unx := bin.X.(*UnaryExpr)
+	_, uny := bin.Y.(*UnaryExpr)
+
+	x := s.switchExpr(bin.X)
+	y := s.switchExpr(bin.Y)
 	fmt.Printf("joining with (%q)\n  X: % #v\n  Y: % #v\n", delim, x, y)
 	var val string
 	if unx && uny {
+		// If both are Unary, must use ghetto math to multiply them
 		fmt.Println("join unx&uny\nleft:", x.Value, "\nright:", y.Value)
 		val = ghettoResolvedParentInject(delim, x.Value, y.Value)
 	} else if unx {
 		fmt.Println("join unx")
 		// This is actually a unary operation, treat as so
-		un := &UnaryExpr{}
-		un.Op = bin.Op
-		un.OpPos = bin.OpPos
-		un.X = bin.Y
+		un := &UnaryExpr{
+			Op:    bin.Op,
+			OpPos: bin.OpPos,
+			X:     bin.Y,
+		}
 		fmt.Printf("unary switch (%q): % #v", bin.Op, bin.Y)
 		return s.switchExpr(un)
 	} else if bin.Op == token.COMMA {
