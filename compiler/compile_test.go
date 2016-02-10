@@ -34,15 +34,6 @@ func findPaths() []file {
 		if strings.Contains(input, "06_") {
 			continue
 		}
-		// bugs with multiple combinator nesting
-		// ie. a + b { f ~ g.other + h {} }
-		if strings.Contains(input, "09_") {
-			continue
-		}
-		// ditto
-		if strings.Contains(input, "10_") {
-			continue
-		}
 		// imports
 		if strings.Contains(input, "14_") {
 			continue
