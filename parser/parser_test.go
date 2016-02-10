@@ -27,10 +27,10 @@ func TestParse_files(t *testing.T) {
 	defer func() { fmt.Println("exit parsing", name) }()
 	for _, name = range inputs {
 
-		if !strings.Contains(name, "13_") {
+		if strings.Contains(name, "13_") {
 			continue
 		}
-		if strings.Contains(name, "06_") {
+		if !strings.Contains(name, "06_") {
 			continue
 		}
 		// These are fucked things in Sass like lists

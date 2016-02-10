@@ -34,10 +34,6 @@ func findPaths() []file {
 		if strings.Contains(input, "06_") {
 			continue
 		}
-		// imports
-		if strings.Contains(input, "14_") {
-			continue
-		}
 
 		// parser skips
 		if strings.Contains(input, "15_") {

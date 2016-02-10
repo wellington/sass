@@ -114,6 +114,7 @@ func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode)
 
 	// parse source
 	p.init(fset, filename, text, mode)
+	p.next()
 	f = p.parseFile()
 
 	return
@@ -192,6 +193,7 @@ func ParseExprFrom(fset *token.FileSet, filename string, src interface{}, mode M
 
 	// parse expr
 	p.init(fset, filename, text, mode)
+	p.next()
 	// Set up pkg-level scopes to avoid nil-pointer errors.
 	// This is not needed for a correct expression x as the
 	// parser will be ok with a nil topScope, but be cautious

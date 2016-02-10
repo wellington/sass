@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode"
@@ -12,11 +13,25 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+type stack struct {
+	file    *token.File
+	scanner scanner.Scanner
+	pos     token.Pos
+	tok     token.Token
+	lit     string
+	syncPos token.Pos
+	syncCnt int
+}
+
 // The parser structure holds the parser's internal state.
 type parser struct {
 	file    *token.File
 	errors  scanner.ErrorList
 	scanner scanner.Scanner
+
+	// Parser state is pushed onto importStack while imports
+	// are being scanned and parsed.
+	imps []stack
 
 	// Tracing/debugging
 	mode   Mode // parsing mode
@@ -74,7 +89,32 @@ func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mod
 	p.mode = mode
 	p.trace = mode&Trace != 0 // for convenience (p.trace is used frequently)
 
-	p.next()
+	// p.next()
+}
+
+// add opens a new file and starts scanning it. It preserves the previous
+// scanner and position in the importStack stack
+func (p *parser) add(filename string, src interface{}) error {
+	stk := stack{
+		file:    p.file,
+		scanner: p.scanner,
+		pos:     p.pos,
+		tok:     p.tok,
+		lit:     p.lit,
+		syncPos: p.syncPos,
+		syncCnt: p.syncCnt,
+	}
+	fmt.Println(filename)
+	p.imps = append(p.imps, stk)
+	filename = filepath.Join(filepath.Dir(p.file.Name()), filename)
+	text, err := readSource(filename, src)
+	if err != nil {
+		log.Fatal("failed to read", filename, err)
+		return err
+	}
+	fmt.Println(string(text))
+	p.init(Globalfset, filename, text, p.mode)
+	return nil
 }
 
 // ----------------------------------------------------------------------------
@@ -286,6 +326,24 @@ func (p *parser) next0() {
 	}
 
 	p.pos, p.tok, p.lit = p.scanner.Scan()
+
+	// If we have encountered EOF, check the importStack before returning
+	// EOF
+	if p.tok == token.EOF {
+		if len(p.imps) > 0 {
+			last := len(p.imps) - 1
+			var pop stack
+			pop, p.imps, p.imps[last] = p.imps[last], p.imps[:last], stack{}
+			p.file = pop.file
+			p.scanner = pop.scanner
+			p.pos = pop.pos
+			p.tok = pop.tok
+			p.lit = pop.lit
+			p.syncPos = pop.syncPos
+			p.syncCnt = pop.syncCnt
+			p.next()
+		}
+	}
 }
 
 // Consume a comment and return it and the line on which it ends.
@@ -2238,8 +2296,9 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	}
 
 	p.expect(token.IMPORT)
-	pos := p.pos
+	pos, tok := p.pos, p.tok
 	var path string
+
 	if p.tok == token.STRING || p.tok == token.QSTRING {
 		path = p.lit
 		if !isValidImport(path) {
@@ -2250,17 +2309,31 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		p.expect(token.STRING) // use expect() error handling
 	}
 
+	pathlit := unwrapQuotes(&ast.BasicLit{
+		ValuePos: pos,
+		Kind:     tok,
+		Value:    path})
 	// p.expectSemi() // call before accessing p.linecomment
 
 	// collect imports
 	spec := &ast.ImportSpec{
 		// Doc:     doc,
 		Name:    ident,
-		Path:    &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: path},
+		Path:    pathlit,
 		Comment: p.lineComment,
 	}
+
+	// Parse and insert the results into the current parser
 	p.imports = append(p.imports, spec)
+	err := p.processImport(spec.Path.Value)
+	if err != nil {
+		log.Fatalf("failed to import", spec.Name)
+	}
 	return spec
+}
+
+func (p *parser) processImport(path string) error {
+	return p.add(path, nil)
 }
 
 func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
@@ -3086,6 +3159,7 @@ func (p *parser) parseFile() *ast.File {
 			decls = append(decls, p.parseDecl(syncDecl))
 		}
 	}
+
 	// }
 	p.closeScope()
 	assert(p.topScope == nil, "unbalanced scopes")
