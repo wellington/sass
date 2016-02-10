@@ -9,14 +9,14 @@ func TestSort(t *testing.T) {
 	startcmt := &CommStmt{
 		Group: &CommentGroup{
 			List: []*Comment{
-				&Comment{Text: "/* start */"},
+				{Text: "/* start */"},
 			},
 		},
 	}
 	endcmt := &CommStmt{
 		Group: &CommentGroup{
 			List: []*Comment{
-				&Comment{Text: "/* end */"},
+				{Text: "/* end */"},
 			},
 		},
 	}
