@@ -224,13 +224,23 @@ func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	ch := s.ch
 scanAgain:
 	switch {
+	case ch == '>':
+		offs := s.offset
+		s.next()
+		// bypass for GEQ, this is going to mess up
+		if s.ch == '=' {
+			goto bypassSelector
+		} else {
+			s.rewind(offs)
+		}
+		fallthrough
 	case ch == '&':
 		fallthrough
 	case ch == '[':
 		fallthrough
 	case ch == '.':
 		fallthrough
-	case ch == '>' || ch == '+' || ch == '~':
+	case ch == '+' || ch == '~':
 		fallthrough
 	case isLetter(ch):
 		// Scan until encountering {};
@@ -254,6 +264,7 @@ scanAgain:
 
 	// move forward
 	s.next()
+bypassSelector:
 	switch ch {
 	case -1:
 		// Text expects EOF to be empty string
@@ -322,7 +333,7 @@ scanAgain:
 	case '<':
 		tok = s.switch2(token.LSS, token.LEQ)
 	case '>':
-		tok = token.GTR
+		tok = s.switch2(token.GTR, token.GEQ)
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
 	case '!':
@@ -516,7 +527,7 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 			}
 			lit = string(s.src[offs:s.offset])
 		case '>':
-			tok = token.GTR
+			tok = s.switch2(token.GTR, token.GEQ)
 		case '+':
 			tok = token.ADD
 		case ',':

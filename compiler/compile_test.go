@@ -76,6 +76,12 @@ func findPaths() []file {
 }
 
 func TestCompile_files(t *testing.T) {
+	// It will be a long time before these are all supported, so let's just
+	// short these for now.
+	if testing.Short() {
+		t.Skip("Skip robust testing so true errors can better be diagnosed")
+	}
+
 	files := findPaths()
 	var f file
 	defer func() {

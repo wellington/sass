@@ -11,6 +11,11 @@ import (
 )
 
 func TestParse_files(t *testing.T) {
+
+	if testing.Short() {
+		t.Skip("Skip robust testing to better indicate errors")
+	}
+
 	inputs, err := filepath.Glob("../sass-spec/spec/basic/*/input.scss")
 	if err != nil {
 		t.Fatal(err)
@@ -100,11 +105,11 @@ func TestBackRef(t *testing.T) {
 	f, fset := testString(t, in, 0)
 	_, _ = f, fset
 
-	sel, ok := f.Decls[0].(*ast.SelDecl)
+	decl, ok := f.Decls[0].(*ast.SelDecl)
 	if !ok {
 		t.Fatal("SelDecl expected")
 	}
-
+	sel := decl.SelStmt
 	lit, ok := sel.Sel.(*ast.BasicLit)
 	if !ok {
 		t.Fatal("BasicLit expected")
@@ -119,16 +124,11 @@ func TestBackRef(t *testing.T) {
 	}
 
 	if e := "&"; nested.Name.String() != e {
-		t.Fatal("got: %s wanted: %s", nested.Name.String(), e)
+		t.Fatalf("got: %s wanted: %s", nested.Name.String(), e)
 	}
 
-	lit, ok = nested.Sel.(*ast.BasicLit)
-	if !ok {
-		t.Fatal("expected lit")
-	}
-
-	if e := "div"; lit.Value != e {
-		t.Errorf("got: %s wanted: %s", lit.Value, e)
+	if e := "div"; e != nested.Resolved.Value {
+		t.Errorf("got: %s wanted: %s", nested.Resolved.Value, e)
 	}
 }
 
@@ -140,22 +140,6 @@ div {
 }`
 	f, fset := testString(t, in, 0)
 	ast.Print(fset, f.Decls[0].(*ast.SelDecl).Body.List[0].(*ast.DeclStmt).Decl.(*ast.GenDecl).Specs[0].(*ast.RuleSpec).Values[0])
-}
-
-func TestParseDir(t *testing.T) {
-
-}
-
-func TestPrint(t *testing.T) {
-
-	fset := token.NewFileSet()
-	f, err := ParseFile(fset, "../sass-spec/spec/basic/19_full_mixin_craziness/input.scss", nil, Trace)
-	_ = f
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	ast.Print(fset, nil)
 }
 
 func TestParse_quotes(t *testing.T) {
@@ -172,7 +156,7 @@ func TestParse_quotes(t *testing.T) {
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
 	}
 
-	_, ok := vals[0].(*ast.Value)
+	_, ok := vals[0].(*ast.BasicLit)
 	if !ok {
 		t.Fatal("IDENT not found")
 	}
@@ -187,7 +171,7 @@ func TestParse_quotes(t *testing.T) {
 		t.Fatalf("got: %d wanted: %d", len(vals), e)
 	}
 
-	lit := vals[0].(*ast.Value)
+	lit := vals[0].(*ast.BasicLit)
 	if e := token.QSTRING; e != lit.Kind {
 		t.Fatalf("got: %s wanted: %s", lit.Kind, e)
 	}
