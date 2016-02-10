@@ -84,35 +84,32 @@ func ghettoResolvedParentInject(delim string, pval string, nodes ...string) stri
 `,
 		delim, pval, nodes,
 	)
-	if len(nodes) > 3 {
-		panic("too many")
-	}
 	gdelim := ", "
-	if len(pval) > 0 {
-		sdelim := ", "
-		parts := strings.Split(pval, sdelim)
-		ret := make([]string, 0, len(parts)*len(nodes))
-		for i := range parts {
-			for j := range nodes {
-				// if no &, prepend to start
-				var s string
-				if strings.Contains(nodes[j], amper) {
-					// ret = append(ret, parts[i]+delim+nodes[j])
 
-					s = strings.Replace(nodes[j], "&", parts[i], -1)
-				} else {
-					s = parts[i] + delim + nodes[j]
-				}
-				ret = append(ret, s)
+	if len(pval) == 0 {
+		return strings.Join(nodes, gdelim)
+	}
+
+	sdelim := ", "
+	parts := strings.Split(pval, sdelim)
+	ret := make([]string, 0, len(parts)*len(nodes))
+	var s string
+	for i := range parts {
+		for j := range nodes {
+			// When no & is present, & is implicit ie. `& parts[i]`
+			if strings.Contains(nodes[j], amper) {
+				s = strings.Replace(nodes[j], "&", parts[i], -1)
+			} else {
+				s = parts[i] + delim + nodes[j]
 			}
+			ret = append(ret, s)
 		}
-		fmt.Printf(`=ghetto return======================
+	}
+	fmt.Printf(`=ghetto return======================
  %q
 ====================================
 `, ret)
-		return strings.Join(ret, gdelim)
-	}
-	return strings.Join(nodes, gdelim)
+	return strings.Join(ret, gdelim)
 }
 
 // FIXME: have no way to merge trees right now, so ghetto style
@@ -214,26 +211,13 @@ func (s *sel) Visit(node Node) Visitor {
 
 			litX := s.switchExpr(v.X)
 			litY := s.switchExpr(v.Y)
-			// Now to piece together both operations
-			// xs := strings.Split(litX.Value, ","+delim)
-			// ys := strings.Split(litY.Value, ","+delim)
-			lits := append(
-				strings.Split(litX.Value, ","+delim),
-				strings.Split(litY.Value, ","+delim)...)
-			_ = lits
-			// sx := ghettoParentInject(delim, s.parent, lits...) //litX.Value, litY.Value)
-			// sx := litX.Value + ", " + litY.Value
-
 			sx := mergeLits(","+delim, litX.Value, litY.Value)
 			add = &BasicLit{
 				Kind:     token.STRING,
 				ValuePos: pos,
 				Value:    sx,
 			}
-			return nil
 		}
-
-		// v.Op = token.ILLEGAL
 		return nil
 	}
 
@@ -333,8 +317,6 @@ func (s *sel) joinBinary(bin *BinaryExpr) *BasicLit {
 		un.X = bin.Y
 		fmt.Printf("unary switch (%q): % #v", bin.Op, bin.Y)
 		return s.switchExpr(un)
-		// This won't actually work, but hey have fun kid
-		val = ghettoResolvedParentInject(delim, y.Value, x.Value)
 	} else if bin.Op == token.COMMA {
 		val = mergeLits(delim, x.Value, y.Value)
 	} else {
