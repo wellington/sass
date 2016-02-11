@@ -53,7 +53,7 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 		}
 		return nil
 	case *ast.CallExpr:
-		d.c.name = v.Fun.(*ast.BasicLit).Value
+		d.c.name = v.Fun.(*ast.Ident).Name
 		for _, arg := range v.Args {
 			switch v := arg.(type) {
 			case *ast.KeyValueExpr:
@@ -89,7 +89,7 @@ func register(s string, ch builtin.CallHandler) {
 			log.Fatal(err)
 		}
 	}
-	fmt.Println("Registering", s, ch)
+
 	d := &desc{c: call{ch: ch}}
 	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])
@@ -105,16 +105,10 @@ func register(s string, ch builtin.CallHandler) {
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	fmt.Printf("evalCall % #v\n", expr.Fun)
-	var name string
-	// TODO: why are Fun coming in as two different types?
-	switch v := expr.Fun.(type) {
-	case *ast.BasicLit:
-		name = v.Value
-	case *ast.Ident:
-		name = v.Name
-	default:
-		panic(fmt.Errorf("unsupported type %T: % #v\n", v, v))
-	}
+
+	ident := expr.Fun.(*ast.Ident)
+	name := ident.Name
+
 	fn, ok := builtins[name]
 	if !ok {
 		return notfoundCall(expr), nil

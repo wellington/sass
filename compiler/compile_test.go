@@ -23,10 +23,6 @@ func findPaths() []file {
 	}
 
 	var input string
-	defer func() {
-		fmt.Println("Exited on", input)
-	}()
-
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {

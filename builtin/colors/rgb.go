@@ -84,7 +84,7 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 }
 
 func rgb(args []*ast.BasicLit) (*ast.BasicLit, error) {
-	log.Fatalf("red: %s green: %s blue: %s\n",
+	log.Printf("rgb args: red: %s green: %s blue: %s\n",
 		args[0].Value, args[1].Value, args[2].Value)
 	c, err := parseColors(args)
 	if err != nil {
@@ -98,7 +98,8 @@ func rgb(args []*ast.BasicLit) (*ast.BasicLit, error) {
 }
 
 func rgba(args []*ast.BasicLit) (*ast.BasicLit, error) {
-	fmt.Println("rgba", args)
+	log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
+		args[0].Value, args[1].Value, args[2].Value, args[3].Value)
 	c, err := parseColors(args)
 	if err != nil {
 		return nil, err

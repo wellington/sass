@@ -1512,7 +1512,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		Rparen:   rparen,
 	}
 	var err error
-	call.Resolved, err = evaluateCall(call)
+	_, err = evaluateCall(call)
 	if err != nil {
 		p.error(pos, err.Error())
 	}
@@ -2396,12 +2396,11 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	pos, tok := p.pos, p.tok
 	switch p.tok {
 	case token.LPAREN:
-		values = append(values, p.parseCallOrConversion(p.checkExprOrType(
-			&ast.BasicLit{
-				ValuePos: p.pos,
-				Kind:     p.tok,
-				Value:    lit,
-			})))
+		ident := ast.NewIdent(lit)
+		ident.NamePos = p.pos
+		ret := p.parseCallOrConversion(p.checkExprOrType(ident))
+		p.declare(ret, nil, p.topScope, ast.Var, ident)
+		values = append(values, ret)
 	case token.COLON:
 		lhs = false
 		p.next()
