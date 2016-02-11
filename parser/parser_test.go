@@ -30,11 +30,14 @@ func TestParse_files(t *testing.T) {
 		if strings.Contains(name, "13_") {
 			continue
 		}
-		if !strings.Contains(name, "06_") {
+		if strings.Contains(name, "06_") {
 			continue
 		}
 		// These are fucked things in Sass like lists
 		if strings.Contains(name, "15_") {
+			continue
+		}
+		if strings.Contains(name, "16_") {
 			continue
 		}
 		// namespaces are wtf
