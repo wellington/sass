@@ -79,7 +79,7 @@ func TestCompile_files(t *testing.T) {
 compiling: %s\n
 =================================
 `, f.input)
-		out, err := fileRun(f.input)
+		out, err := Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
 			log.Println("failed to compile", f.input, err)

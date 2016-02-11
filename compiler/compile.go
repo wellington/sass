@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"strings"
 	"unicode/utf8"
@@ -31,7 +32,15 @@ type Context struct {
 	scope     Scope
 }
 
-func fileRun(path string) (string, error) {
+func File(path string, out string) error {
+	s, err := Run(path)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(out, []byte(s), 0666)
+}
+
+func Run(path string) (string, error) {
 	ctx := &Context{}
 	ctx.Init()
 	out, err := ctx.Run(path)
@@ -60,7 +69,7 @@ func (ctx *Context) run(path string, src interface{}) (string, error) {
 	return ctx.buf.String(), nil
 }
 
-// Run takes a single Sass file and compiles it
+// Run takes a single Sass file and compiles it outputing a string
 func (ctx *Context) Run(path string) (string, error) {
 	return ctx.run(path, nil)
 }
