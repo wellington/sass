@@ -7,17 +7,19 @@ import (
 	"strings"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/builtin"
 	"github.com/wellington/sass/token"
+
+	// Include defined builtins
+	_ "github.com/wellington/sass/builtin/colors"
 )
 
 var ErrNotFound = errors.New("function does not exist")
 
-type CallHandler func(args []*ast.BasicLit) (*ast.BasicLit, error)
-
 type call struct {
 	name string
 	args []*ast.KeyValueExpr
-	ch   CallHandler
+	ch   builtin.CallHandler
 }
 
 func (c *call) Pos(key *ast.Ident) int {
@@ -73,9 +75,13 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 	return d
 }
 
-var funcs = make(map[string]call)
+var builtins = make(map[string]call)
 
-func Register(s string, ch CallHandler) {
+func init() {
+	builtin.BindRegister(register)
+}
+
+func register(s string, ch builtin.CallHandler) {
 	fset := token.NewFileSet()
 	pf, err := ParseFile(fset, "", s, 0)
 	if err != nil {
@@ -83,16 +89,17 @@ func Register(s string, ch CallHandler) {
 			log.Fatal(err)
 		}
 	}
+	fmt.Println("Registering", s, ch)
 	d := &desc{c: call{ch: ch}}
 	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])
 	if d.err != nil {
 		log.Fatal("failed to parse func description", d.err)
 	}
-	if _, ok := funcs[d.c.name]; ok {
+	if _, ok := builtins[d.c.name]; ok {
 		log.Println("already registered", d.c.name)
 	}
-	funcs[d.c.name] = d.c
+	builtins[d.c.name] = d.c
 }
 
 // This might not be enough
@@ -108,7 +115,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	default:
 		panic(fmt.Errorf("unsupported type %T: % #v\n", v, v))
 	}
-	fn, ok := funcs[name]
+	fn, ok := builtins[name]
 	if !ok {
 		return notfoundCall(expr), nil
 	}
@@ -140,6 +147,5 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 // there's no such thing as a failure in Sass. Resolve idents in callexpr
 // and return result as BasicLit
 func notfoundCall(call *ast.CallExpr) (lit *ast.BasicLit) {
-
 	return
 }

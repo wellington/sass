@@ -7,8 +7,14 @@ import (
 	"strconv"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/builtin"
 	"github.com/wellington/sass/token"
 )
+
+func init() {
+	builtin.Register("rgb($green:0, $red:0, $blue:0)", rgb)
+	builtin.Register("rgba($green:0, $red:0, $blue:0, $alpha:0)", rgba)
+}
 
 func resolveDecl(ident *ast.Ident) []*ast.BasicLit {
 	var lits []*ast.BasicLit
@@ -77,8 +83,8 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 	return ret, err
 }
 
-func RGB(args []*ast.BasicLit) (*ast.BasicLit, error) {
-	fmt.Printf("red: %s green: %s blue: %s\n",
+func rgb(args []*ast.BasicLit) (*ast.BasicLit, error) {
+	log.Fatalf("red: %s green: %s blue: %s\n",
 		args[0].Value, args[1].Value, args[2].Value)
 	c, err := parseColors(args)
 	if err != nil {
@@ -91,7 +97,7 @@ func RGB(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	return lit, nil
 }
 
-func RGBA(args []*ast.BasicLit) (*ast.BasicLit, error) {
+func rgba(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	fmt.Println("rgba", args)
 	c, err := parseColors(args)
 	if err != nil {

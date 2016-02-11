@@ -40,8 +40,8 @@ func findPaths() []file {
 			continue
 		}
 		// Skip for built-in rules
-		if strings.Contains(input, "16_") {
-			// continue
+		if !strings.Contains(input, "16_") {
+			continue
 		}
 		if strings.Contains(input, "24_") {
 			continue
