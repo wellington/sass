@@ -245,6 +245,14 @@ func TestScan_params(t *testing.T) {
 	})
 }
 
+func TestScan_func(t *testing.T) {
+	testScan(t, []elt{
+		{token.IDENT, "rgb"},
+		{token.LPAREN, "("},
+		{token.RPAREN, ")"},
+	})
+}
+
 func testScan(t *testing.T, tokens []elt) {
 	whitespaceLinecount := newlineCount(whitespace)
 

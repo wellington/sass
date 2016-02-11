@@ -1511,8 +1511,12 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		Ellipsis: ellipsis,
 		Rparen:   rparen,
 	}
-	var err error
-	_, err = evaluateCall(call)
+	ident := fun.(*ast.Ident)
+	lit, err := evaluateCall(call)
+	// Manually set object, because Ident name isn't unique
+	obj := ast.NewObj(ast.Var, ident.Name)
+	obj.Decl = lit
+	ident.Obj = obj
 	if err != nil {
 		p.error(pos, err.Error())
 	}
@@ -2399,7 +2403,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		ident := ast.NewIdent(lit)
 		ident.NamePos = p.pos
 		ret := p.parseCallOrConversion(p.checkExprOrType(ident))
-		p.declare(ret, nil, p.topScope, ast.Var, ident)
 		values = append(values, ret)
 	case token.COLON:
 		lhs = false
@@ -3176,7 +3179,7 @@ func (p *parser) parseFile() *ast.File {
 	for _, ident := range p.unresolved {
 		// i <= index for current ident
 		// assert(ident.Obj == unresolved, "object already resolved")
-		ident.Obj = p.pkgScope.Lookup(ident.Name) // also removes unresolved sentinel
+		// ident.Obj = p.pkgScope.Lookup(ident.Name) // also removes unresolved sentinel
 		if ident.Obj == nil {
 			// Don't add anything as unresolved yet
 			// p.unresolved[i] = ident

@@ -324,18 +324,12 @@ func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 	var err error
 	// Convert CallExpr to BasicLit
 	if cx, ok := x.(*ast.CallExpr); ok {
-		x, err = evaluateCall(cx)
-		if err != nil {
-			return "", fmt.Errorf("error execing %s: %s",
-				cx.Fun, err)
-		}
+		fmt.Printf("cx (%p) % #v\n", cx.Fun, cx.Fun.(*ast.Ident))
+		x = cx.Fun.(*ast.Ident).Obj.Decl.(ast.Expr)
 	}
 	if cy, ok := y.(*ast.CallExpr); ok {
-		y, err = evaluateCall(cy)
-		if err != nil {
-			return "", fmt.Errorf("error execing %s: %s",
-				cy.Fun, err)
-		}
+		fmt.Printf("cy (%p) % #v\n", cy.Fun, cy.Fun)
+		y = cy.Fun.(*ast.Ident).Obj.Decl.(ast.Expr)
 	}
 
 	if err != nil {
@@ -437,12 +431,7 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 			// Replace Ident with underlying BasicLit
 			lits = append(lits, resolveAssign(ctx, assign)...)
 		case *ast.CallExpr:
-			// CallExpr needs to be evaluated before Ident is correctly resolved
-			lit, err := evaluateCall(v)
-			if err != nil {
-				log.Fatal(err)
-			}
-			lits = append(lits, lit)
+			lits = append(lits, v.Fun.(*ast.Ident).Obj.Decl.(*ast.BasicLit))
 		case *ast.BasicLit:
 			lits = append(lits, v)
 		default:
@@ -459,14 +448,7 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 	case *ast.BinaryExpr:
 		out, err = calculateExprs(ctx, v)
 	case *ast.CallExpr:
-		s, err := evaluateCall(v)
-		if err != nil || s == nil {
-			for _, arg := range v.Args {
-				fmt.Println("arg", arg)
-			}
-			log.Fatalf("failed to call '%s': %s: % #v\n", v.Fun, err, v)
-		}
-		out = s.Value
+		out = v.Fun.(*ast.Ident).Obj.Decl.(*ast.BasicLit).Value
 	case *ast.ParenExpr:
 		out, ctx.err = simplifyExprs(ctx, []ast.Expr{v.X})
 	case *ast.Ident:

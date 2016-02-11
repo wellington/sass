@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	builtin.Register("rgb($green:0, $red:0, $blue:0)", rgb)
-	builtin.Register("rgba($green:0, $red:0, $blue:0, $alpha:0)", rgba)
+	builtin.Register("rgb($red: 0, $green:0, $blue:0)", rgb)
+	builtin.Register("rgba($red: 0, $green:0, $blue:0, $alpha:0)", rgba)
 }
 
 func resolveDecl(ident *ast.Ident) []*ast.BasicLit {
@@ -104,6 +104,9 @@ func rgba(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	if err != nil {
 		return nil, err
 	}
-	_ = c
-	return nil, nil
+	lit := ast.BasicLitFromColor(c)
+	// There's some stupidity in the color stuff, do a lookup
+	// manually
+	lit.Value = ast.LookupColor(lit.Value)
+	return lit, nil
 }

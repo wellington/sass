@@ -104,7 +104,7 @@ func register(s string, ch builtin.CallHandler) {
 
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
-	fmt.Printf("evalCall % #v\n", expr.Fun)
+	ast.Print(token.NewFileSet(), expr)
 
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
@@ -118,23 +118,40 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	for i := range fn.args {
 		callargs[i] = fn.args[i].Value.(*ast.BasicLit)
 	}
+	var argpos int
 	// Verify args and convert to BasicLit before passing along
 	for i, arg := range expr.Args {
+		if argpos < i {
+			argpos = i
+		}
+		fmt.Printf("arg % #v\n", arg)
 		switch v := arg.(type) {
 		case *ast.BasicLit:
-			callargs[i] = v
+			callargs[argpos] = v
 		case *ast.KeyValueExpr:
+			fmt.Printf("k: % #v v: % #v\n", v.Key, v.Value)
 			pos := fn.Pos(v.Key.(*ast.Ident))
+			fmt.Println("found arg at pos:", pos)
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.Ident:
 			assign := v.Obj.Decl.(*ast.AssignStmt)
 			fmt.Printf("% #v\n", assign.Rhs[0])
-			callargs[i] = assign.Rhs[0].(*ast.BasicLit)
+			switch v := assign.Rhs[0].(type) {
+			case *ast.BasicLit:
+				callargs[argpos] = v
+			case *ast.CallExpr:
+				// nested call, order should be preserved
+				for i := range v.Args {
+					argpos++
+					callargs[i] = v.Args[i].(*ast.BasicLit)
+				}
+			}
 		default:
 			log.Fatalf("eval call unsupported % #v\n", v)
 		}
 	}
 
+	ast.Print(token.NewFileSet(), callargs)
 	return fn.ch(callargs)
 }
 
