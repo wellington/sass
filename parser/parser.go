@@ -1469,6 +1469,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		defer un(trace(p, "CallOrConversion"))
 	}
 
+	pos := p.pos
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
 	var list []ast.Expr
@@ -1503,13 +1504,19 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
 
-	return &ast.CallExpr{
+	call := &ast.CallExpr{
 		Fun:      fun,
 		Lparen:   lparen,
 		Args:     list,
 		Ellipsis: ellipsis,
 		Rparen:   rparen,
 	}
+	var err error
+	call.Resolved, err = evaluateCall(call)
+	if err != nil {
+		p.error(pos, err.Error())
+	}
+	return call
 }
 
 func (p *parser) parseValue(keyOk bool) ast.Expr {

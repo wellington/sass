@@ -97,9 +97,18 @@ func Register(s string, ch CallHandler) {
 
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
-
-	ident := expr.Fun.(*ast.Ident)
-	fn, ok := funcs[ident.Name]
+	fmt.Printf("evalCall % #v\n", expr.Fun)
+	var name string
+	// TODO: why are Fun coming in as two different types?
+	switch v := expr.Fun.(type) {
+	case *ast.BasicLit:
+		name = v.Value
+	case *ast.Ident:
+		name = v.Name
+	default:
+		panic(fmt.Errorf("unsupported type %T: % #v\n", v, v))
+	}
+	fn, ok := funcs[name]
 	if !ok {
 		return notfoundCall(expr), nil
 	}
