@@ -337,6 +337,7 @@ type (
 		Args     []Expr    // function arguments; or nil
 		Ellipsis token.Pos // position of "...", if any
 		Rparen   token.Pos // position of ")"
+		Resolved *BasicLit
 	}
 
 	// A StarExpr node represents an expression of the form "*" Expression.

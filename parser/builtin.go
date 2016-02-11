@@ -1,4 +1,4 @@
-package compiler
+package parser
 
 import (
 	"errors"
@@ -6,20 +6,20 @@ import (
 	"log"
 	"strings"
 
-	"github.com/wellington/sass/parser"
+	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/builtin"
 	"github.com/wellington/sass/token"
 
-	"github.com/wellington/sass/ast"
+	// Include defined builtins
+	_ "github.com/wellington/sass/builtin/colors"
 )
 
 var ErrNotFound = errors.New("function does not exist")
 
-type CallHandler func(args []*ast.BasicLit) (*ast.BasicLit, error)
-
 type call struct {
 	name string
 	args []*ast.KeyValueExpr
-	ch   CallHandler
+	ch   builtin.CallHandler
 }
 
 func (c *call) Pos(key *ast.Ident) int {
@@ -35,8 +35,6 @@ func (c *call) Pos(key *ast.Ident) int {
 	}
 	return -1
 }
-
-var funcs map[string]call = make(map[string]call)
 
 type desc struct {
 	err error
@@ -55,7 +53,7 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 		}
 		return nil
 	case *ast.CallExpr:
-		d.c.name = v.Fun.(*ast.BasicLit).Value
+		d.c.name = v.Fun.(*ast.Ident).Name
 		for _, arg := range v.Args {
 			switch v := arg.(type) {
 			case *ast.KeyValueExpr:
@@ -77,68 +75,101 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 	return d
 }
 
-func walkFunctionDescription(node ast.Node) call {
-	var args []*ast.Ident
-	_ = args
-	return call{}
+var builtins = make(map[string]call)
+
+func init() {
+	builtin.BindRegister(register)
 }
 
-func Register(s string, ch CallHandler) {
+func register(s string, ch builtin.CallHandler) {
 	fset := token.NewFileSet()
-	pf, err := parser.ParseFile(fset, "", s, 0)
+	pf, err := ParseFile(fset, "", s, 0)
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "expected ';', found 'EOF'") {
 			log.Fatal(err)
 		}
 	}
+
 	d := &desc{c: call{ch: ch}}
 	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])
 	if d.err != nil {
 		log.Fatal("failed to parse func description", d.err)
 	}
-	if _, ok := funcs[d.c.name]; ok {
+	if _, ok := builtins[d.c.name]; ok {
 		log.Println("already registered", d.c.name)
 	}
-	funcs[d.c.name] = d.c
+	builtins[d.c.name] = d.c
 }
 
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
-
 	ident := expr.Fun.(*ast.Ident)
-	fn, ok := funcs[ident.Name]
+	name := ident.Name
+
+	fn, ok := builtins[name]
 	if !ok {
 		return notfoundCall(expr), nil
 	}
-
+	fmt.Printf("ident % #v\n", ident)
 	callargs := make([]*ast.BasicLit, len(fn.args))
 	for i := range fn.args {
-		callargs[i] = fn.args[i].Value.(*ast.BasicLit)
+		expr := fn.args[i].Value
+		if expr != nil {
+			callargs[i] = expr.(*ast.BasicLit)
+		}
 	}
+	var argpos int
 	// Verify args and convert to BasicLit before passing along
 	for i, arg := range expr.Args {
+		if argpos < i {
+			argpos = i
+		}
+		fmt.Printf("arg[%d] % #v\n", i, arg)
 		switch v := arg.(type) {
 		case *ast.BasicLit:
-			callargs[i] = v
+			callargs[argpos] = v
 		case *ast.KeyValueExpr:
+			fmt.Printf("k: % #v v: % #v\n", v.Key, v.Value)
 			pos := fn.Pos(v.Key.(*ast.Ident))
+			fmt.Println("found arg at pos:", pos)
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.Ident:
 			assign := v.Obj.Decl.(*ast.AssignStmt)
 			fmt.Printf("% #v\n", assign.Rhs[0])
-			callargs[i] = assign.Rhs[0].(*ast.BasicLit)
+			switch v := assign.Rhs[0].(type) {
+			case *ast.BasicLit:
+				callargs[argpos] = v
+			case *ast.CallExpr:
+				// variable pointing to a function
+				for i := range v.Args {
+					callargs[argpos] = v.Args[i].(*ast.BasicLit)
+					argpos++
+				}
+			}
+		case *ast.CallExpr:
+			// Nested function call
+			lit, err := evaluateCall(v)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(argpos)
+			fmt.Println("len", len(callargs))
+			callargs[argpos] = lit
 		default:
 			log.Fatalf("eval call unsupported % #v\n", v)
 		}
-	}
 
+	}
+	fmt.Println("callargs")
+	for i := range callargs {
+		fmt.Printf("%d: % #v\n", i, callargs[i])
+	}
 	return fn.ch(callargs)
 }
 
 // there's no such thing as a failure in Sass. Resolve idents in callexpr
 // and return result as BasicLit
 func notfoundCall(call *ast.CallExpr) (lit *ast.BasicLit) {
-
 	return
 }

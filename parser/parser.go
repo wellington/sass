@@ -1469,6 +1469,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		defer un(trace(p, "CallOrConversion"))
 	}
 
+	pos := p.pos
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
 	var list []ast.Expr
@@ -1503,13 +1504,23 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
 
-	return &ast.CallExpr{
+	call := &ast.CallExpr{
 		Fun:      fun,
 		Lparen:   lparen,
 		Args:     list,
 		Ellipsis: ellipsis,
 		Rparen:   rparen,
 	}
+	ident := fun.(*ast.Ident)
+	lit, err := evaluateCall(call)
+	// Manually set object, because Ident name isn't unique
+	obj := ast.NewObj(ast.Var, ident.Name)
+	obj.Decl = lit
+	ident.Obj = obj
+	if err != nil {
+		p.error(pos, err.Error())
+	}
+	return call
 }
 
 func (p *parser) parseValue(keyOk bool) ast.Expr {
@@ -2389,12 +2400,10 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	pos, tok := p.pos, p.tok
 	switch p.tok {
 	case token.LPAREN:
-		values = append(values, p.parseCallOrConversion(p.checkExprOrType(
-			&ast.BasicLit{
-				ValuePos: p.pos,
-				Kind:     p.tok,
-				Value:    lit,
-			})))
+		ident := ast.NewIdent(lit)
+		ident.NamePos = p.pos
+		ret := p.parseCallOrConversion(p.checkExprOrType(ident))
+		values = append(values, ret)
 	case token.COLON:
 		lhs = false
 		p.next()
@@ -3170,7 +3179,7 @@ func (p *parser) parseFile() *ast.File {
 	for _, ident := range p.unresolved {
 		// i <= index for current ident
 		// assert(ident.Obj == unresolved, "object already resolved")
-		ident.Obj = p.pkgScope.Lookup(ident.Name) // also removes unresolved sentinel
+		// ident.Obj = p.pkgScope.Lookup(ident.Name) // also removes unresolved sentinel
 		if ident.Obj == nil {
 			// Don't add anything as unresolved yet
 			// p.unresolved[i] = ident

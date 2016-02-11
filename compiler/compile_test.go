@@ -23,25 +23,24 @@ func findPaths() []file {
 	}
 
 	var input string
-	defer func() {
-		fmt.Println("Exited on", input)
-	}()
-
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
+		if !strings.Contains(input, "22_") {
+			continue
+		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
 		}
 
-		// parser skips
+		// skip insane list math
 		if strings.Contains(input, "15_") {
 			continue
 		}
 		// Skip for built-in rules
 		if strings.Contains(input, "16_") {
-			continue
+			//continue
 		}
 		if strings.Contains(input, "24_") {
 			continue
@@ -80,7 +79,7 @@ func TestCompile_files(t *testing.T) {
 compiling: %s\n
 =================================
 `, f.input)
-		out, err := fileRun(f.input)
+		out, err := Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
 			log.Println("failed to compile", f.input, err)
