@@ -83,3 +83,10 @@ Passing 20 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-s
 - Function Directives :question:
 - [ ] Extending Sass
 - [ ] Defining Custom Sass Functions
+
+### Builtin Funcs
+Color functions only output hex strings for right now
+- [x] rgb()
+- [x] rgba()
+- [x] mix()
+- [x] invert()

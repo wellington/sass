@@ -122,7 +122,6 @@ func mix(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	// Parse percentage ie. 50%
 	if err != nil {
 		var i float64
-		fmt.Println("parsing", args[2].Value)
 		_, err := fmt.Sscanf(args[2].Value, "%f%%", &i)
 		if err != nil {
 			log.Fatal(err)
@@ -136,7 +135,6 @@ func mix(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	g = wt*float64(c1.G) + (1-wt)*float64(c2.G)
 	b = wt*float64(c1.B) + (1-wt)*float64(c2.B)
 	a = wt*float64(c1.A) + (1-wt)*float64(c2.A)
-	fmt.Println("r", r, "g", g, "b", b, "a", a)
 	ret := color.RGBA{
 		R: uint8(r),
 		G: uint8(g),
@@ -144,7 +142,6 @@ func mix(args []*ast.BasicLit) (*ast.BasicLit, error) {
 		A: uint8(a),
 	}
 	lit := ast.BasicLitFromColor(ret)
-	fmt.Printf("mix return: % #v\n", lit.Value)
 	return lit, nil
 }
 
