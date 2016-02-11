@@ -14,6 +14,7 @@ import (
 func init() {
 	builtin.Register("rgb($red: 0, $green:0, $blue:0)", rgb)
 	builtin.Register("rgba($red: 0, $green:0, $blue:0, $alpha:0)", rgba)
+	builtin.Register("mix($color1: 0, $color2:0, $weight:0.5)", mix)
 }
 
 func resolveDecl(ident *ast.Ident) []*ast.BasicLit {
@@ -100,6 +101,7 @@ func rgb(args []*ast.BasicLit) (*ast.BasicLit, error) {
 func rgba(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
 		args[0].Value, args[1].Value, args[2].Value, args[3].Value)
+
 	c, err := parseColors(args)
 	if err != nil {
 		return nil, err
@@ -108,5 +110,39 @@ func rgba(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	// There's some stupidity in the color stuff, do a lookup
 	// manually
 	lit.Value = ast.LookupColor(lit.Value)
+	return lit, nil
+}
+
+func mix(args []*ast.BasicLit) (*ast.BasicLit, error) {
+	fmt.Printf("mix:\narg0: % #v\narg1: % #v\narg2: % #v\n",
+		args[0], args[1], args[2])
+	// parse that weight
+	wt, err := strconv.ParseFloat(args[2].Value, 8)
+	// Parse percentage ie. 50%
+	if err != nil {
+		var i float64
+		fmt.Println("parsing", args[2].Value)
+		_, err := fmt.Sscanf(args[2].Value, "%f%%", &i)
+		if err != nil {
+			log.Fatal(err)
+		}
+		wt = i / 100
+	}
+	c1 := ast.ColorFromHexString(args[0].Value)
+	c2 := ast.ColorFromHexString(args[1].Value)
+	var r, g, b, a float64
+	r = wt*float64(c1.R) + (1-wt)*float64(c2.R)
+	g = wt*float64(c1.G) + (1-wt)*float64(c2.G)
+	b = wt*float64(c1.B) + (1-wt)*float64(c2.B)
+	a = wt*float64(c1.A) + (1-wt)*float64(c2.A)
+	fmt.Println("r", r, "g", g, "b", b, "a", a)
+	ret := color.RGBA{
+		R: uint8(r),
+		G: uint8(g),
+		B: uint8(b),
+		A: uint8(a),
+	}
+	lit := ast.BasicLitFromColor(ret)
+	fmt.Printf("mix return: % #v\n", lit.Value)
 	return lit, nil
 }

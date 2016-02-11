@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -448,7 +449,11 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 	case *ast.BinaryExpr:
 		out, err = calculateExprs(ctx, v)
 	case *ast.CallExpr:
-		out = v.Fun.(*ast.Ident).Obj.Decl.(*ast.BasicLit).Value
+		expr := v.Fun.(*ast.Ident).Obj.Decl.(*ast.BasicLit)
+		if expr == nil {
+			return "", errors.New("call return was nil")
+		}
+		out = expr.Value
 	case *ast.ParenExpr:
 		out, ctx.err = simplifyExprs(ctx, []ast.Expr{v.X})
 	case *ast.Ident:

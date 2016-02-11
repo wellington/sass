@@ -104,8 +104,6 @@ func register(s string, ch builtin.CallHandler) {
 
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
-	ast.Print(token.NewFileSet(), expr)
-
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
 
@@ -113,7 +111,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	if !ok {
 		return notfoundCall(expr), nil
 	}
-
+	fmt.Println("making args", len(fn.args))
 	callargs := make([]*ast.BasicLit, len(fn.args))
 	for i := range fn.args {
 		callargs[i] = fn.args[i].Value.(*ast.BasicLit)
@@ -124,7 +122,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		if argpos < i {
 			argpos = i
 		}
-		fmt.Printf("arg % #v\n", arg)
+		fmt.Printf("arg[%d] % #v\n", i, arg)
 		switch v := arg.(type) {
 		case *ast.BasicLit:
 			callargs[argpos] = v
@@ -140,18 +138,30 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			case *ast.BasicLit:
 				callargs[argpos] = v
 			case *ast.CallExpr:
-				// nested call, order should be preserved
+				// variable pointing to a function
 				for i := range v.Args {
+					callargs[argpos] = v.Args[i].(*ast.BasicLit)
 					argpos++
-					callargs[i] = v.Args[i].(*ast.BasicLit)
 				}
 			}
+		case *ast.CallExpr:
+			// Nested function call
+			lit, err := evaluateCall(v)
+			if err != nil {
+				return nil, err
+			}
+			fmt.Println(argpos)
+			fmt.Println("len", len(callargs))
+			callargs[argpos] = lit
 		default:
 			log.Fatalf("eval call unsupported % #v\n", v)
 		}
-	}
 
-	ast.Print(token.NewFileSet(), callargs)
+	}
+	fmt.Println("callargs")
+	for i := range callargs {
+		fmt.Printf("%d: % #v\n", i, callargs[i])
+	}
 	return fn.ch(callargs)
 }
 
