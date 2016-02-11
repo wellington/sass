@@ -12,9 +12,10 @@ import (
 )
 
 func init() {
-	builtin.Register("rgb($red: 0, $green:0, $blue:0)", rgb)
-	builtin.Register("rgba($red: 0, $green:0, $blue:0, $alpha:0)", rgba)
-	builtin.Register("mix($color1: 0, $color2:0, $weight:0.5)", mix)
+	builtin.Register("rgb($red:0, $green:0, $blue:0)", rgb)
+	builtin.Register("rgba($red:0, $green:0, $blue:0, $alpha:0)", rgba)
+	builtin.Register("mix($color1:0, $color2:0, $weight:0.5)", mix)
+	builtin.Register("invert($color)", invert)
 }
 
 func resolveDecl(ident *ast.Ident) []*ast.BasicLit {
@@ -145,4 +146,14 @@ func mix(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	lit := ast.BasicLitFromColor(ret)
 	fmt.Printf("mix return: % #v\n", lit.Value)
 	return lit, nil
+}
+
+func invert(args []*ast.BasicLit) (*ast.BasicLit, error) {
+	c := ast.ColorFromHexString(args[0].Value)
+
+	c.R = 255 - c.R
+	c.G = 255 - c.G
+	c.B = 255 - c.B
+
+	return ast.BasicLitFromColor(c), nil
 }

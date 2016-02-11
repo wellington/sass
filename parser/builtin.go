@@ -111,10 +111,13 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	if !ok {
 		return notfoundCall(expr), nil
 	}
-	fmt.Println("making args", len(fn.args))
+	fmt.Printf("ident % #v\n", ident)
 	callargs := make([]*ast.BasicLit, len(fn.args))
 	for i := range fn.args {
-		callargs[i] = fn.args[i].Value.(*ast.BasicLit)
+		expr := fn.args[i].Value
+		if expr != nil {
+			callargs[i] = expr.(*ast.BasicLit)
+		}
 	}
 	var argpos int
 	// Verify args and convert to BasicLit before passing along
