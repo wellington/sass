@@ -1,4 +1,4 @@
-package compiler
+package parser
 
 import (
 	"errors"
@@ -6,10 +6,8 @@ import (
 	"log"
 	"strings"
 
-	"github.com/wellington/sass/parser"
-	"github.com/wellington/sass/token"
-
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/token"
 )
 
 var ErrNotFound = errors.New("function does not exist")
@@ -35,8 +33,6 @@ func (c *call) Pos(key *ast.Ident) int {
 	}
 	return -1
 }
-
-var funcs = make(map[string]call)
 
 type desc struct {
 	err error
@@ -77,9 +73,11 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 	return d
 }
 
+var funcs = make(map[string]call)
+
 func Register(s string, ch CallHandler) {
 	fset := token.NewFileSet()
-	pf, err := parser.ParseFile(fset, "", s, 0)
+	pf, err := ParseFile(fset, "", s, 0)
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "expected ';', found 'EOF'") {
 			log.Fatal(err)

@@ -1,4 +1,4 @@
-package builtin
+package colors
 
 import (
 	"fmt"
@@ -99,19 +99,4 @@ func RGBA(args []*ast.BasicLit) (*ast.BasicLit, error) {
 	}
 	_ = c
 	return nil, nil
-	// var last *ast.BasicLit
-	// switch v := args[len(args)-1].(type) {
-	// case *ast.BasicLit:
-	// 	last = v
-	// case *ast.KeyValueExpr:
-	// 	// Validate args
-	// 	last = v.Value.(*ast.BasicLit)
-	// }
-
-	// // strconv.FormatFloat(v, 'g', -1, 32)
-	// lit := &ast.BasicLit{
-	// 	Value: fmt.Sprintf("rgba(%d, %d, %d, %s)",
-	// 		c.R, c.G, c.B, last.Value),
-	// }
-	// return lit, nil
 }

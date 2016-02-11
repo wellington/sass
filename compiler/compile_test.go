@@ -35,13 +35,13 @@ func findPaths() []file {
 			continue
 		}
 
-		// parser skips
+		// skip insane list math
 		if strings.Contains(input, "15_") {
 			continue
 		}
 		// Skip for built-in rules
 		if strings.Contains(input, "16_") {
-			continue
+			// continue
 		}
 		if strings.Contains(input, "24_") {
 			continue
