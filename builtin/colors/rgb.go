@@ -194,7 +194,7 @@ func invert(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 func colorOutput(c color.RGBA, outTyp ast.Expr) *ast.BasicLit {
 	ctx1 := outTyp
 	lit := &ast.BasicLit{
-		Kind: token.STRING,
+		Kind: token.COLOR,
 	}
 	fmt.Printf("output % #v\n", ctx1)
 	switch ctx := ctx1.(type) {
