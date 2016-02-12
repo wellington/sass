@@ -218,11 +218,12 @@ func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 		// If the queue is empty, do nothing
 	}
 
+scanAgain:
 	s.skipWhitespace()
 	pos = s.file.Pos(s.offset)
 	offs := s.offset
 	ch := s.ch
-scanAgain:
+
 	switch {
 	case ch == '>':
 		offs := s.offset
