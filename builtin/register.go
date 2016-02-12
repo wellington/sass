@@ -2,7 +2,7 @@ package builtin
 
 import "github.com/wellington/sass/ast"
 
-type CallHandler func(expr []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error)
+type CallHandler func(expr *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error)
 
 var reg func(s string, ch CallHandler)
 

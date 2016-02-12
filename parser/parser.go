@@ -1514,6 +1514,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	ident := fun.(*ast.Ident)
 	if p.mode&FuncOnly == 0 {
 		lit, err := evaluateCall(call)
+		call.Resolved = lit
 		// Manually set object, because Ident name isn't unique
 		obj := ast.NewObj(ast.Var, ident.Name)
 		obj.Decl = lit

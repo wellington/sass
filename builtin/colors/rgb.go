@@ -38,53 +38,57 @@ func resolveDecl(ident *ast.Ident) []*ast.BasicLit {
 }
 
 func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
-	lits := make([]*ast.BasicLit, 0, 4)
+	ints := make([]uint8, 4)
+	var ret color.RGBA
+	var u uint8
+	var pos int
 	for i := range args {
+		if pos < i {
+			pos = i
+		}
 		v := args[i]
 		switch v.Kind {
 		case token.VAR:
 			log.Fatalf("VAR % #v\n", v)
-		case token.FLOAT, token.INT:
+		case token.FLOAT:
+			f, err := strconv.ParseFloat(args[i].Value, 8)
+			if err != nil {
+				return ret, err
+			}
+			// Has to be alpha, or bust
+			u = uint8(f * 100)
+		case token.INT:
+			i, err := strconv.Atoi(v.Value)
+			if err != nil {
+				return ret, err
+			}
+			u = uint8(i)
 		case token.COLOR:
-			return ast.ColorFromHexString(v.Value), nil
+			if i != 0 {
+				return ret, fmt.Errorf("hex is only allowed as the first argumetn found: % #v", v)
+			}
+			c := ast.ColorFromHexString(v.Value)
+			ret = c
+			// This is only allowed as the first argument
+			pos = pos + 3
 		default:
 			log.Fatalf("unsupported kind %s % #v\n", v.Kind, v)
 		}
-		lits = append(lits, v)
+		ints[pos] = u
 	}
-	var err error
-	ints := make([]uint8, 4)
-	if len(lits) > 3 {
-		if lits[3] != nil && err == nil {
-			var f float64
-			f, err = strconv.ParseFloat(lits[3].Value, 32)
-			ints[3] = uint8(f * 100)
-		}
+	if ints[0] > 0 {
+		ret.R = ints[0]
 	}
-
-	if lits[0] != nil && lits[0].Kind == token.COLOR {
-		c := ast.ColorFromHexString(lits[0].Value)
-		c.A = ints[3]
-		return c, nil
+	if ints[1] > 0 {
+		ret.G = ints[1]
 	}
-
-	for i := range lits[:3] {
-		if lits[i] != nil {
-			var n int
-			n, err = strconv.Atoi(lits[i].Value)
-			if err != nil {
-				break
-			}
-			ints[i] = uint8(n)
-		}
+	if ints[2] > 0 {
+		ret.B = ints[2]
 	}
-	ret := color.RGBA{
-		R: ints[0],
-		G: ints[1],
-		B: ints[2],
-		A: ints[3],
+	if ints[3] > 0 {
+		ret.A = ints[3]
 	}
-	return ret, err
+	return ret, nil
 }
 
 func onecolor(which string, args []*ast.BasicLit) (*ast.BasicLit, error) {
@@ -108,19 +112,19 @@ func onecolor(which string, args []*ast.BasicLit) (*ast.BasicLit, error) {
 	return lit, nil
 }
 
-func red(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func red(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	return onecolor("red", args)
 }
 
-func green(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func green(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	return onecolor("green", args)
 }
 
-func blue(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func blue(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	return onecolor("blue", args)
 }
 
-func rgb(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func rgb(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	log.Printf("rgb args: red: %s green: %s blue: %s\n",
 		args[0].Value, args[1].Value, args[2].Value)
 	c, err := parseColors(args)
@@ -128,10 +132,11 @@ func rgb(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 		return nil, err
 	}
 
-	return colorOutput(c, ctx), nil
+	return colorOutput(c, &ast.BasicLit{}), nil
 }
 
-func rgba(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+	fmt.Println("rgba args:", args)
 	log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
 		args[0].Value, args[1].Value, args[2].Value, args[3].Value)
 
@@ -139,11 +144,12 @@ func rgba(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("c: % #v\n", c)
 
-	return colorOutput(c, ctx), nil
+	return colorOutput(c, call), nil
 }
 
-func mix(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func mix(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	fmt.Printf("mix:\narg0: % #v\narg1: % #v\narg2: % #v\n",
 		args[0], args[1], args[2])
 	// parse that weight
@@ -171,25 +177,26 @@ func mix(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 		A: uint8(a),
 	}
 
-	return colorOutput(ret, ctx), nil
+	return colorOutput(ret, call.Args[0]), nil
 }
 
-func invert(ctx []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func invert(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	c := ast.ColorFromHexString(args[0].Value)
 
 	c.R = 255 - c.R
 	c.G = 255 - c.G
 	c.B = 255 - c.B
 
-	return colorOutput(c, ctx), nil
+	return colorOutput(c, call.Args[0]), nil
 }
 
 // colorOutput inspects the context to determine the appropriate output
-func colorOutput(c color.RGBA, exprs []ast.Expr) *ast.BasicLit {
-	ctx1 := exprs[0]
+func colorOutput(c color.RGBA, outTyp ast.Expr) *ast.BasicLit {
+	ctx1 := outTyp
 	lit := &ast.BasicLit{
 		Kind: token.STRING,
 	}
+	fmt.Printf("output % #v\n", ctx1)
 	switch ctx := ctx1.(type) {
 	case *ast.CallExpr:
 		switch ctx.Fun.(*ast.Ident).Name {
@@ -198,15 +205,16 @@ func colorOutput(c color.RGBA, exprs []ast.Expr) *ast.BasicLit {
 				"rgb", c.R, c.G, c.B,
 			)
 		case "rgba":
-			lit.Value = fmt.Sprintf("%s(%d, %d, %d, %d)",
-				"rgba", c.R, c.G, c.B, c.A,
+			i := int(c.A) * 10000
+			f := float32(i) / 1000000
+			lit.Value = fmt.Sprintf("%s(%d, %d, %d, %.g)",
+				"rgba", c.R, c.G, c.B, f,
 			)
 		default:
 			log.Fatal("unsupported ident", ctx.Fun.(*ast.Ident).Name)
 		}
 	case *ast.BasicLit:
-		return ast.BasicLitFromColor(c)
+		lit = ast.BasicLitFromColor(c)
 	}
-
 	return lit
 }

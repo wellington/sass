@@ -108,7 +108,6 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
 
-	fmt.Println("calling", name)
 	fn, ok := builtins[name]
 	if !ok {
 		return nil, fmt.Errorf("func %s was not found", name)
@@ -125,7 +124,6 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	ctx := expr.Args
 	// Verify args and convert to BasicLit before passing along
 	for i, arg := range expr.Args {
-		fmt.Printf("%d: arg % #v\n", i, arg)
 		if argpos < i {
 			argpos = i
 		}
@@ -133,9 +131,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		case *ast.BasicLit:
 			callargs[argpos] = v
 		case *ast.KeyValueExpr:
-			fmt.Printf("k: % #v v: % #v\n", v.Key, v.Value)
 			pos := fn.Pos(v.Key.(*ast.Ident))
-			fmt.Println("found arg at pos:", pos)
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.Ident:
 			assign := v.Obj.Decl.(*ast.AssignStmt)
@@ -146,11 +142,8 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 				callargs[argpos] = v
 			case *ast.CallExpr:
 				ctx[i] = v
-				// variable pointing to a function
-				for i := range v.Args {
-					callargs[argpos] = v.Args[i].(*ast.BasicLit)
-					argpos++
-				}
+				callargs[argpos] = v.Resolved
+				fmt.Printf("callexpr resolved: % #v\n", v)
 			}
 		case *ast.CallExpr:
 			// Nested function call
@@ -158,17 +151,11 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			if err != nil {
 				return nil, err
 			}
-			fmt.Println(argpos)
-			fmt.Println("len", len(callargs))
 			callargs[argpos] = lit
 		default:
 			log.Fatalf("eval call unsupported % #v\n", v)
 		}
 
 	}
-	fmt.Println("callargs")
-	for i := range callargs {
-		fmt.Printf("%d: % #v\n", i, callargs[i])
-	}
-	return fn.ch(expr.Args, callargs...)
+	return fn.ch(expr, callargs...)
 }
