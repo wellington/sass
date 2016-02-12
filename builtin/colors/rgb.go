@@ -43,8 +43,8 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 	var u uint8
 	var pos int
 	for i := range args {
-		if pos < i {
-			pos = i
+		if pos == 4 {
+			break
 		}
 		v := args[i]
 		switch v.Kind {
@@ -67,14 +67,14 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 			if i != 0 {
 				return ret, fmt.Errorf("hex is only allowed as the first argumetn found: % #v", v)
 			}
-			c := ast.ColorFromHexString(v.Value)
-			ret = c
+			ret = ast.ColorFromHexString(v.Value)
 			// This is only allowed as the first argument
-			pos = pos + 3
+			pos = pos + 2
 		default:
 			log.Fatalf("unsupported kind %s % #v\n", v.Kind, v)
 		}
 		ints[pos] = u
+		pos++
 	}
 	if ints[0] > 0 {
 		ret.R = ints[0]
@@ -136,7 +136,8 @@ func rgb(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 }
 
 func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	fmt.Println("rgba args:", args)
+	fmt.Println("rgba call:", call.Args)
+
 	log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
 		args[0].Value, args[1].Value, args[2].Value, args[3].Value)
 
@@ -196,7 +197,7 @@ func colorOutput(c color.RGBA, outTyp ast.Expr) *ast.BasicLit {
 	lit := &ast.BasicLit{
 		Kind: token.COLOR,
 	}
-	fmt.Printf("output % #v\n", ctx1)
+	attemptLookup := true
 	switch ctx := ctx1.(type) {
 	case *ast.CallExpr:
 		switch ctx.Fun.(*ast.Ident).Name {
@@ -205,6 +206,7 @@ func colorOutput(c color.RGBA, outTyp ast.Expr) *ast.BasicLit {
 				"rgb", c.R, c.G, c.B,
 			)
 		case "rgba":
+			attemptLookup = false
 			i := int(c.A) * 10000
 			f := float32(i) / 1000000
 			lit.Value = fmt.Sprintf("%s(%d, %d, %d, %.g)",
@@ -216,5 +218,9 @@ func colorOutput(c color.RGBA, outTyp ast.Expr) *ast.BasicLit {
 	case *ast.BasicLit:
 		lit = ast.BasicLitFromColor(c)
 	}
+	if attemptLookup {
+		lit.Value = ast.LookupColor(lit.Value)
+	}
+
 	return lit
 }
