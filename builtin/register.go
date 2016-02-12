@@ -2,9 +2,14 @@ package builtin
 
 import "github.com/wellington/sass/ast"
 
-type CallHandler func(args []*ast.BasicLit) (*ast.BasicLit, error)
+type CallHandler func(expr []ast.Expr, args ...*ast.BasicLit) (*ast.BasicLit, error)
 
 var reg func(s string, ch CallHandler)
+
+type chargs struct {
+	name    string
+	numargs int
+}
 
 var chs = map[string]CallHandler{}
 

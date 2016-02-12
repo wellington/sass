@@ -1512,13 +1512,15 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		Rparen:   rparen,
 	}
 	ident := fun.(*ast.Ident)
-	lit, err := evaluateCall(call)
-	// Manually set object, because Ident name isn't unique
-	obj := ast.NewObj(ast.Var, ident.Name)
-	obj.Decl = lit
-	ident.Obj = obj
-	if err != nil {
-		p.error(pos, err.Error())
+	if p.mode&FuncOnly == 0 {
+		lit, err := evaluateCall(call)
+		// Manually set object, because Ident name isn't unique
+		obj := ast.NewObj(ast.Var, ident.Name)
+		obj.Decl = lit
+		ident.Obj = obj
+		if err != nil {
+			p.error(pos, err.Error())
+		}
 	}
 	return call
 }

@@ -83,7 +83,7 @@ func init() {
 
 func register(s string, ch builtin.CallHandler) {
 	fset := token.NewFileSet()
-	pf, err := ParseFile(fset, "", s, 0)
+	pf, err := ParseFile(fset, "", s, FuncOnly)
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "expected ';', found 'EOF'") {
 			log.Fatal(err)
@@ -99,6 +99,7 @@ func register(s string, ch builtin.CallHandler) {
 	if _, ok := builtins[d.c.name]; ok {
 		log.Println("already registered", d.c.name)
 	}
+	fmt.Println("name", d.c.name)
 	builtins[d.c.name] = d.c
 }
 
@@ -107,11 +108,12 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
 
+	fmt.Println("calling", name)
 	fn, ok := builtins[name]
 	if !ok {
-		return notfoundCall(expr), nil
+		return nil, fmt.Errorf("func %s was not found", name)
 	}
-	fmt.Printf("ident % #v\n", ident)
+
 	callargs := make([]*ast.BasicLit, len(fn.args))
 	for i := range fn.args {
 		expr := fn.args[i].Value
@@ -120,12 +122,13 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		}
 	}
 	var argpos int
+	ctx := expr.Args
 	// Verify args and convert to BasicLit before passing along
 	for i, arg := range expr.Args {
+		fmt.Printf("%d: arg % #v\n", i, arg)
 		if argpos < i {
 			argpos = i
 		}
-		fmt.Printf("arg[%d] % #v\n", i, arg)
 		switch v := arg.(type) {
 		case *ast.BasicLit:
 			callargs[argpos] = v
@@ -136,11 +139,13 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.Ident:
 			assign := v.Obj.Decl.(*ast.AssignStmt)
-			fmt.Printf("% #v\n", assign.Rhs[0])
+			// Resolving an assignment should also update the ctx.
 			switch v := assign.Rhs[0].(type) {
 			case *ast.BasicLit:
+				ctx[i] = v
 				callargs[argpos] = v
 			case *ast.CallExpr:
+				ctx[i] = v
 				// variable pointing to a function
 				for i := range v.Args {
 					callargs[argpos] = v.Args[i].(*ast.BasicLit)
@@ -165,11 +170,5 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	for i := range callargs {
 		fmt.Printf("%d: % #v\n", i, callargs[i])
 	}
-	return fn.ch(callargs)
-}
-
-// there's no such thing as a failure in Sass. Resolve idents in callexpr
-// and return result as BasicLit
-func notfoundCall(call *ast.CallExpr) (lit *ast.BasicLit) {
-	return
+	return fn.ch(expr.Args, callargs...)
 }

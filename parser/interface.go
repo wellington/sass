@@ -55,6 +55,7 @@ type Mode uint
 const (
 	PackageClauseOnly Mode             = 1 << iota // stop parsing after package clause
 	ImportsOnly                                    // stop parsing after import declarations
+	FuncOnly                                       // does not attempt to evaluate functions
 	ParseComments                                  // parse comments and add them to AST
 	Trace                                          // print a trace of parsed productions
 	DeclarationErrors                              // report declaration errors
