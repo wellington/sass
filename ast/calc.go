@@ -163,7 +163,6 @@ var cssColors = map[string]string{
 func LookupColor(s string) string {
 	// check for CSS color name
 	if name, ok := cssColors[s]; ok {
-		fmt.Println(s, name)
 		return name
 	}
 	return s

@@ -41,11 +41,7 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 	ints := make([]uint8, 4)
 	var ret color.RGBA
 	var u uint8
-	var pos int
 	for i := range args {
-		if pos == 4 {
-			break
-		}
 		v := args[i]
 		switch v.Kind {
 		case token.VAR:
@@ -69,12 +65,11 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 			}
 			ret = ast.ColorFromHexString(v.Value)
 			// This is only allowed as the first argument
-			pos = pos + 2
+			i = i + 2
 		default:
 			log.Fatalf("unsupported kind %s % #v\n", v.Kind, v)
 		}
-		ints[pos] = u
-		pos++
+		ints[i] = u
 	}
 	if ints[0] > 0 {
 		ret.R = ints[0]
@@ -125,6 +120,7 @@ func blue(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 }
 
 func rgb(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+	log.Println("rgb call:", call.Args)
 	log.Printf("rgb args: red: %s green: %s blue: %s\n",
 		args[0].Value, args[1].Value, args[2].Value)
 	c, err := parseColors(args)
@@ -136,8 +132,11 @@ func rgb(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 }
 
 func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	fmt.Println("rgba call:", call.Args)
-
+	// This is ugly. Instead there needs to be a 2 arg implementation of rgba()
+	if len(call.Args) == 2 && args[3].Value == "0" {
+		args[3] = args[1]
+		args[1] = &ast.BasicLit{Kind: token.INT, Value: "0"}
+	}
 	log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
 		args[0].Value, args[1].Value, args[2].Value, args[3].Value)
 
@@ -145,8 +144,6 @@ func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("c: % #v\n", c)
-
 	return colorOutput(c, call), nil
 }
 
