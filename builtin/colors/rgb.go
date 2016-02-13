@@ -147,6 +147,9 @@ func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	return colorOutput(c, call), nil
 }
 
+// mix takes two colors and optional weight (50% assumed). mix evaluates the
+// difference of alphas and factors this into the weight calculations
+// For details see: http://sass-lang.com/documentation/Sass/Script/Functions.html#mix-instance_method
 func mix(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	fmt.Printf("mix:\narg0: % #v\narg1: % #v\narg2: % #v\n",
 		args[0], args[1], args[2])
@@ -163,19 +166,46 @@ func mix(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	}
 	c1 := ast.ColorFromHexString(args[0].Value)
 	c2 := ast.ColorFromHexString(args[1].Value)
+
 	var r, g, b, a float64
-	r = wt*float64(c1.R) + (1-wt)*float64(c2.R)
-	g = wt*float64(c1.G) + (1-wt)*float64(c2.G)
-	b = wt*float64(c1.B) + (1-wt)*float64(c2.B)
-	a = wt*float64(c1.A) + (1-wt)*float64(c2.A)
+
+	a1, a2 := float64(c1.A)/100, float64(c2.A)/100
+	w := wt*2 - 1
+	a = a1 - a2
+
+	var w1 float64
+	// if w*a == -1, weight is w
+	if w*a == -1 {
+		w1 = w
+	} else {
+		w1 = (w + a) / (1 + w*a)
+	}
+	w1 = (w1 + 1) / 2
+	w2 := 1 - w1
+
+	r = w1*float64(c1.R) + w2*float64(c2.R)
+	g = w1*float64(c1.G) + w2*float64(c2.G)
+	b = w1*float64(c1.B) + w2*float64(c2.B)
+
+	alpha := (float64(c1.A) + float64(c2.A)) / 2
+
 	ret := color.RGBA{
-		R: uint8(r),
-		G: uint8(g),
-		B: uint8(b),
-		A: uint8(a),
+		R: uint8(round(r, 0)),
+		G: uint8(round(g, 0)),
+		B: uint8(round(b, 0)),
+		A: uint8(round(alpha, 2)),
 	}
 
 	return colorOutput(ret, call.Args[0]), nil
+}
+
+// https://gist.github.com/DavidVaini/10308388#gistcomment-1460571
+func round(v float64, decimals int) float64 {
+	var pow float64 = 1
+	for i := 0; i < decimals; i++ {
+		pow *= 10
+	}
+	return float64(int((v*pow)+0.5)) / pow
 }
 
 func invert(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
@@ -206,7 +236,7 @@ func colorOutput(c color.RGBA, outTyp ast.Expr) *ast.BasicLit {
 			attemptLookup = false
 			i := int(c.A) * 10000
 			f := float32(i) / 1000000
-			lit.Value = fmt.Sprintf("%s(%d, %d, %d, %.g)",
+			lit.Value = fmt.Sprintf("%s(%d, %d, %d, %.2g)",
 				"rgba", c.R, c.G, c.B, f,
 			)
 		default:

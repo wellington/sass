@@ -208,6 +208,7 @@ func colorFromRGBA(in string) color.RGBA {
 		fmt.Println(r, g, b, a)
 		log.Fatal("failed to parse all rgba parameters")
 	}
+	fmt.Println("alpha", a)
 	return color.RGBA{
 		R: r,
 		G: g,
@@ -243,7 +244,7 @@ func colorFromHex(in []byte) color.RGBA {
 		}
 	}
 
-	r, g, b, a := in[0:2], in[2:4], in[4:6], []byte{255, 255}
+	r, g, b := in[0:2], in[2:4], in[4:6]
 
 	hex.Decode(r, r)
 	hex.Decode(g, g)
@@ -253,7 +254,7 @@ func colorFromHex(in []byte) color.RGBA {
 		R: r[0],
 		G: g[0],
 		B: b[0],
-		A: a[0],
+		A: 100,
 	}
 }
 

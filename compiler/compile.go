@@ -54,7 +54,7 @@ func (ctx *Context) run(path string, src interface{}) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
 	ctx.fset = token.NewFileSet()
 	pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments)
-	// pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments|parser.Trace)
+	//pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments|parser.Trace)
 	if err != nil {
 		return "", err
 	}
