@@ -133,7 +133,6 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			callargs[argpos] = v
 		case *ast.KeyValueExpr:
 			pos := fn.Pos(v.Key.(*ast.Ident))
-			fmt.Printf("kv pos %d %s: % #v\n", pos, v.Value.(*ast.BasicLit).Kind, v.Value)
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.Ident:
 			assign := v.Obj.Decl.(*ast.AssignStmt)
@@ -145,7 +144,6 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			case *ast.CallExpr:
 				ctx[i] = v
 				callargs[argpos] = v.Resolved
-				fmt.Printf("callexpr resolved: % #v\n", v)
 			}
 		case *ast.CallExpr:
 			// Nested function call
@@ -153,8 +151,6 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			if err != nil {
 				return nil, err
 			}
-			fmt.Printf("nested callexpr: % #v\n", v)
-			fmt.Println("eventual lit", v.Resolved)
 			callargs[argpos] = lit
 		default:
 			log.Fatalf("eval call unsupported % #v\n", v)

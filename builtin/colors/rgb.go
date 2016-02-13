@@ -120,9 +120,9 @@ func blue(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 }
 
 func rgb(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	log.Println("rgb call:", call.Args)
-	log.Printf("rgb args: red: %s green: %s blue: %s\n",
-		args[0].Value, args[1].Value, args[2].Value)
+	// log.Println("rgb call:", call.Args)
+	// log.Printf("rgb args: red: %s green: %s blue: %s\n",
+	// 	args[0].Value, args[1].Value, args[2].Value)
 	c, err := parseColors(args)
 	if err != nil {
 		return nil, err
@@ -137,8 +137,8 @@ func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 		args[3] = args[1]
 		args[1] = &ast.BasicLit{Kind: token.INT, Value: "0"}
 	}
-	log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
-		args[0].Value, args[1].Value, args[2].Value, args[3].Value)
+	// log.Printf("rgba args: red: %s green: %s blue: %s alpha: %s\n",
+	// 	args[0].Value, args[1].Value, args[2].Value, args[3].Value)
 
 	c, err := parseColors(args)
 	if err != nil {
@@ -151,8 +151,8 @@ func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 // difference of alphas and factors this into the weight calculations
 // For details see: http://sass-lang.com/documentation/Sass/Script/Functions.html#mix-instance_method
 func mix(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	fmt.Printf("mix:\narg0: % #v\narg1: % #v\narg2: % #v\n",
-		args[0], args[1], args[2])
+	// fmt.Printf("mix:\narg0: % #v\narg1: % #v\narg2: % #v\n",
+	// 	args[0], args[1], args[2])
 	// parse that weight
 	wt, err := strconv.ParseFloat(args[2].Value, 8)
 	// Parse percentage ie. 50%
