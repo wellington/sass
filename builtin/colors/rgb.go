@@ -44,8 +44,6 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 	for i := range args {
 		v := args[i]
 		switch v.Kind {
-		case token.VAR:
-			log.Fatalf("VAR % #v\n", v)
 		case token.FLOAT:
 			f, err := strconv.ParseFloat(args[i].Value, 8)
 			if err != nil {
