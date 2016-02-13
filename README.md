@@ -29,6 +29,10 @@ Glossary
 ### Compiler Status
 Passing 20 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
 
+### Function Status
+See [functions](functions.md)
+
+
 ### Parser Status
 - [x] Nested Rules
 - [x] Referencing Parent Selectors: &
