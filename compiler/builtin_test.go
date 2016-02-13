@@ -16,11 +16,33 @@ func runParse(t *testing.T, in string, e string) {
 		t.Fatal(err)
 	}
 	if e != out {
-		t.Errorf("got:\n%s\nwanted:\n%s", out, e)
+		t.Errorf("got:\n%q\nwanted:\n%q", out, e)
 	}
 }
 
-func TestTypeOf(t *testing.T) {
+func TestBuiltin_inspect(t *testing.T) {
+	in := `$x: 1;
+hey, ho {
+ a: inspect(1);
+ b: inspect(a);
+ c: inspect(#000);
+ d: inspect("a");
+ e: inspect('a');
+ f: inspect($x);
+}
+`
+	e := `hey, ho {
+  a: 1;
+  b: a;
+  c: #000;
+  d: "a";
+  e: 'a';
+  f: 1; }
+`
+	runParse(t, in, e)
+}
+
+func TestBuiltin_typeof(t *testing.T) {
 	in := `$x: 1;
     hey, ho {
 		a: type-of(1);

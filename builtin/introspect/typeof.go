@@ -1,7 +1,7 @@
 package introspect
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/builtin"
@@ -10,11 +10,19 @@ import (
 
 func init() {
 	builtin.Register("type-of($value)", typeOf)
+	builtin.Register("inspect($value)", inspect)
+}
+
+func inspect(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+	if len(args) != 1 {
+		return nil, fmt.Errorf("wrong number of arguments (%d for 1) for 'inspect'", len(args))
+	}
+	return args[0], nil
 }
 
 func typeOf(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	if len(args) != 1 {
-		return nil, errors.New("wrong number of arguments (2 for 1) for 'type-of'")
+		return nil, fmt.Errorf("wrong number of arguments (%d for 1) for 'type-of'", len(args))
 	}
 	lit := *args[0]
 	lit.Kind = token.STRING
