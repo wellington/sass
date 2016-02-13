@@ -12,6 +12,7 @@ import (
 
 	// Include defined builtins
 	_ "github.com/wellington/sass/builtin/colors"
+	_ "github.com/wellington/sass/builtin/introspect"
 )
 
 var ErrNotFound = errors.New("function does not exist")
@@ -99,7 +100,6 @@ func register(s string, ch builtin.CallHandler) {
 	if _, ok := builtins[d.c.name]; ok {
 		log.Println("already registered", d.c.name)
 	}
-	fmt.Println("name", d.c.name)
 	builtins[d.c.name] = d.c
 }
 
