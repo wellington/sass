@@ -715,7 +715,7 @@ func (s *Scanner) eatInterp() bool {
 }
 
 func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string) {
-	fmt.Println("scanRule")
+
 	pos = s.file.Pos(offs)
 	var interp bool
 	for {
@@ -731,7 +731,6 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 
 	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	s.skipWhitespace()
-	fmt.Printf("lit: %s next: %q", lit, string(s.ch))
 
 	switch s.ch {
 	case ':':
@@ -745,13 +744,13 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 	case ';':
 		tok = token.STRING
 	default:
+		tok = token.STRING
 		if interp {
-			tok = token.STRING
 			fmt.Println("interp", lit)
 		} else {
 			// Not sure, this requires more specifics
 			fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
-			tok = token.IDENT
+			// tok = token.IDENT
 		}
 	}
 	return

@@ -148,10 +148,6 @@ func (p *parser) closeLabelScope() {
 	p.labelScope = p.labelScope.Outer
 }
 
-func (p *parser) declareSelector(sel *ast.SelStmt, scope *ast.Scope) {
-	// p.declare(ast.NewIdent(sel), nil, scope, ast.Sel)
-}
-
 func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjKind, idents ...*ast.Ident) {
 	for _, ident := range idents {
 		if ident.Obj != nil {
@@ -180,8 +176,8 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 				}
 				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
 			} else {
-				// fmt.Printf("declaring %15s(%p): scope(%p): % #v\n",
-				//	ident, ident, scope, obj.Decl)
+				// fmt.Printf("decl %8s(%p): % #v\n",
+				// 	ident, scope, obj.Decl)
 			}
 		}
 	}
@@ -245,13 +241,14 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
 			if ok {
-				fmt.Printf("resolved  %15s: scope(%p) % #v\n",
-					ident,
-					s,
-					decl.Rhs[0])
+				var srh string
+				for _, rhs := range decl.Rhs {
+					srh += fmt.Sprintf("%s ", rhs)
+				}
+				fmt.Printf("resolved  %8s: scope(%p) %d: %s\n",
+					ident, s, len(decl.Rhs), srh)
 			}
 			ident.Obj = obj
-			fmt.Println("")
 			return
 		}
 	}
@@ -2890,15 +2887,28 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 		for _, spec := range v.Specs {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
-				for i, val := range sv.Values {
-					ident, ok := val.(*ast.Ident)
-					if !ok {
+				var lits []*ast.BasicLit
+				for i := range sv.Values {
+					val := sv.Values[i]
+					lit, ok := val.(*ast.BasicLit)
+					if ok {
+						lits = append(lits, lit)
 						// Not ident, already resolved
 						continue
 					}
+					ident, ok := val.(*ast.Ident)
+					if !ok {
+						panic(fmt.Errorf("could not resolve: % #v\n", val))
+					}
 					assert(ident.Obj == nil, "statement had previous value, was it copied correctly?")
 					p.resolve(ident)
-					sv.Values[i] = basicLitFromIdent(ident)
+					idlits := basicLitFromIdent(ident)
+
+					lits = append(lits, idlits...)
+				}
+				sv.Values = make([]ast.Expr, len(lits))
+				for i := range lits {
+					sv.Values[i] = lits[i]
 				}
 			default:
 				log.Fatalf("spec not supported % #v\n", v)
@@ -2911,19 +2921,22 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 
 // basicLitFromIdent recursively resolves an Ident until a
 // basic lit is uncovered
-func basicLitFromIdent(ident *ast.Ident) (lit *ast.BasicLit) {
+func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 	assert(ident.Obj != nil, "ident has not been resolved")
 	decl := ident.Obj.Decl
 	switch typ := decl.(type) {
 	case *ast.Ident:
 		return basicLitFromIdent(typ)
 	case *ast.AssignStmt:
-		lits := make([]*ast.BasicLit, 0, len(typ.Rhs))
-		for _, rhs := range typ.Rhs {
+		var lits []*ast.BasicLit
+		//lits := make([]*ast.BasicLit, 0, len(typ.Rhs))
+		for i := range typ.Rhs {
+			rhs := typ.Rhs[i]
 			var lit *ast.BasicLit
 			switch rtyp := rhs.(type) {
 			case *ast.Ident:
-				lit = basicLitFromIdent(rtyp)
+				lits = append(lits, basicLitFromIdent(rtyp)...)
+				continue
 			case *ast.BasicLit:
 				lit = rtyp
 			default:
@@ -2935,13 +2948,10 @@ func basicLitFromIdent(ident *ast.Ident) (lit *ast.BasicLit) {
 			log.Println("good thing this looked at multiple rhs values",
 				lits)
 		}
-		s := joinLits(lits, " ")
-		// Combine all lit values using the Kind of the first lit
-		lits[0].Value = s
-		return lits[0]
-		// I guess combine all of the lits and add the values
+
+		return lits
 	case *ast.BasicLit:
-		return typ
+		return []*ast.BasicLit{typ}
 	default:
 		panic(fmt.Sprintf("invalid Obj.Decl % #v", typ))
 	}
