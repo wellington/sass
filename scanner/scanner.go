@@ -205,9 +205,9 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	// defer func() {
-	// 	fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
-	// }()
+	defer func() {
+		// fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
+	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -697,13 +697,42 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	return
 }
 
-func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string) {
+func (s *Scanner) eatInterp() bool {
+	if s.ch != '#' {
+		return false
+	}
+	s.next()
+	if s.ch != '{' {
+		return false
+	}
 
-	pos = s.file.Pos(offs)
-	for !strings.ContainsRune(":();{},$", s.ch) {
+	for s.ch != '}' {
 		s.next()
 	}
+
+	return true
+
+}
+
+func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string) {
+	fmt.Println("scanRule")
+	pos = s.file.Pos(offs)
+	var interp bool
+	for {
+		if s.eatInterp() {
+			s.next()
+			interp = true
+		}
+		if strings.ContainsRune(" \n:();{},$", s.ch) {
+			break
+		}
+		s.next()
+	}
+
 	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	s.skipWhitespace()
+	fmt.Printf("lit: %s next: %q", lit, string(s.ch))
+
 	switch s.ch {
 	case ':':
 		tok = token.RULE
@@ -716,9 +745,14 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 	case ';':
 		tok = token.STRING
 	default:
-		// Not sure, this requires more specifics
-		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
-		tok = token.IDENT
+		if interp {
+			tok = token.STRING
+			fmt.Println("interp", lit)
+		} else {
+			// Not sure, this requires more specifics
+			fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
+			tok = token.IDENT
+		}
 	}
 	return
 }
@@ -827,7 +861,7 @@ exit:
 }
 
 func (s *Scanner) scanMantissa(base int) {
-	for digitVal(s.ch) < base {
+	for digitVal(s.ch) < base || s.eatInterp() {
 		s.next()
 	}
 }

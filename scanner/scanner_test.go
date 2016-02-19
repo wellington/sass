@@ -6,6 +6,7 @@
 package scanner
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/wellington/sass/token"
@@ -245,6 +246,26 @@ func TestScan_params(t *testing.T) {
 	})
 }
 
+func TestScan_attr_sel_now(t *testing.T) {
+	testScan(t, []elt{
+		//{token.SELECTOR},
+		{token.ATTRIBUTE, "[hey  =  'ho']"}, //"[hey  =  'ho'], a > b"
+		{token.LBRACE, "{"},
+	})
+}
+
+func TestScan_interp_now(t *testing.T) {
+	testScan(t, []elt{
+		{token.STRING, "hello#{world}"},
+		{token.SEMICOLON, ";"},
+		{token.STRING, "hello"},
+		{token.INTERP, "#{world}"},
+		{token.SEMICOLON, ";"},
+		{token.INT, "123"},
+		{token.INT, "1#{23}"},
+	})
+}
+
 func TestScan_func(t *testing.T) {
 	testScan(t, []elt{
 		{token.IDENT, "rgb"},
@@ -282,7 +303,8 @@ func testScan(t *testing.T, tokens []elt) {
 			epos.Column = 2
 		}
 		// Selectors are magical and they appear when you least expect them
-		if tok == token.SELECTOR {
+		switch tok {
+		case token.SELECTOR:
 			continue
 		}
 		checkPos(t, lit, pos, epos)
@@ -306,6 +328,10 @@ func testScan(t *testing.T, tokens []elt) {
 			if elit[1] == '/' {
 				elit = elit[0 : len(elit)-1]
 			}
+		case token.ATTRIBUTE:
+			// FIXME: the parser should eliminate whitespace
+			// from selector attributes
+			elit = strings.Replace(e.lit, " ", "", -1)
 		case token.IDENT:
 			elit = e.lit
 		case token.SEMICOLON:
