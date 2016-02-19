@@ -255,6 +255,11 @@ func TestScan_attr_sel_now(t *testing.T) {
 }
 
 func TestScan_interp_now(t *testing.T) {
+	// testScan(t, []elt{
+	// 	//{token.STRING, "hello#{world}"},
+	// 	{token.INT, "12#{3}"},
+	// })
+
 	testScan(t, []elt{
 		{token.STRING, "hello"},
 		{token.INTERP, "#{"}, // Sorry this is bizarre

@@ -627,6 +627,13 @@ func (p *parser) parseInterp() *ast.Interp {
 	return &ast.Interp{NamePos: pos, Name: name}
 }
 
+// ain't nobody got time for interpolations
+func (p *parser) resolveInterp(inp *ast.Interp) (out ast.Expr) {
+	// TODO: need to combine tokens if no space separated them to
+	// begin with
+	return p.parseBinaryExpr(false, token.LowestPrec+1)
+}
+
 func (p *parser) parseDirective() *ast.Ident {
 	pos := p.pos
 	name := "_"
@@ -1355,7 +1362,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		}
 		return x
 	case token.INTERP:
-		return p.parseInterp()
+		return p.resolveInterp(p.parseInterp())
 	case
 		token.COLOR,
 		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,

@@ -726,8 +726,8 @@ ruleAgain:
 
 			if s.offset-offs > 1 {
 				tok = token.STRING
-				lit = string(bytes.TrimSpace(s.src[offs : s.offset-1]))
-				fmt.Println("pushing prefix", lit)
+				lit = string(bytes.TrimSpace(s.src[offs : s.offset-2]))
+				s.rewind(s.offset - 2)
 			}
 			break
 		}
@@ -813,7 +813,6 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 		s.scanMantissa(10)
 		goto exponent
 	}
-
 	if s.ch == '0' {
 		// int or float
 		offs := s.offset
@@ -877,7 +876,13 @@ exit:
 }
 
 func (s *Scanner) scanMantissa(base int) {
-	for digitVal(s.ch) < base || s.queueInterp(s.offset) {
+	for {
+		if digitVal(s.ch) >= base {
+			return
+		}
+		if s.queueInterp(s.offset) {
+			return
+		}
 		s.next()
 	}
 }
