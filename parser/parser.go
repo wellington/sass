@@ -631,6 +631,7 @@ func (p *parser) parseInterp() *ast.Interp {
 func (p *parser) resolveInterp(inp *ast.Interp) (out ast.Expr) {
 	// TODO: need to combine tokens if no space separated them to
 	// begin with
+	fmt.Printf("inter: %d end: %d val: % #v\n", inp.Pos(), inp.End(), inp)
 	return p.parseBinaryExpr(false, token.LowestPrec+1)
 }
 
@@ -796,18 +797,51 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
 	}
-	list = append(list, p.inferExpr(lhs))
+	lastExpr := p.inferExpr(lhs)
+	list = append(list, lastExpr)
+
+	var isInterp bool
+
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
 		p.tok != token.RPAREN &&
 		p.tok != token.EOF {
+		if p.tok == token.INTERP {
+			isInterp = true
+		}
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
 			p.next()
 		}
-		list = append(list, p.inferExpr(lhs))
+
+		// Some shit to merge inline interpolations
+		expr := p.inferExpr(lhs)
+		exlit, eok := expr.(*ast.BasicLit)
+		lit, ok := lastExpr.(*ast.BasicLit)
+
+		fmt.Printf("last: % #v\nnow:  % #v\n", lit, exlit)
+		fmt.Println(lastExpr.End(), expr.Pos(),
+			expr.Pos()-lastExpr.End() == 2)
+		if !isInterp || lastExpr == nil ||
+			!ok || !eok ||
+			expr.Pos()-lastExpr.End() != 2 {
+			lastExpr = expr
+			list = append(list, expr)
+			continue
+		}
+		isInterp = false
+		fmt.Printf("merging %q %q\n", lit.Value, exlit.Value)
+		switch lit.Kind {
+		case token.STRING, token.INT:
+			lit.Value = lit.Value + exlit.Value
+			fmt.Println("merged!", lit.Value)
+		default:
+			log.Fatalf("% #v\n", lit)
+		}
+
 	}
+	fmt.Println("exit because", p.tok)
 	return
 }
 
@@ -827,6 +861,10 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		defer un(trace(p, "inferExpr"))
 	}
 	var expr ast.Expr
+	defer func() {
+		//fmt.Printf("expr: %d end: %d val: % #v\n",
+		//	expr.Pos(), expr.End(), expr)
+	}()
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	expr = basic
 	switch p.tok {
@@ -1725,6 +1763,7 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	x := p.parseOperand(lhs)
 L:
 	for {
+		// fmt.Printf("start: %d end: %d val: % #v\n", x.Pos(), x.End(), x)
 		switch p.tok {
 		case token.INTERP:
 			p.next()
