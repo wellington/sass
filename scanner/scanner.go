@@ -278,7 +278,9 @@ bypassSelector:
 		// color:    #fff[000]
 		// interp:   #{}
 		if s.ch == '{' {
-			tok, lit = s.scanInterp(offs)
+			// tok, lit = s.scanInterp(offs)
+			tok, lit = token.INTERP, "#{"
+			s.next()
 		} else {
 			tok, lit = s.scanColor()
 		}
@@ -367,7 +369,6 @@ bypassSelector:
 		tok = token.MUL
 	default:
 		pos, tok, lit = s.scanRule(offs)
-
 		// if isLetter(s.ch) {
 		// 	// Try a rule, failing go to IDENT
 
@@ -378,7 +379,6 @@ bypassSelector:
 		// }
 	}
 
-	// item = Item{Type: ItemILLEGAL, Value: string(ch)}
 	return
 }
 
@@ -489,11 +489,14 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 	}
 
 	switch ch := s.ch; {
-	case ch == '#' || ch == '.':
+	case ch == '.':
 		s.next()
 		fallthrough
-	case isLetter(ch):
+	case isLetter(ch) || ch == '#':
 		tok = token.STRING
+		if pos, tok, lit := s.scanInterp(s.offset); tok != token.ILLEGAL {
+			return pos, tok, lit
+		}
 		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' ||
 			s.ch == '#' || s.ch == '&' {
 			if s.offset > end {
@@ -562,6 +565,36 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 	return
 }
 
+func (s *Scanner) scanInterp(offs int) (pos token.Pos, tok token.Token, lit string) {
+	if s.ch != '#' {
+		return
+	}
+
+	s.next()
+	if s.ch != '{' {
+		return
+	}
+	s.next()
+
+	return s.file.Pos(offs), token.INTERP, "#{"
+}
+
+// scanInterp attempts to build a valid set of tokens from an interpolation
+func (s *Scanner) queueInterp(offs int) bool {
+	pos, tok, lit := s.scanInterp(offs)
+	if tok == token.INTERP {
+		// If found, just push into the queue for next Scan
+		s.queue <- prefetch{
+			pos: pos,
+			tok: tok,
+			lit: lit,
+		}
+		return true
+	}
+
+	return false
+}
+
 // ScanText is responsible for gobbling non-whitespace characters
 //
 // This should validate variable naming http://stackoverflow.com/a/17194994
@@ -572,18 +605,15 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 
 	var ch rune
 	for s.ch == '\\' || isText(s.ch, whitespace) ||
+		// #id
 		s.ch == '#' ||
-		// For now, just eat interpolations
 		s.ch == end {
-
 		ch = s.ch
-		s.next()
-
-		// For now, just eat interpolation
-		if ch == '#' {
-			// Verify introlation
-			s.scanInterp(s.offset)
+		if _, tok, _ := s.scanInterp(offs); tok != token.ILLEGAL {
+			s.rewind(offs)
+			break
 		}
+		s.next()
 
 		if ch == '\\' {
 			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
@@ -626,19 +656,6 @@ func (s *Scanner) scanRGB(pos int) (tok token.Token, lit string) {
 
 	lit = string(s.src[offs:s.offset])
 	return
-}
-
-func (s *Scanner) scanInterp(offs int) (token.Token, string) {
-	// Should only be called after '#' is detected
-	if s.ch != '{' {
-		return token.ILLEGAL, ""
-	}
-	for s.ch != '}' {
-		s.next()
-	}
-	s.next()
-	return token.INTERP, string(s.src[offs:s.offset])
-
 }
 
 func (s *Scanner) scanColor() (tok token.Token, lit string) {
@@ -697,31 +714,22 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	return
 }
 
-func (s *Scanner) eatInterp() bool {
-	if s.ch != '#' {
-		return false
-	}
-	s.next()
-	if s.ch != '{' {
-		return false
-	}
-
-	for s.ch != '}' {
-		s.next()
-	}
-
-	return true
-
-}
-
 func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string) {
-
-	pos = s.file.Pos(offs)
 	var interp bool
+ruleAgain:
+	pos = s.file.Pos(offs)
 	for {
-		if s.eatInterp() {
-			s.next()
-			interp = true
+		if ok := s.queueInterp(s.offset); ok {
+			// If we got here, there could be text in the buffer
+			// If so, push interpolate into the queue and return this
+			// interpolate prefix
+
+			if s.offset-offs > 1 {
+				tok = token.STRING
+				lit = string(bytes.TrimSpace(s.src[offs : s.offset-1]))
+				fmt.Println("pushing prefix", lit)
+			}
+			break
 		}
 		if strings.ContainsRune(" \n:();{},$", s.ch) {
 			break
@@ -746,12 +754,21 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 	default:
 		tok = token.STRING
 		if interp {
-			fmt.Println("interp", lit)
+			if tok != token.RBRACE {
+				// It's like groundhog day, but it's interpolation every day
+				goto ruleAgain
+			}
+			s.queue <- prefetch{
+				pos: pos,
+				lit: "}",
+				tok: token.RBRACE,
+			}
 		} else {
 			// Not sure, this requires more specifics
 			fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
-			// tok = token.IDENT
 		}
+		// tok = token.IDENT
+
 	}
 	return
 }
@@ -860,7 +877,7 @@ exit:
 }
 
 func (s *Scanner) scanMantissa(base int) {
-	for digitVal(s.ch) < base || s.eatInterp() {
+	for digitVal(s.ch) < base || s.queueInterp(s.offset) {
 		s.next()
 	}
 }
