@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/scanner"
 	"github.com/wellington/sass/token"
 )
@@ -631,8 +632,8 @@ func (p *parser) parseInterp() *ast.Interp {
 func (p *parser) resolveInterp(inp *ast.Interp) (out ast.Expr) {
 	// TODO: need to combine tokens if no space separated them to
 	// begin with
-	fmt.Printf("inter: %d end: %d val: % #v\n", inp.Pos(), inp.End(), inp)
-	return p.parseBinaryExpr(false, token.LowestPrec+1)
+	fmt.Println("resolve interp!")
+	return calc.Resolve(p.parseBinaryExpr(false, token.LowestPrec+1))
 }
 
 func (p *parser) parseDirective() *ast.Ident {
@@ -809,6 +810,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		p.tok != token.EOF {
 		if p.tok == token.INTERP {
 			isInterp = true
+			fmt.Println("interp!")
 		}
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
@@ -819,7 +821,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		expr := p.inferExpr(lhs)
 		exlit, eok := expr.(*ast.BasicLit)
 		lit, ok := lastExpr.(*ast.BasicLit)
-
+		fmt.Println(isInterp, ok, eok)
 		fmt.Printf("last: % #v\nnow:  % #v\n", lit, exlit)
 		fmt.Println(lastExpr.End(), expr.Pos(),
 			expr.Pos()-lastExpr.End() == 2)
@@ -1078,8 +1080,46 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 	return p.tryIdentOrType()
 }
 
+// checkInterp verifies there's spaces between interpolations and
+// literals. If not, it merges the tokens
+func (p *parser) checkInterp(in []ast.Expr) (out []ast.Expr) {
+
+	var merge bool
+	var endpos token.Pos
+	for _, expr := range in {
+		switch v := expr.(type) {
+		case *ast.Interp:
+			if endpos > 0 && expr.Pos() == endpos {
+				merge = true
+			}
+		case *ast.BasicLit:
+
+			fmt.Println("lit ", v.Value, "   start", expr.Pos(),
+				"end", expr.End())
+
+			if !merge {
+				out = append(out, expr)
+			} else {
+				fmt.Println(out, len(out))
+				last := out[len(out)-1]
+				fmt.Println("wut")
+				last.(*ast.BasicLit).Value += v.Value
+				merge = false
+			}
+		default:
+			out = append(out, expr)
+		}
+		endpos = expr.End()
+	}
+	fmt.Println("final interp", out)
+	return
+}
+
 // If the result is an identifier, it is not resolved.
 func (p *parser) parseVarType(isParam bool) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "ParseVarType"))
+	}
 	typ := p.tryVarType(isParam)
 	if typ == nil {
 		pos := p.pos
@@ -1420,9 +1460,14 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 
 	case token.FUNC:
 		return p.parseFuncTypeOrLit()
+	case token.VAR:
+		// VAR is only hit while parsing function params, so
+		// this should only be allowed in that case.
+		return p.tryVarType(true) //isParam
 	}
 
 	if typ := p.tryIdentOrType(); typ != nil {
+		fmt.Printf("% #v\n", typ)
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
 		assert(!isIdent, "type cannot be identifier")
@@ -1510,33 +1555,17 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	if p.trace {
 		defer un(trace(p, "CallOrConversion"))
 	}
-
 	pos := p.pos
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
 	var list []ast.Expr
 	var ellipsis token.Pos
 	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-		// list = append(list, p.parseRhsOrType()) // builtins may expect a type: make(some type, ...)
-		var typ ast.Expr
-
-		typ = p.parseVarType(true)
-		switch p.tok {
-		case token.LPAREN:
-			typ = p.parseCallOrConversion(typ)
-		case token.COLON:
-			panic("this should never happen")
-			p.next()
-			// Next one is default value
-			list = append(list, p.parseRhsOrType())
-		case token.ELLIPSIS:
+		list = append(list, p.parseRhsOrKV()) // builtins may expect a type: make(some type, ...)
+		if p.tok == token.ELLIPSIS {
 			ellipsis = p.pos
 			p.next()
 		}
-		if _, ok := typ.(*ast.Ident); ok {
-			p.resolve(typ)
-		}
-		list = append(list, typ)
 		if !p.atComma("argument list", token.RPAREN) {
 			break
 		}
@@ -1549,7 +1578,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	call := &ast.CallExpr{
 		Fun:      fun,
 		Lparen:   lparen,
-		Args:     list,
+		Args:     p.checkInterp(list),
 		Ellipsis: ellipsis,
 		Rparen:   rparen,
 	}
@@ -1567,6 +1596,75 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	}
 	return call
 }
+
+// func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
+// 	if p.trace {
+// 		defer un(trace(p, "CallOrConversion"))
+// 	}
+
+// 	pos := p.pos
+// 	lparen := p.expect(token.LPAREN)
+// 	p.exprLev++
+// 	var list []ast.Expr
+// 	var ellipsis token.Pos
+// 	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
+// 		var typ ast.Expr
+// 	K:
+// 		list = append(list, p.parseVarType(true))
+// 		switch p.tok {
+// 		case token.LPAREN:
+// 			typ = p.parseCallOrConversion(typ)
+// 		case token.COLON:
+// 			panic("this should never happen")
+// 			p.next()
+// 			// Next one is default value
+// 			list = append(list, p.parseRhsOrType())
+// 		case token.ELLIPSIS:
+// 			ellipsis = p.pos
+// 			p.next()
+// 		case token.INTERP:
+// 			list = append(list, &ast.Interp{NamePos: p.pos})
+// 			p.next()
+// 			goto K
+// 		case token.RBRACE:
+// 			// We'll actually need these to evaluate prepending
+// 			// interp to another literal
+// 			p.next()
+// 		}
+// 		if _, ok := typ.(*ast.Ident); ok {
+// 			p.resolve(typ)
+// 		}
+
+// 		if !p.atComma("argument list", token.RPAREN) {
+// 			break
+// 		}
+// 		p.next()
+// 	}
+// 	p.exprLev--
+
+// 	rparen := p.expectClosing(token.RPAREN, "argument list")
+
+// 	call := &ast.CallExpr{
+// 		Fun:      fun,
+// 		Lparen:   lparen,
+// 		Args:     p.checkInterp(list),
+// 		Ellipsis: ellipsis,
+// 		Rparen:   rparen,
+// 	}
+// 	ident := fun.(*ast.Ident)
+// 	if p.mode&FuncOnly == 0 {
+// 		lit, err := evaluateCall(call)
+// 		call.Resolved = lit
+// 		// Manually set object, because Ident name isn't unique
+// 		obj := ast.NewObj(ast.Var, ident.Name)
+// 		obj.Decl = lit
+// 		ident.Obj = obj
+// 		if err != nil {
+// 			p.error(pos, err.Error())
+// 		}
+// 	}
+// 	return call
+// }
 
 func (p *parser) parseValue(keyOk bool) ast.Expr {
 	if p.trace {
@@ -1763,11 +1861,10 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	x := p.parseOperand(lhs)
 L:
 	for {
-		// fmt.Printf("start: %d end: %d val: % #v\n", x.Pos(), x.End(), x)
 		switch p.tok {
 		case token.INTERP:
-			p.next()
-			p.resolve(x)
+			// Don't evaluate interpolation here
+			break L
 		case token.PERIOD:
 			p.next()
 			if lhs {
@@ -1944,6 +2041,14 @@ func (p *parser) parseRhs() ast.Expr {
 	return x
 }
 
+func (p *parser) parseRhsOrKV() ast.Expr {
+	old := p.inRhs
+	p.inRhs = true
+	x := p.checkExprOrType(p.parseExpr(false))
+	p.inRhs = old
+	return x
+}
+
 func (p *parser) parseRhsOrType() ast.Expr {
 	old := p.inRhs
 	p.inRhs = true
@@ -1994,70 +2099,6 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 	}
 
 	return stmt, isRange
-	// Unreachable
-	switch p.tok {
-	case
-		token.DEFINE, token.ASSIGN:
-
-		// assignment statement, possibly part of a range clause
-		pos, tok := p.pos, p.tok
-		p.next()
-		var y []ast.Expr
-		isRange := false
-
-		y = p.parseRhsList()
-
-		as := &ast.AssignStmt{Lhs: x, TokPos: pos, Tok: tok, Rhs: y}
-		if tok == token.DEFINE {
-			p.shortVarDecl(as, x)
-		}
-		return as, isRange
-	}
-
-	if len(x) > 1 {
-		p.errorExpected(x[0].Pos(), "1 expression")
-		// continue with first expression
-	}
-
-	switch p.tok {
-	case token.COLON:
-		// labeled statement
-		colon := p.pos
-		p.next()
-		if label, isIdent := x[0].(*ast.Ident); mode == labelOk && isIdent {
-			// Go spec: The scope of a label is the body of the function
-			// in which it is declared and excludes the body of any nested
-			// function.
-			st, _ := p.parseStmt()
-			stmt := &ast.LabeledStmt{Label: label, Colon: colon, Stmt: st}
-			p.declare(stmt, nil, p.labelScope, ast.Lbl, label)
-			return stmt, false
-		}
-		// The label declaration typically starts at x[0].Pos(), but the label
-		// declaration may be erroneous due to a token after that position (and
-		// before the ':'). If SpuriousErrors is not set, the (only) error re-
-		// ported for the line is the illegal label error instead of the token
-		// before the ':' that caused the problem. Thus, use the (latest) colon
-		// position for error reporting.
-		p.error(colon, "illegal label declaration")
-		return &ast.BadStmt{From: x[0].Pos(), To: colon + 1}, false
-
-	case token.ARROW:
-		// send statement
-		arrow := p.pos
-		p.next()
-		y := p.parseRhs()
-		return &ast.SendStmt{Chan: x[0], Arrow: arrow, Value: y}, false
-
-	case token.INC, token.DEC:
-		// increment or decrement
-		s := &ast.IncDecStmt{X: x[0], TokPos: p.pos, Tok: p.tok}
-		p.next()
-		return s, false
-	}
-
-	// expression
-	return &ast.ExprStmt{X: x[0]}, false
 }
 
 func (p *parser) parseCallExpr(callType string) *ast.CallExpr {

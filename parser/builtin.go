@@ -84,7 +84,7 @@ func init() {
 
 func register(s string, ch builtin.CallHandler) {
 	fset := token.NewFileSet()
-	pf, err := ParseFile(fset, "", s, FuncOnly)
+	pf, err := ParseFile(fset, "", s, FuncOnly|Trace)
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "expected ';', found 'EOF'") {
 			log.Fatal(err)
@@ -123,6 +123,10 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	var argpos int
 	ctx := expr.Args
 	// Verify args and convert to BasicLit before passing along
+	if len(callargs) < len(expr.Args) {
+		log.Fatalf("mismatched arg count %s got: %d wanted: %d",
+			name, len(expr.Args), len(callargs))
+	}
 	for i, arg := range expr.Args {
 		if argpos < i {
 			argpos = i
@@ -145,6 +149,8 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 				ctx[i] = v
 				callargs[argpos] = v.Resolved
 			}
+		case *ast.BinaryExpr:
+			log.Fatalf("% #v\n", v)
 		case *ast.CallExpr:
 			// Nested function call
 			lit, err := evaluateCall(v)

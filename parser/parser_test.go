@@ -11,7 +11,6 @@ import (
 )
 
 func TestParse_files(t *testing.T) {
-
 	if testing.Short() {
 		t.Skip("Skip robust testing to better indicate errors")
 	}
