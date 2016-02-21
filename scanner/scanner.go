@@ -456,7 +456,9 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 }
 
 func (s *Scanner) scanSel(offs, end int) {
+
 	s.rewind(offs)
+
 	// Now that the string has been identified as a selector parse it
 	// and prefetch the pieces
 
@@ -575,7 +577,6 @@ func (s *Scanner) scanInterp(offs int) (pos token.Pos, tok token.Token, lit stri
 		return
 	}
 	s.next()
-
 	return s.file.Pos(offs), token.INTERP, "#{"
 }
 
@@ -602,7 +603,6 @@ func (s *Scanner) queueInterp(offs int) bool {
 // Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
 func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 	// offs := s.offset - 1 // catch first quote
-
 	var ch rune
 	for s.ch == '\\' || isText(s.ch, whitespace) ||
 		// #id
@@ -727,7 +727,7 @@ ruleAgain:
 			if s.offset-offs > 1 {
 				tok = token.STRING
 				lit = string(bytes.TrimSpace(s.src[offs : s.offset-2]))
-				s.rewind(s.offset - 2)
+				fmt.Println("pushed buffer", lit)
 			}
 			break
 		}
@@ -736,8 +736,9 @@ ruleAgain:
 		}
 		s.next()
 	}
-
-	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	if len(lit) == 0 {
+		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	}
 	s.skipWhitespace()
 
 	switch s.ch {
