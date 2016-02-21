@@ -84,7 +84,7 @@ func init() {
 
 func register(s string, ch builtin.CallHandler) {
 	fset := token.NewFileSet()
-	pf, err := ParseFile(fset, "", s, FuncOnly|Trace)
+	pf, err := ParseFile(fset, "", s, FuncOnly)
 	if err != nil {
 		if !strings.HasSuffix(err.Error(), "expected ';', found 'EOF'") {
 			log.Fatal(err)
@@ -142,6 +142,10 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			pos := fn.Pos(v.Key.(*ast.Ident))
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.Ident:
+			if v.Obj == nil {
+				panic(fmt.Errorf("ident unresolved: % #v\n",
+					v))
+			}
 			assign := v.Obj.Decl.(*ast.AssignStmt)
 			// Resolving an assignment should also update the ctx.
 			switch v := assign.Rhs[0].(type) {

@@ -105,7 +105,7 @@ func (p *parser) add(filename string, src interface{}) error {
 		syncPos: p.syncPos,
 		syncCnt: p.syncCnt,
 	}
-	fmt.Println(filename)
+	fmt.Println("parser adding", filename)
 	p.imps = append(p.imps, stk)
 	filename = filepath.Join(filepath.Dir(p.file.Name()), filename)
 	text, err := readSource(filename, src)
@@ -113,7 +113,7 @@ func (p *parser) add(filename string, src interface{}) error {
 		log.Fatal("failed to read", filename, err)
 		return err
 	}
-	fmt.Println(string(text))
+
 	p.init(Globalfset, filename, text, p.mode)
 	return nil
 }
@@ -952,6 +952,7 @@ func (p *parser) parseSassType() ast.Expr {
 			Name:    p.lit,
 			NamePos: p.pos,
 		}
+		p.resolve(expr)
 	} else {
 		expr = &ast.BasicLit{
 			ValuePos: p.pos,
@@ -2359,7 +2360,7 @@ func isValidImport(lit string) bool {
 
 func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, "ImportSpec"))
+		// defer un(trace(p, "ImportSpec"))
 	}
 
 	var ident *ast.Ident
@@ -2370,7 +2371,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	case token.IDENT:
 		ident = p.parseIdent()
 	}
-
 	p.expect(token.IMPORT)
 	pos, tok := p.pos, p.tok
 	var path string
@@ -2389,7 +2389,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		ValuePos: pos,
 		Kind:     tok,
 		Value:    path})
-	// p.expectSemi() // call before accessing p.linecomment
 
 	// collect imports
 	spec := &ast.ImportSpec{
@@ -2398,7 +2397,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		Path:    pathlit,
 		Comment: p.lineComment,
 	}
-
 	// Parse and insert the results into the current parser
 	p.imports = append(p.imports, spec)
 	err := p.processImport(spec.Path.Value)
@@ -2599,7 +2597,7 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 
 func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFunction) *ast.GenDecl {
 	if p.trace {
-		defer un(trace(p, "GenDecl("+keyword.String()+")"))
+		// defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
 	pos := p.pos
 	assert(pos != 0, "0 position found")
