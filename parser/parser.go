@@ -629,11 +629,13 @@ func (p *parser) parseInterp() *ast.Interp {
 }
 
 // ain't nobody got time for interpolations
-func (p *parser) resolveInterp(inp *ast.Interp) (out ast.Expr) {
-	// TODO: need to combine tokens if no space separated them to
-	// begin with
-	fmt.Println("resolve interp!")
-	return calc.Resolve(p.parseBinaryExpr(false, token.LowestPrec+1))
+func (p *parser) resolveInterp(inp *ast.Interp) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "ResolveInterp"))
+	}
+
+	expr := calc.Resolve(p.parseBinaryExpr(false, token.LowestPrec+1))
+	return expr
 }
 
 func (p *parser) parseDirective() *ast.Ident {
@@ -794,6 +796,45 @@ func (p *parser) inferRhsList() []ast.Expr {
 	return list
 }
 
+// interpolation can happen inline to a string. In these cases,
+// the value should be merged with the previous or subsequent
+// value.
+func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
+	if len(in) == 0 {
+		return in
+	}
+
+	out := make([]ast.Expr, 0, len(in))
+	if _, isInterp := in[0].(*ast.Interp); !isInterp {
+		out = append(out, in[0])
+	}
+
+	for i := 1; i < len(in); i++ {
+		_, isInterp := in[i].(*ast.Interp)
+		if !isInterp {
+			out = append(out, in[i])
+			continue
+		}
+		l, lok := in[i-1].(*ast.BasicLit)
+		if i+1 >= len(in) {
+			continue
+		}
+		r, rok := in[i+1].(*ast.BasicLit)
+		if lok && rok {
+			fmt.Printf("Merging\nL: % #v\nR: % #v\n", l, r)
+			if in[i-1].End() == in[i].Pos() {
+				l.Value += r.Value
+				fmt.Println("merged", l.Value)
+			} else {
+				fmt.Printf("not consec % #v\n", in[i+1])
+				out = append(out, in[i+1])
+			}
+			i++
+		}
+	}
+	return out
+}
+
 func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
@@ -810,41 +851,30 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		p.tok != token.EOF {
 		if p.tok == token.INTERP {
 			isInterp = true
-			fmt.Println("interp!")
+			list = append(list, &ast.Interp{
+				Name:    "#{",
+				NamePos: p.pos,
+			})
 		}
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
 			p.next()
 		}
 
-		// Some shit to merge inline interpolations
 		expr := p.inferExpr(lhs)
-		exlit, eok := expr.(*ast.BasicLit)
-		lit, ok := lastExpr.(*ast.BasicLit)
-		fmt.Println(isInterp, ok, eok)
-		fmt.Printf("last: % #v\nnow:  % #v\n", lit, exlit)
-		fmt.Println(lastExpr.End(), expr.Pos(),
-			expr.Pos()-lastExpr.End() == 2)
-		if !isInterp || lastExpr == nil ||
-			!ok || !eok ||
-			expr.Pos()-lastExpr.End() != 2 {
-			lastExpr = expr
-			list = append(list, expr)
+		list = append(list, expr)
+		if !isInterp {
 			continue
 		}
 		isInterp = false
-		fmt.Printf("merging %q %q\n", lit.Value, exlit.Value)
-		switch lit.Kind {
-		case token.STRING, token.INT:
-			lit.Value = lit.Value + exlit.Value
-			fmt.Println("merged!", lit.Value)
-		default:
-			log.Fatalf("% #v\n", lit)
-		}
+		pos := p.expect(token.RBRACE)
+		list = append(list, &ast.Interp{
+			Name:    "}",
+			NamePos: pos,
+		})
 
 	}
-	fmt.Println("exit because", p.tok)
-	return
+	return p.mergeInterps(list)
 }
 
 // Derive the type from the nature of the value, there is no hint for what
@@ -895,7 +925,6 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		// 	Kind:     token.VAR,
 		// }
 	default:
-		// p.errorExpected(p.pos, "inferExpr match")
 		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
 	// Always be steppin'

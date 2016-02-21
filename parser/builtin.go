@@ -121,13 +121,16 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		}
 	}
 	var argpos int
-	ctx := expr.Args
+	incoming := expr.Args
 	// Verify args and convert to BasicLit before passing along
-	if len(callargs) < len(expr.Args) {
+	if len(callargs) < len(incoming) {
+		for _, p := range incoming {
+			log.Printf("inc % #v\n", p)
+		}
 		log.Fatalf("mismatched arg count %s got: %d wanted: %d",
-			name, len(expr.Args), len(callargs))
+			name, len(incoming), len(callargs))
 	}
-	for i, arg := range expr.Args {
+	for i, arg := range incoming {
 		if argpos < i {
 			argpos = i
 		}
@@ -143,10 +146,10 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			// Resolving an assignment should also update the ctx.
 			switch v := assign.Rhs[0].(type) {
 			case *ast.BasicLit:
-				ctx[i] = v
+				incoming[i] = v
 				callargs[argpos] = v
 			case *ast.CallExpr:
-				ctx[i] = v
+				incoming[i] = v
 				callargs[argpos] = v.Resolved
 			}
 		case *ast.BinaryExpr:
