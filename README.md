@@ -27,7 +27,7 @@ Glossary
 - [ ] No Support
 
 ### Compiler Status
-Passing 20 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
+Passing 24 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
 
 ### Function Status
 See [functions](functions.md)
@@ -57,7 +57,7 @@ See [functions](functions.md)
   - Parentheses :question:
 - [x] Functions
 - [x] Keyword Arguments
-- Interpolation: #{} (Limited support for these) :question:
+- [x] Interpolation: #{} (probably still issues with this)
 - [ ] & in SassScript
 - [ ] Variable Defaults: !default
 - @-Rules and Directives
