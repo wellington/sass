@@ -1603,11 +1603,17 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	p.exprLev--
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
-
+	for i := range list {
+		fmt.Printf("%d: % #v\n", i, list[i])
+	}
+	m := p.mergeInterps(list)
+	for i := range m {
+		fmt.Printf("%d: % #v\n", i, m[i])
+	}
 	call := &ast.CallExpr{
 		Fun:      fun,
 		Lparen:   lparen,
-		Args:     p.checkInterp(list),
+		Args:     p.mergeInterps(list),
 		Ellipsis: ellipsis,
 		Rparen:   rparen,
 	}
