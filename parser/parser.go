@@ -622,20 +622,26 @@ func (p *parser) safePos(pos token.Pos) (res token.Pos) {
 // Identifiers
 
 func (p *parser) parseInterp() *ast.Interp {
-	pos := p.pos
-	name := "_"
-	p.expect(token.INTERP)
-	return &ast.Interp{NamePos: pos, Name: name}
+	if p.trace {
+		defer un(trace(p, "ParseInterp"))
+	}
+	pos := p.expect(token.INTERP)
+	itp := &ast.Interp{
+		Lbrace: pos,
+		X:      p.parseBinaryExpr(false, token.LowestPrec+1),
+		Rbrace: p.expect(token.RBRACE),
+	}
+	return itp
 }
 
 // ain't nobody got time for interpolations
-func (p *parser) resolveInterp(inp *ast.Interp) ast.Expr {
-	if p.trace {
-		defer un(trace(p, "ResolveInterp"))
-	}
-
-	expr := calc.Resolve(p.parseBinaryExpr(false, token.LowestPrec+1))
-	return expr
+func (p *parser) resolveInterp(itp *ast.Interp) {
+	itp.Obj = ast.NewObj(ast.Var, "")
+	lit := calc.Resolve(itp.X)
+	// interpolation always outputs a string
+	lit.Kind = token.STRING
+	itp.Obj.Decl = lit
+	return
 }
 
 func (p *parser) parseDirective() *ast.Ident {
@@ -803,33 +809,50 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	if len(in) == 0 {
 		return in
 	}
-
 	out := make([]ast.Expr, 0, len(in))
-	if _, isInterp := in[0].(*ast.Interp); !isInterp {
-		out = append(out, in[0])
-	}
 
-	for i := 1; i < len(in); i++ {
-		_, isInterp := in[i].(*ast.Interp)
+	for i := 0; i < len(in); i++ {
+		itp, isInterp := in[i].(*ast.Interp)
 		if !isInterp {
 			out = append(out, in[i])
 			continue
 		}
-		l, lok := in[i-1].(*ast.BasicLit)
-		if i+1 >= len(in) {
+		if itp.Obj == nil || itp.Obj.Decl == nil {
+			p.error(itp.Pos(), "interpolation is unresolved")
 			continue
 		}
-		r, rok := in[i+1].(*ast.BasicLit)
-		if lok && rok {
-			fmt.Printf("Merging\nL: % #v\nR: % #v\n", l, r)
-			if in[i-1].End() == in[i].Pos() {
-				l.Value += r.Value
-				fmt.Println("merged", l.Value)
-			} else {
-				fmt.Printf("not consec % #v\n", in[i+1])
-				out = append(out, in[i+1])
+		lit := itp.Obj.Decl.(*ast.BasicLit)
+		if i == 0 {
+			out = append(out, lit)
+			continue
+		}
+		target := i
+		val := lit.Value
+		// Look behind and see if the previous token should
+		// be appended to
+		if in[i-1].End() == itp.Pos() {
+			target = i - 1
+			// merge
+			val = in[i-1].(*ast.BasicLit).Value + val
+		}
+		// Look ahead to see if next token should be merged
+		if i+1 < len(in) {
+			if in[i+1].Pos() == itp.End() {
+				val = val + in[i+1].(*ast.BasicLit).Value
+				// Skip this token
+				i++
 			}
-			i++
+		}
+		if target == i {
+			lit.Value = val
+			// If any concat happened, it's not a string
+			if len(val) > len(lit.Value) {
+				lit.Kind = token.STRING
+			}
+		} else {
+			tlit := in[target].(*ast.BasicLit)
+			tlit.Value = val
+			tlit.Kind = token.STRING
 		}
 	}
 	return out
@@ -842,20 +865,12 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	lastExpr := p.inferExpr(lhs)
 	list = append(list, lastExpr)
 
-	var isInterp bool
-
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
 		p.tok != token.RPAREN &&
 		p.tok != token.EOF {
-		if p.tok == token.INTERP {
-			isInterp = true
-			list = append(list, &ast.Interp{
-				Name:    "#{",
-				NamePos: p.pos,
-			})
-		}
+
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
 			p.next()
@@ -863,16 +878,6 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 
 		expr := p.inferExpr(lhs)
 		list = append(list, expr)
-		if !isInterp {
-			continue
-		}
-		isInterp = false
-		pos := p.expect(token.RBRACE)
-		list = append(list, &ast.Interp{
-			Name:    "}",
-			NamePos: pos,
-		})
-
 	}
 	return p.mergeInterps(list)
 }
@@ -924,6 +929,10 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		// 	Value:    p.lit,
 		// 	Kind:     token.VAR,
 		// }
+	case token.INTERP:
+		x := p.parseInterp()
+		p.resolveInterp(x)
+		return x
 	default:
 		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
@@ -1104,6 +1113,8 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 			}
 		}
 		return typ
+	} else if p.tok == token.INTERP {
+		log.Fatalf("interp!", p.lit)
 	}
 
 	return p.tryIdentOrType()
@@ -1469,7 +1480,9 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		}
 		return x
 	case token.INTERP:
-		return p.resolveInterp(p.parseInterp())
+		x := p.parseInterp()
+		p.resolveInterp(x)
+		return x
 	case
 		token.COLOR,
 		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,
@@ -1595,20 +1608,23 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 			ellipsis = p.pos
 			p.next()
 		}
+		if p.tok == token.INTERP {
+			continue
+		}
 		if !p.atComma("argument list", token.RPAREN) {
+			fmt.Println("breaking!")
 			break
 		}
+		fmt.Println("eating", p.tok)
 		p.next()
 	}
 	p.exprLev--
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
-	for i := range list {
-		fmt.Printf("%d: % #v\n", i, list[i])
-	}
+	ast.Print(token.NewFileSet(), list)
 	m := p.mergeInterps(list)
 	for i := range m {
-		fmt.Printf("%d: % #v\n", i, m[i])
+		fmt.Printf(">%d: % #v\n", i, m[i])
 	}
 	call := &ast.CallExpr{
 		Fun:      fun,
@@ -1631,75 +1647,6 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	}
 	return call
 }
-
-// func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
-// 	if p.trace {
-// 		defer un(trace(p, "CallOrConversion"))
-// 	}
-
-// 	pos := p.pos
-// 	lparen := p.expect(token.LPAREN)
-// 	p.exprLev++
-// 	var list []ast.Expr
-// 	var ellipsis token.Pos
-// 	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-// 		var typ ast.Expr
-// 	K:
-// 		list = append(list, p.parseVarType(true))
-// 		switch p.tok {
-// 		case token.LPAREN:
-// 			typ = p.parseCallOrConversion(typ)
-// 		case token.COLON:
-// 			panic("this should never happen")
-// 			p.next()
-// 			// Next one is default value
-// 			list = append(list, p.parseRhsOrType())
-// 		case token.ELLIPSIS:
-// 			ellipsis = p.pos
-// 			p.next()
-// 		case token.INTERP:
-// 			list = append(list, &ast.Interp{NamePos: p.pos})
-// 			p.next()
-// 			goto K
-// 		case token.RBRACE:
-// 			// We'll actually need these to evaluate prepending
-// 			// interp to another literal
-// 			p.next()
-// 		}
-// 		if _, ok := typ.(*ast.Ident); ok {
-// 			p.resolve(typ)
-// 		}
-
-// 		if !p.atComma("argument list", token.RPAREN) {
-// 			break
-// 		}
-// 		p.next()
-// 	}
-// 	p.exprLev--
-
-// 	rparen := p.expectClosing(token.RPAREN, "argument list")
-
-// 	call := &ast.CallExpr{
-// 		Fun:      fun,
-// 		Lparen:   lparen,
-// 		Args:     p.checkInterp(list),
-// 		Ellipsis: ellipsis,
-// 		Rparen:   rparen,
-// 	}
-// 	ident := fun.(*ast.Ident)
-// 	if p.mode&FuncOnly == 0 {
-// 		lit, err := evaluateCall(call)
-// 		call.Resolved = lit
-// 		// Manually set object, because Ident name isn't unique
-// 		obj := ast.NewObj(ast.Var, ident.Name)
-// 		obj.Decl = lit
-// 		ident.Obj = obj
-// 		if err != nil {
-// 			p.error(pos, err.Error())
-// 		}
-// 	}
-// 	return call
-// }
 
 func (p *parser) parseValue(keyOk bool) ast.Expr {
 	if p.trace {
@@ -2052,7 +1999,7 @@ func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
 			}
 		}
 	}
-
+	fmt.Println("exited", p.tok)
 	return x
 }
 
@@ -2079,7 +2026,7 @@ func (p *parser) parseRhs() ast.Expr {
 func (p *parser) parseRhsOrKV() ast.Expr {
 	old := p.inRhs
 	p.inRhs = true
-	x := p.checkExprOrType(p.parseExpr(false))
+	x := p.parseExpr(false)
 	p.inRhs = old
 	return x
 }

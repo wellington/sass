@@ -15,10 +15,15 @@ func Resolve(in ast.Expr) *ast.BasicLit {
 
 func resolve(in ast.Expr) *ast.BasicLit {
 	switch v := in.(type) {
+	case *ast.UnaryExpr:
+		return v.X.(*ast.BasicLit)
 	case *ast.BinaryExpr:
 		return binary(v)
 	case *ast.BasicLit:
 		return v
+	default:
+		panic("no")
+		log.Fatalf("unsupported calc.resolve % #v\n", v)
 	}
 	return nil
 }
