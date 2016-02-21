@@ -205,9 +205,9 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	// defer func() {
-	// 	fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
-	// }()
+	defer func() {
+		// fmt.Printf("scan tok: %s lit: '%s' pos: %d\n", tok, lit, pos)
+	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -278,7 +278,9 @@ bypassSelector:
 		// color:    #fff[000]
 		// interp:   #{}
 		if s.ch == '{' {
-			tok, lit = s.scanInterp(offs)
+			// tok, lit = s.scanInterp(offs)
+			tok, lit = token.INTERP, "#{"
+			s.next()
 		} else {
 			tok, lit = s.scanColor()
 		}
@@ -367,7 +369,6 @@ bypassSelector:
 		tok = token.MUL
 	default:
 		pos, tok, lit = s.scanRule(offs)
-
 		// if isLetter(s.ch) {
 		// 	// Try a rule, failing go to IDENT
 
@@ -378,7 +379,6 @@ bypassSelector:
 		// }
 	}
 
-	// item = Item{Type: ItemILLEGAL, Value: string(ch)}
 	return
 }
 
@@ -456,7 +456,9 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 }
 
 func (s *Scanner) scanSel(offs, end int) {
+
 	s.rewind(offs)
+
 	// Now that the string has been identified as a selector parse it
 	// and prefetch the pieces
 
@@ -489,11 +491,14 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 	}
 
 	switch ch := s.ch; {
-	case ch == '#' || ch == '.':
+	case ch == '.':
 		s.next()
 		fallthrough
-	case isLetter(ch):
+	case isLetter(ch) || ch == '#':
 		tok = token.STRING
+		if pos, tok, lit := s.scanInterp(s.offset); tok != token.ILLEGAL {
+			return pos, tok, lit
+		}
 		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' ||
 			s.ch == '#' || s.ch == '&' {
 			if s.offset > end {
@@ -562,6 +567,35 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 	return
 }
 
+func (s *Scanner) scanInterp(offs int) (pos token.Pos, tok token.Token, lit string) {
+	if s.ch != '#' {
+		return
+	}
+
+	s.next()
+	if s.ch != '{' {
+		return
+	}
+	s.next()
+	return s.file.Pos(offs), token.INTERP, "#{"
+}
+
+// scanInterp attempts to build a valid set of tokens from an interpolation
+func (s *Scanner) queueInterp(offs int) bool {
+	pos, tok, lit := s.scanInterp(offs)
+	if tok == token.INTERP {
+		// If found, just push into the queue for next Scan
+		s.queue <- prefetch{
+			pos: pos,
+			tok: tok,
+			lit: lit,
+		}
+		return true
+	}
+
+	return false
+}
+
 // ScanText is responsible for gobbling non-whitespace characters
 //
 // This should validate variable naming http://stackoverflow.com/a/17194994
@@ -569,21 +603,17 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 // Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
 func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 	// offs := s.offset - 1 // catch first quote
-
 	var ch rune
 	for s.ch == '\\' || isText(s.ch, whitespace) ||
+		// #id
 		s.ch == '#' ||
-		// For now, just eat interpolations
 		s.ch == end {
-
 		ch = s.ch
-		s.next()
-
-		// For now, just eat interpolation
-		if ch == '#' {
-			// Verify introlation
-			s.scanInterp(s.offset)
+		if _, tok, _ := s.scanInterp(offs); tok != token.ILLEGAL {
+			s.rewind(offs)
+			break
 		}
+		s.next()
 
 		if ch == '\\' {
 			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
@@ -626,19 +656,6 @@ func (s *Scanner) scanRGB(pos int) (tok token.Token, lit string) {
 
 	lit = string(s.src[offs:s.offset])
 	return
-}
-
-func (s *Scanner) scanInterp(offs int) (token.Token, string) {
-	// Should only be called after '#' is detected
-	if s.ch != '{' {
-		return token.ILLEGAL, ""
-	}
-	for s.ch != '}' {
-		s.next()
-	}
-	s.next()
-	return token.INTERP, string(s.src[offs:s.offset])
-
 }
 
 func (s *Scanner) scanColor() (tok token.Token, lit string) {
@@ -698,12 +715,32 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 }
 
 func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string) {
-
+	var interp bool
+ruleAgain:
 	pos = s.file.Pos(offs)
-	for !strings.ContainsRune(":();{},$", s.ch) {
+	for {
+		if ok := s.queueInterp(s.offset); ok {
+			// If we got here, there could be text in the buffer
+			// If so, push interpolate into the queue and return this
+			// interpolate prefix
+
+			if s.offset-offs > 1 {
+				tok = token.STRING
+				lit = string(bytes.TrimSpace(s.src[offs : s.offset-2]))
+				fmt.Println("pushed buffer", lit)
+			}
+			break
+		}
+		if strings.ContainsRune(" \n:();{},$", s.ch) {
+			break
+		}
 		s.next()
 	}
-	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	if len(lit) == 0 {
+		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	}
+	s.skipWhitespace()
+
 	switch s.ch {
 	case ':':
 		tok = token.RULE
@@ -716,9 +753,23 @@ func (s *Scanner) scanRule(offs int) (pos token.Pos, tok token.Token, lit string
 	case ';':
 		tok = token.STRING
 	default:
-		// Not sure, this requires more specifics
-		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
-		tok = token.IDENT
+		tok = token.STRING
+		if interp {
+			if tok != token.RBRACE {
+				// It's like groundhog day, but it's interpolation every day
+				goto ruleAgain
+			}
+			s.queue <- prefetch{
+				pos: pos,
+				lit: "}",
+				tok: token.RBRACE,
+			}
+		} else {
+			// Not sure, this requires more specifics
+			fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
+		}
+		// tok = token.IDENT
+
 	}
 	return
 }
@@ -763,7 +814,6 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 		s.scanMantissa(10)
 		goto exponent
 	}
-
 	if s.ch == '0' {
 		// int or float
 		offs := s.offset
@@ -827,7 +877,13 @@ exit:
 }
 
 func (s *Scanner) scanMantissa(base int) {
-	for digitVal(s.ch) < base {
+	for {
+		if digitVal(s.ch) >= base {
+			return
+		}
+		if s.queueInterp(s.offset) {
+			return
+		}
 		s.next()
 	}
 }

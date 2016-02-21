@@ -11,7 +11,6 @@ import (
 )
 
 func TestParse_files(t *testing.T) {
-
 	if testing.Short() {
 		t.Skip("Skip robust testing to better indicate errors")
 	}
@@ -27,7 +26,7 @@ func TestParse_files(t *testing.T) {
 	defer func() { fmt.Println("exit parsing", name) }()
 	for _, name = range inputs {
 
-		if strings.Contains(name, "13_") {
+		if !strings.Contains(name, "23_") {
 			continue
 		}
 		if strings.Contains(name, "06_") {

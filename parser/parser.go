@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/scanner"
 	"github.com/wellington/sass/token"
 )
@@ -104,7 +105,7 @@ func (p *parser) add(filename string, src interface{}) error {
 		syncPos: p.syncPos,
 		syncCnt: p.syncCnt,
 	}
-	fmt.Println(filename)
+	fmt.Println("parser adding", filename)
 	p.imps = append(p.imps, stk)
 	filename = filepath.Join(filepath.Dir(p.file.Name()), filename)
 	text, err := readSource(filename, src)
@@ -112,7 +113,7 @@ func (p *parser) add(filename string, src interface{}) error {
 		log.Fatal("failed to read", filename, err)
 		return err
 	}
-	fmt.Println(string(text))
+
 	p.init(Globalfset, filename, text, p.mode)
 	return nil
 }
@@ -148,10 +149,6 @@ func (p *parser) closeLabelScope() {
 	p.labelScope = p.labelScope.Outer
 }
 
-func (p *parser) declareSelector(sel *ast.SelStmt, scope *ast.Scope) {
-	// p.declare(ast.NewIdent(sel), nil, scope, ast.Sel)
-}
-
 func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjKind, idents ...*ast.Ident) {
 	for _, ident := range idents {
 		if ident.Obj != nil {
@@ -180,8 +177,8 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 				}
 				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
 			} else {
-				// fmt.Printf("declaring %15s(%p): scope(%p): % #v\n",
-				//	ident, ident, scope, obj.Decl)
+				// fmt.Printf("decl %8s(%p): % #v\n",
+				// 	ident, scope, obj.Decl)
 			}
 		}
 	}
@@ -245,13 +242,14 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
 			if ok {
-				fmt.Printf("resolved  %15s: scope(%p) % #v\n",
-					ident,
-					s,
-					decl.Rhs[0])
+				var srh string
+				for _, rhs := range decl.Rhs {
+					srh += fmt.Sprintf("%s ", rhs)
+				}
+				fmt.Printf("resolved  %8s: scope(%p) %d: %s\n",
+					ident, s, len(decl.Rhs), srh)
 			}
 			ident.Obj = obj
-			fmt.Println("")
 			return
 		}
 	}
@@ -624,10 +622,26 @@ func (p *parser) safePos(pos token.Pos) (res token.Pos) {
 // Identifiers
 
 func (p *parser) parseInterp() *ast.Interp {
-	pos := p.pos
-	name := "_"
-	p.expect(token.INTERP)
-	return &ast.Interp{NamePos: pos, Name: name}
+	if p.trace {
+		defer un(trace(p, "ParseInterp"))
+	}
+	pos := p.expect(token.INTERP)
+	itp := &ast.Interp{
+		Lbrace: pos,
+		X:      p.parseBinaryExpr(false, token.LowestPrec+1),
+		Rbrace: p.expect(token.RBRACE),
+	}
+	return itp
+}
+
+// ain't nobody got time for interpolations
+func (p *parser) resolveInterp(itp *ast.Interp) {
+	itp.Obj = ast.NewObj(ast.Var, "")
+	lit := calc.Resolve(itp.X)
+	// interpolation always outputs a string
+	lit.Kind = token.STRING
+	itp.Obj.Decl = lit
+	return
 }
 
 func (p *parser) parseDirective() *ast.Ident {
@@ -788,23 +802,85 @@ func (p *parser) inferRhsList() []ast.Expr {
 	return list
 }
 
+// interpolation can happen inline to a string. In these cases,
+// the value should be merged with the previous or subsequent
+// value.
+func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
+	if len(in) == 0 {
+		return in
+	}
+	out := make([]ast.Expr, 0, len(in))
+
+	for i := 0; i < len(in); i++ {
+		itp, isInterp := in[i].(*ast.Interp)
+		if !isInterp {
+			out = append(out, in[i])
+			continue
+		}
+		if itp.Obj == nil || itp.Obj.Decl == nil {
+			p.error(itp.Pos(), "interpolation is unresolved")
+			continue
+		}
+		lit := itp.Obj.Decl.(*ast.BasicLit)
+		if i == 0 {
+			out = append(out, lit)
+			continue
+		}
+		target := i
+		val := lit.Value
+		// Look behind and see if the previous token should
+		// be appended to
+		if in[i-1].End() == itp.Pos() {
+			target = i - 1
+			// merge
+			val = in[i-1].(*ast.BasicLit).Value + val
+		}
+		// Look ahead to see if next token should be merged
+		if i+1 < len(in) {
+			if in[i+1].Pos() == itp.End() {
+				val = val + in[i+1].(*ast.BasicLit).Value
+				// Skip this token
+				i++
+			}
+		}
+		if target == i {
+			lit.Value = val
+			// If any concat happened, it's not a string
+			if len(val) > len(lit.Value) {
+				lit.Kind = token.STRING
+			}
+			out = append(out, lit)
+		} else {
+			tlit := in[target].(*ast.BasicLit)
+			tlit.Value = val
+			tlit.Kind = token.STRING
+		}
+	}
+	return out
+}
+
 func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
 	}
-	list = append(list, p.inferExpr(lhs))
+	lastExpr := p.inferExpr(lhs)
+	list = append(list, lastExpr)
+
 	// TODO: it also accepts spaces, b/c stupid
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
 		p.tok != token.RPAREN &&
 		p.tok != token.EOF {
+
 		// Accept commas for sacrifices to Cthulu
 		if p.tok == token.COMMA {
 			p.next()
 		}
-		list = append(list, p.inferExpr(lhs))
+
+		expr := p.inferExpr(lhs)
+		list = append(list, expr)
 	}
-	return
+	return p.mergeInterps(list)
 }
 
 // Derive the type from the nature of the value, there is no hint for what
@@ -823,6 +899,10 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		defer un(trace(p, "inferExpr"))
 	}
 	var expr ast.Expr
+	defer func() {
+		//fmt.Printf("expr: %d end: %d val: % #v\n",
+		//	expr.Pos(), expr.End(), expr)
+	}()
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	expr = basic
 	switch p.tok {
@@ -850,8 +930,11 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		// 	Value:    p.lit,
 		// 	Kind:     token.VAR,
 		// }
+	case token.INTERP:
+		x := p.parseInterp()
+		p.resolveInterp(x)
+		return x
 	default:
-		// p.errorExpected(p.pos, "inferExpr match")
 		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 	}
 	// Always be steppin'
@@ -869,6 +952,7 @@ func (p *parser) parseSassType() ast.Expr {
 			Name:    p.lit,
 			NamePos: p.pos,
 		}
+		p.resolve(expr)
 	} else {
 		expr = &ast.BasicLit{
 			ValuePos: p.pos,
@@ -1031,13 +1115,53 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 			}
 		}
 		return typ
+	} else if p.tok == token.INTERP {
+		log.Fatalf("interp!", p.lit)
 	}
 
 	return p.tryIdentOrType()
 }
 
+// checkInterp verifies there's spaces between interpolations and
+// literals. If not, it merges the tokens
+func (p *parser) checkInterp(in []ast.Expr) (out []ast.Expr) {
+
+	var merge bool
+	var endpos token.Pos
+	for _, expr := range in {
+		switch v := expr.(type) {
+		case *ast.Interp:
+			if endpos > 0 && expr.Pos() == endpos {
+				merge = true
+			}
+		case *ast.BasicLit:
+
+			fmt.Println("lit ", v.Value, "   start", expr.Pos(),
+				"end", expr.End())
+
+			if !merge {
+				out = append(out, expr)
+			} else {
+				fmt.Println(out, len(out))
+				last := out[len(out)-1]
+				fmt.Println("wut")
+				last.(*ast.BasicLit).Value += v.Value
+				merge = false
+			}
+		default:
+			out = append(out, expr)
+		}
+		endpos = expr.End()
+	}
+	fmt.Println("final interp", out)
+	return
+}
+
 // If the result is an identifier, it is not resolved.
 func (p *parser) parseVarType(isParam bool) ast.Expr {
+	if p.trace {
+		defer un(trace(p, "ParseVarType"))
+	}
 	typ := p.tryVarType(isParam)
 	if typ == nil {
 		pos := p.pos
@@ -1358,7 +1482,9 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		}
 		return x
 	case token.INTERP:
-		return p.parseInterp()
+		x := p.parseInterp()
+		p.resolveInterp(x)
+		return x
 	case
 		token.COLOR,
 		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,
@@ -1378,9 +1504,14 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 
 	case token.FUNC:
 		return p.parseFuncTypeOrLit()
+	case token.VAR:
+		// VAR is only hit while parsing function params, so
+		// this should only be allowed in that case.
+		return p.tryVarType(true) //isParam
 	}
 
 	if typ := p.tryIdentOrType(); typ != nil {
+		fmt.Printf("% #v\n", typ)
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
 		assert(!isIdent, "type cannot be identifier")
@@ -1468,36 +1599,25 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	if p.trace {
 		defer un(trace(p, "CallOrConversion"))
 	}
-
 	pos := p.pos
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
 	var list []ast.Expr
 	var ellipsis token.Pos
 	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-		// list = append(list, p.parseRhsOrType()) // builtins may expect a type: make(some type, ...)
-		var typ ast.Expr
-
-		typ = p.parseVarType(true)
-		switch p.tok {
-		case token.LPAREN:
-			typ = p.parseCallOrConversion(typ)
-		case token.COLON:
-			panic("this should never happen")
-			p.next()
-			// Next one is default value
-			list = append(list, p.parseRhsOrType())
-		case token.ELLIPSIS:
+		list = append(list, p.parseRhsOrKV()) // builtins may expect a type: make(some type, ...)
+		if p.tok == token.ELLIPSIS {
 			ellipsis = p.pos
 			p.next()
 		}
-		if _, ok := typ.(*ast.Ident); ok {
-			p.resolve(typ)
+		if p.tok == token.INTERP {
+			continue
 		}
-		list = append(list, typ)
 		if !p.atComma("argument list", token.RPAREN) {
+			fmt.Println("breaking!")
 			break
 		}
+		fmt.Println("eating", p.tok)
 		p.next()
 	}
 	p.exprLev--
@@ -1507,7 +1627,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	call := &ast.CallExpr{
 		Fun:      fun,
 		Lparen:   lparen,
-		Args:     list,
+		Args:     p.mergeInterps(list),
 		Ellipsis: ellipsis,
 		Rparen:   rparen,
 	}
@@ -1723,8 +1843,8 @@ L:
 	for {
 		switch p.tok {
 		case token.INTERP:
-			p.next()
-			p.resolve(x)
+			// Don't evaluate interpolation here
+			break L
 		case token.PERIOD:
 			p.next()
 			if lhs {
@@ -1877,7 +1997,6 @@ func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
 			}
 		}
 	}
-
 	return x
 }
 
@@ -1897,6 +2016,14 @@ func (p *parser) parseRhs() ast.Expr {
 	old := p.inRhs
 	p.inRhs = true
 	x := p.checkExpr(p.parseExpr(false))
+	p.inRhs = old
+	return x
+}
+
+func (p *parser) parseRhsOrKV() ast.Expr {
+	old := p.inRhs
+	p.inRhs = true
+	x := p.parseExpr(false)
 	p.inRhs = old
 	return x
 }
@@ -1951,70 +2078,6 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 	}
 
 	return stmt, isRange
-	// Unreachable
-	switch p.tok {
-	case
-		token.DEFINE, token.ASSIGN:
-
-		// assignment statement, possibly part of a range clause
-		pos, tok := p.pos, p.tok
-		p.next()
-		var y []ast.Expr
-		isRange := false
-
-		y = p.parseRhsList()
-
-		as := &ast.AssignStmt{Lhs: x, TokPos: pos, Tok: tok, Rhs: y}
-		if tok == token.DEFINE {
-			p.shortVarDecl(as, x)
-		}
-		return as, isRange
-	}
-
-	if len(x) > 1 {
-		p.errorExpected(x[0].Pos(), "1 expression")
-		// continue with first expression
-	}
-
-	switch p.tok {
-	case token.COLON:
-		// labeled statement
-		colon := p.pos
-		p.next()
-		if label, isIdent := x[0].(*ast.Ident); mode == labelOk && isIdent {
-			// Go spec: The scope of a label is the body of the function
-			// in which it is declared and excludes the body of any nested
-			// function.
-			st, _ := p.parseStmt()
-			stmt := &ast.LabeledStmt{Label: label, Colon: colon, Stmt: st}
-			p.declare(stmt, nil, p.labelScope, ast.Lbl, label)
-			return stmt, false
-		}
-		// The label declaration typically starts at x[0].Pos(), but the label
-		// declaration may be erroneous due to a token after that position (and
-		// before the ':'). If SpuriousErrors is not set, the (only) error re-
-		// ported for the line is the illegal label error instead of the token
-		// before the ':' that caused the problem. Thus, use the (latest) colon
-		// position for error reporting.
-		p.error(colon, "illegal label declaration")
-		return &ast.BadStmt{From: x[0].Pos(), To: colon + 1}, false
-
-	case token.ARROW:
-		// send statement
-		arrow := p.pos
-		p.next()
-		y := p.parseRhs()
-		return &ast.SendStmt{Chan: x[0], Arrow: arrow, Value: y}, false
-
-	case token.INC, token.DEC:
-		// increment or decrement
-		s := &ast.IncDecStmt{X: x[0], TokPos: p.pos, Tok: p.tok}
-		p.next()
-		return s, false
-	}
-
-	// expression
-	return &ast.ExprStmt{X: x[0]}, false
 }
 
 func (p *parser) parseCallExpr(callType string) *ast.CallExpr {
@@ -2297,7 +2360,7 @@ func isValidImport(lit string) bool {
 
 func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, "ImportSpec"))
+		// defer un(trace(p, "ImportSpec"))
 	}
 
 	var ident *ast.Ident
@@ -2308,7 +2371,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	case token.IDENT:
 		ident = p.parseIdent()
 	}
-
 	p.expect(token.IMPORT)
 	pos, tok := p.pos, p.tok
 	var path string
@@ -2327,7 +2389,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		ValuePos: pos,
 		Kind:     tok,
 		Value:    path})
-	// p.expectSemi() // call before accessing p.linecomment
 
 	// collect imports
 	spec := &ast.ImportSpec{
@@ -2336,7 +2397,6 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 		Path:    pathlit,
 		Comment: p.lineComment,
 	}
-
 	// Parse and insert the results into the current parser
 	p.imports = append(p.imports, spec)
 	err := p.processImport(spec.Path.Value)
@@ -2537,7 +2597,7 @@ func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.
 
 func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFunction) *ast.GenDecl {
 	if p.trace {
-		defer un(trace(p, "GenDecl("+keyword.String()+")"))
+		// defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
 	pos := p.pos
 	assert(pos != 0, "0 position found")
@@ -2890,15 +2950,28 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 		for _, spec := range v.Specs {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
-				for i, val := range sv.Values {
-					ident, ok := val.(*ast.Ident)
-					if !ok {
+				var lits []*ast.BasicLit
+				for i := range sv.Values {
+					val := sv.Values[i]
+					lit, ok := val.(*ast.BasicLit)
+					if ok {
+						lits = append(lits, lit)
 						// Not ident, already resolved
 						continue
 					}
+					ident, ok := val.(*ast.Ident)
+					if !ok {
+						panic(fmt.Errorf("could not resolve: % #v\n", val))
+					}
 					assert(ident.Obj == nil, "statement had previous value, was it copied correctly?")
 					p.resolve(ident)
-					sv.Values[i] = basicLitFromIdent(ident)
+					idlits := basicLitFromIdent(ident)
+
+					lits = append(lits, idlits...)
+				}
+				sv.Values = make([]ast.Expr, len(lits))
+				for i := range lits {
+					sv.Values[i] = lits[i]
 				}
 			default:
 				log.Fatalf("spec not supported % #v\n", v)
@@ -2911,19 +2984,22 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 
 // basicLitFromIdent recursively resolves an Ident until a
 // basic lit is uncovered
-func basicLitFromIdent(ident *ast.Ident) (lit *ast.BasicLit) {
+func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 	assert(ident.Obj != nil, "ident has not been resolved")
 	decl := ident.Obj.Decl
 	switch typ := decl.(type) {
 	case *ast.Ident:
 		return basicLitFromIdent(typ)
 	case *ast.AssignStmt:
-		lits := make([]*ast.BasicLit, 0, len(typ.Rhs))
-		for _, rhs := range typ.Rhs {
+		var lits []*ast.BasicLit
+		//lits := make([]*ast.BasicLit, 0, len(typ.Rhs))
+		for i := range typ.Rhs {
+			rhs := typ.Rhs[i]
 			var lit *ast.BasicLit
 			switch rtyp := rhs.(type) {
 			case *ast.Ident:
-				lit = basicLitFromIdent(rtyp)
+				lits = append(lits, basicLitFromIdent(rtyp)...)
+				continue
 			case *ast.BasicLit:
 				lit = rtyp
 			default:
@@ -2935,13 +3011,10 @@ func basicLitFromIdent(ident *ast.Ident) (lit *ast.BasicLit) {
 			log.Println("good thing this looked at multiple rhs values",
 				lits)
 		}
-		s := joinLits(lits, " ")
-		// Combine all lit values using the Kind of the first lit
-		lits[0].Value = s
-		return lits[0]
-		// I guess combine all of the lits and add the values
+
+		return lits
 	case *ast.BasicLit:
-		return typ
+		return []*ast.BasicLit{typ}
 	default:
 		panic(fmt.Sprintf("invalid Obj.Decl % #v", typ))
 	}
