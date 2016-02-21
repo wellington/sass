@@ -272,7 +272,7 @@ bypassSelector:
 		lit = ""
 		tok = token.EOF
 	case '$':
-		lit = s.scanText(s.offset-1, 0, false)
+		lit = s.scanText(s.offset-1, 0, false, isText)
 		tok = token.VAR
 	case '#':
 		// color:    #fff[000]
@@ -367,6 +367,11 @@ bypassSelector:
 		tok = token.MUL
 	default:
 		pos, tok, lit = s.scanRule(offs)
+		if tok == token.STRING && s.ch == ';' {
+			s.rewind(offs)
+			lit = s.scanText(offs, 0, true, isText)
+		}
+		fmt.Printf("default... %q\n", lit)
 		// if isLetter(s.ch) {
 		// 	// Try a rule, failing go to IDENT
 
@@ -386,8 +391,6 @@ func isText(ch rune, whitespace bool) bool {
 	case
 		isLetter(ch), isDigit(ch),
 		ch == '.', ch == '/':
-		return true
-	case (ch == '\'' || ch == '"'):
 		return true
 	case whitespace && isSpace(ch):
 		return true
@@ -425,14 +428,13 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 		if isAllowedRune(s.ch) {
 			s.next()
 		}
-		s.scanText(offs, 0, true)
+		s.scanText(offs, 0, true, isText)
 	}
-
+	fmt.Println("exited loop", string(s.ch))
 	sel := s.src[offs:s.offset]
-	ch := s.ch
 	// This is where we should evaluate the next rune and then kick back up
 	// for more scanning
-	switch ch {
+	switch s.ch {
 	case -1:
 		// TODO: this is wrong, but prevents hanging forever on invalid text
 		fallthrough
@@ -442,11 +444,14 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 		tok = token.SELECTOR
 		lit = string(bytes.TrimSpace(sel))
 		return
-		// return pos, token.SELECTOR,
-		// string(bytes.TrimSpace(sel))
 	case ':':
-		return pos, token.RULE,
-			string(bytes.TrimSpace(sel))
+		return pos, token.RULE, string(bytes.TrimSpace(sel))
+	case ';':
+		fmt.Println("semi!")
+		s.rewind(offs)
+		tok = token.STRING
+		lit = s.scanText(offs, 0, true, isText)
+		return
 	}
 	// fmt.Printf("               rewinding: %q\n", string(sel))
 	s.rewind(offs)
@@ -470,6 +475,7 @@ func (s *Scanner) scanSel(offs, end int) {
 		case token.ILLEGAL, token.EOF:
 			return
 		default:
+			fmt.Println("queue sel", tok, lit)
 			s.queue <- prefetch{
 				pos: pos,
 				tok: tok,
@@ -599,10 +605,10 @@ func (s *Scanner) queueInterp(offs int) bool {
 // This should validate variable naming http://stackoverflow.com/a/17194994
 // a-zA-Z0-9_-
 // Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
-func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
+func (s *Scanner) scanText(offs int, end rune, whitespace bool, fn func(rune, bool) bool) string {
 	// offs := s.offset - 1 // catch first quote
 	var ch rune
-	for s.ch == '\\' || isText(s.ch, whitespace) ||
+	for s.ch == '\\' || fn(s.ch, whitespace) ||
 		// #id
 		s.ch == '#' ||
 		s.ch == end {
@@ -630,7 +636,7 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 		s.error(s.offset, "expected end of "+string(end))
 	}
 
-	ss := string(s.src[offs:s.offset])
+	ss := string(bytes.TrimSpace(s.src[offs:s.offset]))
 	return ss
 }
 
@@ -761,10 +767,10 @@ ruleAgain:
 				lit: "}",
 				tok: token.RBRACE,
 			}
-		} else {
-			// Not sure, this requires more specifics
-			fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
+			return
 		}
+		// Not sure, this requires more specifics
+		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
 		// tok = token.IDENT
 
 	}

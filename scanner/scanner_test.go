@@ -255,14 +255,18 @@ func TestScan_attr_sel_now(t *testing.T) {
 }
 
 func TestScan_string(t *testing.T) {
-	t.Skip("nope")
+
 	testScan(t, []elt{
 		{token.QSTRING, `"`},
 		{token.STRING, "hello"},
 		{token.INTERP, "#{"},
 		{token.INT, "2"},
 		{token.ADD, "+"},
-		{token.INTERP, "}"},
+		{token.INT, "3"},
+		{token.RBRACE, "}"},
+		{token.STRING, `blah`},
+		{token.QSTRING, `"`},
+		{token.SEMICOLON, `;`},
 	})
 }
 
