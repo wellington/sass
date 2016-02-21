@@ -849,6 +849,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 			if len(val) > len(lit.Value) {
 				lit.Kind = token.STRING
 			}
+			out = append(out, lit)
 		} else {
 			tlit := in[target].(*ast.BasicLit)
 			tlit.Value = val
@@ -1621,11 +1622,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	p.exprLev--
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
-	ast.Print(token.NewFileSet(), list)
-	m := p.mergeInterps(list)
-	for i := range m {
-		fmt.Printf(">%d: % #v\n", i, m[i])
-	}
+
 	call := &ast.CallExpr{
 		Fun:      fun,
 		Lparen:   lparen,
@@ -1999,7 +1996,6 @@ func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
 			}
 		}
 	}
-	fmt.Println("exited", p.tok)
 	return x
 }
 

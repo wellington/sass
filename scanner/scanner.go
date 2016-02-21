@@ -206,7 +206,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
+		// fmt.Printf("scan tok: %s lit: '%s'\n", tok, lit)
 	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
