@@ -206,7 +206,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		// fmt.Printf("scan tok: %s lit: '%s' pos: %d\n", tok, lit, pos)
+		fmt.Printf("scan tok: %s lit: '%s' pos: %d\n", tok, lit, pos)
 	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
@@ -298,10 +298,8 @@ bypassSelector:
 			tok = token.SUB
 		}
 	case '\'':
-		lit = s.scanText(s.offset-1, '\'', true)
 		tok = token.QSSTRING
 	case '"':
-		lit = s.scanText(s.offset-1, '"', true)
 		tok = token.QSTRING
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
@@ -610,7 +608,6 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 		s.ch == end {
 		ch = s.ch
 		if _, tok, _ := s.scanInterp(offs); tok != token.ILLEGAL {
-			s.rewind(offs)
 			break
 		}
 		s.next()
