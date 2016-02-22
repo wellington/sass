@@ -662,7 +662,12 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 			}
 			x = lit
 		}
-		ss = append(ss, calc.Resolve(x).Value)
+		res, err := calc.Resolve(x)
+		if err != nil {
+			p.error(x.Pos(), err.Error())
+		} else {
+			ss = append(ss, res.Value)
+		}
 	}
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
@@ -912,21 +917,25 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 }
 
 func (p *parser) parseString() *ast.StringExpr {
-	pos, tok := p.pos, p.tok
+	if p.trace {
+		defer un(trace(p, "String"))
+	}
+	tok := p.tok
 	expr := &ast.StringExpr{
-		Lquote: pos,
+		Lquote: p.pos,
 		Kind:   tok,
 	}
+	p.next()
 	var list []ast.Expr
 	// Only strings and interpolations allowed here
-	for p.tok != token.EOF && p.tok != p.tok {
+	for p.tok != token.EOF && p.tok != tok {
 		x := p.inferExpr(false)
 		list = append(list, x)
 	}
-	if p.tok != tok {
-		p.error(pos, "quote delimiter not found")
-	}
-	expr.Rquote = p.pos
+	rquote := p.expectClosing(tok, "string list")
+	expr.List = p.mergeInterps(list)
+	expr.Rquote = rquote
+	// ast.Print(token.NewFileSet(), expr)
 	return expr
 }
 
@@ -955,10 +964,8 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	switch p.tok {
 	case token.STRING:
 		basic.Kind = token.STRING
-	case token.QSSTRING:
-		basic.Kind = token.QSSTRING
-	case token.QSTRING:
-		basic.Kind = token.QSTRING
+	case token.QSSTRING, token.QSTRING:
+		return p.parseString()
 	case token.RULE:
 		basic.Kind = token.RULE
 	case token.VAR:
@@ -1893,9 +1900,6 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	}
 
 	x := p.parseOperand(lhs)
-	if lit, ok := x.(*ast.BasicLit); ok {
-		p.printf("op %s: % #v\n", lit.Kind, lit)
-	}
 
 L:
 	for {

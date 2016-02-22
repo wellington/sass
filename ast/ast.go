@@ -540,6 +540,7 @@ func (*Ellipsis) exprNode()       {}
 func (*BasicLit) exprNode()       {}
 func (*FuncLit) exprNode()        {}
 func (*CompositeLit) exprNode()   {}
+func (*StringExpr) exprNode()     {}
 func (*ParenExpr) exprNode()      {}
 func (*SelectorExpr) exprNode()   {}
 func (*IndexExpr) exprNode()      {}

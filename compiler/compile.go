@@ -463,6 +463,9 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 			return "", fmt.Errorf("unable to read func: % #v", v.Fun)
 		}
 		return resolveExpr(ctx, fn.Obj.Decl.(ast.Expr))
+	case *ast.StringExpr:
+		out, err = simplifyExprs(ctx, v.List)
+		return `"` + out + `"`, nil
 	case *ast.ParenExpr:
 		out, ctx.err = simplifyExprs(ctx, []ast.Expr{v.X})
 	case *ast.Ident:
@@ -475,6 +478,9 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 			// 	sums = append(sums, s)
 			// }
 		case token.QSTRING:
+			if len(v.Value) == 0 {
+				panic("invalid qstring value")
+			}
 			out = `"` + v.Value + `"`
 		default:
 			out = v.Value
