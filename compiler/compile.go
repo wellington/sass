@@ -478,9 +478,6 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 			// 	sums = append(sums, s)
 			// }
 		case token.QSTRING:
-			if len(v.Value) == 0 {
-				panic("invalid qstring value")
-			}
 			out = `"` + v.Value + `"`
 		default:
 			out = v.Value
