@@ -22,7 +22,6 @@ func resolve(in ast.Expr) *ast.BasicLit {
 	case *ast.BasicLit:
 		return v
 	default:
-		panic("no")
 		log.Fatalf("unsupported calc.resolve % #v\n", v)
 	}
 	return nil

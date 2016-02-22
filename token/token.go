@@ -24,8 +24,6 @@ const (
 	SELECTOR // a { rules... }
 	RULE
 	STRING    // word
-	QSTRING   // "word"
-	QSSTRING  // 'word'
 	COLOR     // #000
 	INTERP    // #{value}
 	VALUE     // value (rhs of rule)
@@ -43,6 +41,8 @@ const (
 	cssnums_end
 
 	operator_beg
+	QSTRING  // "word"
+	QSSTRING // 'word'
 	selector_beg
 	// Are these necessary?
 	// BACKREF // &

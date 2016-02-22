@@ -628,7 +628,7 @@ func (p *parser) parseInterp() *ast.Interp {
 	pos := p.expect(token.INTERP)
 	itp := &ast.Interp{
 		Lbrace: pos,
-		X:      p.parseBinaryExpr(false, token.LowestPrec+1),
+		X:      p.inferExprList(false),
 		Rbrace: p.expect(token.RBRACE),
 	}
 	return itp
@@ -637,9 +637,16 @@ func (p *parser) parseInterp() *ast.Interp {
 // ain't nobody got time for interpolations
 func (p *parser) resolveInterp(itp *ast.Interp) {
 	itp.Obj = ast.NewObj(ast.Var, "")
-	lit := calc.Resolve(itp.X)
+	ss := make([]string, len(itp.X))
+	for _, x := range itp.X {
+		ss = append(ss, calc.Resolve(x).Value)
+	}
+	// lit := calc.Resolve(itp.X)
 	// interpolation always outputs a string
-	lit.Kind = token.STRING
+	lit := &ast.BasicLit{
+		Kind:  token.STRING,
+		Value: strings.Join(ss, " "),
+	}
 	itp.Obj.Decl = lit
 	return
 }
@@ -870,6 +877,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
 		p.tok != token.RPAREN &&
+		p.tok != token.RBRACE &&
 		p.tok != token.EOF {
 
 		// Accept commas for sacrifices to Cthulu
@@ -881,6 +889,25 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		list = append(list, expr)
 	}
 	return p.mergeInterps(list)
+}
+
+func (p *parser) parseString() *ast.StringExpr {
+	pos, tok := p.pos, p.tok
+	expr := &ast.StringExpr{
+		Lquote: pos,
+		Kind:   tok,
+	}
+	var list []ast.Expr
+	// Only strings and interpolations allowed here
+	for p.tok != token.EOF && p.tok != p.tok {
+		x := p.inferExpr(false)
+		list = append(list, x)
+	}
+	if p.tok != tok {
+		p.error(pos, "quote delimiter not found")
+	}
+	expr.Rquote = p.pos
+	return expr
 }
 
 // Derive the type from the nature of the value, there is no hint for what

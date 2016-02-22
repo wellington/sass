@@ -284,7 +284,7 @@ type (
 	Interp struct {
 		Lbrace token.Pos
 		Rbrace token.Pos
-		X      Expr
+		X      []Expr
 		Obj    *Object
 	}
 
@@ -350,7 +350,7 @@ type (
 
 	StringExpr struct {
 		Kind   token.Token
-		X      Expr
+		List   []Expr
 		Lquote token.Pos
 		Rquote token.Pos
 	}
