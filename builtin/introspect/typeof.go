@@ -18,7 +18,7 @@ func init() {
 func unit(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	in := *args[0]
 	lit := &ast.BasicLit{
-		Kind:     token.STRING,
+		Kind:     token.QSTRING,
 		ValuePos: call.Pos(),
 	}
 	switch in.Kind {
@@ -35,7 +35,7 @@ func unit(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	default:
 		return nil, errors.New("unsupported type for type-of")
 	}
-	lit.Value = `"` + lit.Value + `"`
+	lit.Value = lit.Value
 	return lit, nil
 }
 

@@ -636,9 +636,20 @@ func (p *parser) parseInterp() *ast.Interp {
 
 // ain't nobody got time for interpolations
 func (p *parser) resolveInterp(itp *ast.Interp) {
+	if len(itp.X) == 0 {
+		return
+	}
 	itp.Obj = ast.NewObj(ast.Var, "")
-	ss := make([]string, len(itp.X))
+	ss := make([]string, 0, len(itp.X))
+	var err error
 	for _, x := range itp.X {
+		if c, isCall := x.(*ast.CallExpr); isCall {
+			x, err = evaluateCall(c)
+			if err != nil {
+				p.error(c.Pos(), err.Error())
+				continue
+			}
+		}
 		ss = append(ss, calc.Resolve(x).Value)
 	}
 	// lit := calc.Resolve(itp.X)
@@ -712,7 +723,6 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 		p.next()
 		list = append(list, p.checkExpr(p.parseExpr(lhs)))
 	}
-
 	return
 }
 

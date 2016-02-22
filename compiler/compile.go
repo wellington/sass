@@ -493,7 +493,21 @@ func simplifyExprs(ctx *Context, exprs []ast.Expr) (string, error) {
 		}
 		sums = append(sums, s)
 	}
-
+	start, end := 0, len(exprs)
+	if lit, ok := exprs[0].(*ast.BasicLit); ok {
+		if lit.Kind == token.QSTRING {
+			start = 1
+		}
+	}
+	if lit, ok := exprs[end-1].(*ast.BasicLit); ok {
+		if lit.Kind == token.QSTRING {
+			end = end - 2
+		}
+	}
+	if start == 1 {
+		sums = sums[start:end]
+		return `"` + strings.Join(sums, " ") + `"`, nil
+	}
 	return strings.Join(sums, " "), nil
 }
 
