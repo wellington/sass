@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/builtin/strops"
 	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/scanner"
 	"github.com/wellington/sass/token"
@@ -232,6 +233,10 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		fmt.Printf("cant resolve this: % #v\n", x)
 		return
 	}
+	// Likely func calls
+	if ident.Name[:1] != "$" {
+		return
+	}
 
 	assert(ident.Obj == nil, "identifier already declared or resolved")
 	if ident.Name == "_" {
@@ -263,7 +268,7 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// must be found either in the file scope, package scope
 	// (perhaps in another file), or universe scope --- collect
 	// them so that they can be resolved later
-	if collectUnresolved && !p.inMixin {
+	if collectUnresolved && !p.inMixin && p.mode&FuncOnly == 0 {
 		fmt.Printf("failed to resolve % #v\n", ident)
 
 		ident.Obj = unresolved
@@ -628,19 +633,48 @@ func (p *parser) parseInterp() *ast.Interp {
 	pos := p.expect(token.INTERP)
 	itp := &ast.Interp{
 		Lbrace: pos,
-		X:      p.parseBinaryExpr(false, token.LowestPrec+1),
+		X:      p.inferExprList(false),
 		Rbrace: p.expect(token.RBRACE),
 	}
 	return itp
 }
 
-// ain't nobody got time for interpolations
+// simplify and resolve expressions inside interpolation.
+// strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
+	if len(itp.X) == 0 {
+		return
+	}
 	itp.Obj = ast.NewObj(ast.Var, "")
-	lit := calc.Resolve(itp.X)
+	ss := make([]string, 0, len(itp.X))
+	var (
+		lit *ast.BasicLit
+		err error
+	)
+	for _, x := range itp.X {
+		if c, isCall := x.(*ast.CallExpr); isCall {
+			lit, err = evaluateCall(c)
+			if err != nil {
+				p.error(c.Pos(), err.Error())
+				continue
+			}
+			x = lit
+		}
+		res, err := calc.Resolve(x)
+		if err != nil {
+			p.error(x.Pos(), err.Error())
+		} else {
+			if res.Kind != token.STRING {
+				res.Value = strops.Unquote(res.Value)
+			}
+			ss = append(ss, res.Value)
+		}
+	}
 	// interpolation always outputs a string
-	lit.Kind = token.STRING
-	itp.Obj.Decl = lit
+	itp.Obj.Decl = &ast.BasicLit{
+		Kind:  token.STRING,
+		Value: strings.Join(ss, " "),
+	}
 	return
 }
 
@@ -705,7 +739,6 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 		p.next()
 		list = append(list, p.checkExpr(p.parseExpr(lhs)))
 	}
-
 	return
 }
 
@@ -870,6 +903,7 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
 		p.tok != token.RPAREN &&
+		p.tok != token.RBRACE &&
 		p.tok != token.EOF {
 
 		// Accept commas for sacrifices to Cthulu
@@ -881,6 +915,29 @@ func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
 		list = append(list, expr)
 	}
 	return p.mergeInterps(list)
+}
+
+func (p *parser) parseString() *ast.StringExpr {
+	if p.trace {
+		defer un(trace(p, "String"))
+	}
+	tok := p.tok
+	expr := &ast.StringExpr{
+		Lquote: p.pos,
+		Kind:   tok,
+	}
+	p.next()
+	var list []ast.Expr
+	// Only strings and interpolations allowed here
+	for p.tok != token.EOF && p.tok != tok {
+		x := p.inferExpr(false)
+		list = append(list, x)
+	}
+	rquote := p.expectClosing(tok, "string list")
+	expr.List = p.mergeInterps(list)
+	expr.Rquote = rquote
+	// ast.Print(token.NewFileSet(), expr)
+	return expr
 }
 
 // Derive the type from the nature of the value, there is no hint for what
@@ -908,10 +965,8 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	switch p.tok {
 	case token.STRING:
 		basic.Kind = token.STRING
-	case token.QSSTRING:
-		basic.Kind = token.QSSTRING
-	case token.QSTRING:
-		basic.Kind = token.QSTRING
+	case token.QSSTRING, token.QSTRING:
+		return p.parseString()
 	case token.RULE:
 		basic.Kind = token.RULE
 	case token.VAR:
@@ -1485,6 +1540,18 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		x := p.parseInterp()
 		p.resolveInterp(x)
 		return x
+	case token.QSTRING, token.QSSTRING:
+		// TODO: most definitely short sighed
+		pos, tok := p.pos, p.tok
+		p.next()
+		x := &ast.BasicLit{
+			Kind:     token.QSTRING,
+			Value:    p.lit,
+			ValuePos: pos,
+		}
+		p.next()
+		p.expect(tok)
+		return x
 	case
 		token.COLOR,
 		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,
@@ -1511,7 +1578,6 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	}
 
 	if typ := p.tryIdentOrType(); typ != nil {
-		fmt.Printf("% #v\n", typ)
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
 		assert(!isIdent, "type cannot be identifier")
@@ -1524,15 +1590,6 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	syncStmt(p)
 	return &ast.BadExpr{From: pos, To: p.pos}
 }
-
-// func (p *parser) parseSelector(x ast.Expr) ast.Expr {
-// 	if p.trace {
-// 		defer un(trace(p, "Selector"))
-// 	}
-// 	sel := p.parseIdent()
-// 	fmt.Println("sel", sel)
-// 	return &ast.SelectorExpr{X: x, Sel: sel}
-// }
 
 func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
 	if p.trace {
@@ -1614,10 +1671,8 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 			continue
 		}
 		if !p.atComma("argument list", token.RPAREN) {
-			fmt.Println("breaking!")
 			break
 		}
-		fmt.Println("eating", p.tok)
 		p.next()
 	}
 	p.exprLev--
@@ -1832,6 +1887,13 @@ func (p *parser) checkExprOrType(x ast.Expr) ast.Expr {
 	return x
 }
 
+func (p *parser) printf(format string, v ...interface{}) {
+	if p.mode&FuncOnly != 0 {
+		return
+	}
+	fmt.Printf(format, v...)
+}
+
 // If lhs is set and the result is an identifier, it is not resolved.
 func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	if p.trace {
@@ -1839,12 +1901,10 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	}
 
 	x := p.parseOperand(lhs)
+
 L:
 	for {
 		switch p.tok {
-		case token.INTERP:
-			// Don't evaluate interpolation here
-			break L
 		case token.PERIOD:
 			p.next()
 			if lhs {

@@ -8,6 +8,7 @@ package scanner
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -241,7 +242,7 @@ scanAgain:
 		fallthrough
 	case ch == '.':
 		fallthrough
-	case ch == '+' || ch == '~':
+	case ch == '~':
 		fallthrough
 	case isLetter(ch):
 		// Scan until encountering {};
@@ -272,7 +273,7 @@ bypassSelector:
 		lit = ""
 		tok = token.EOF
 	case '$':
-		lit = s.scanText(s.offset-1, 0, false)
+		lit = s.scanText(s.offset-1, 0, false, isText)
 		tok = token.VAR
 	case '#':
 		// color:    #fff[000]
@@ -298,10 +299,8 @@ bypassSelector:
 			tok = token.SUB
 		}
 	case '\'':
-		lit = s.scanText(s.offset-1, '\'', true)
 		tok = token.QSSTRING
 	case '"':
-		lit = s.scanText(s.offset-1, '"', true)
 		tok = token.QSTRING
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
@@ -369,6 +368,11 @@ bypassSelector:
 		tok = token.MUL
 	default:
 		pos, tok, lit = s.scanRule(offs)
+		if tok == token.STRING && s.ch == ';' {
+			s.rewind(offs)
+			lit = s.scanText(offs, 0, true, isText)
+		}
+		fmt.Printf("default... %q\n", lit)
 		// if isLetter(s.ch) {
 		// 	// Try a rule, failing go to IDENT
 
@@ -385,11 +389,11 @@ bypassSelector:
 func isText(ch rune, whitespace bool) bool {
 
 	switch {
+	case ch == '\\': // no f'ing idea
+		return true
 	case
 		isLetter(ch), isDigit(ch),
 		ch == '.', ch == '/':
-		return true
-	case (ch == '\'' || ch == '"'):
 		return true
 	case whitespace && isSpace(ch):
 		return true
@@ -406,50 +410,58 @@ func (s *Scanner) scanParams() string {
 var colondelim = []byte(":")
 
 // scanDelim looks through ambiguous text (selectors, rules, functions)
-// and returns a properly parsed set.
+// and returns a properly parsed set. It scans until the first
+// ; : { } is found
 //
 // a#id { // 'a#id'
 // { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
-	tok = token.ILLEGAL
+	// fmt.Println("scanDelim")
+	// defer func() {
+	// 	fmt.Printf("scanDelim %s:%q\n", tok, lit)
+	// }()
+
 	pos = s.file.Pos(offs)
-	var loop int
 
-	for !strings.ContainsRune(";#{}()", s.ch) && s.ch != -1 {
-
-		loop++
-		if loop > 10 {
-			fmt.Println("loop detected:", string(s.ch))
-			return pos, token.ILLEGAL, string(s.src[offs:s.offset])
-		}
-
-		// runes not supported by scanText
-		if isAllowedRune(s.ch) {
-			s.next()
-		}
-		s.scanText(offs, 0, true)
+	var ch rune
+	for !strings.ContainsRune(":;({}", s.ch) && s.ch != -1 {
+		ch = s.ch
+		s.next()
 	}
-
-	sel := s.src[offs:s.offset]
-	ch := s.ch
+	sel := bytes.TrimSpace(s.src[offs:s.offset])
 	// This is where we should evaluate the next rune and then kick back up
 	// for more scanning
-	switch ch {
+	switch s.ch {
 	case -1:
 		// TODO: this is wrong, but prevents hanging forever on invalid text
 		fallthrough
+	case '(':
+		tok = token.IDENT
+		lit = string(sel)
+		return
 	case '{':
+		if ch == '#' {
+			tok = token.STRING
+			s.backup()
+			lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+			return
+		}
 		// Break apart selector into requisite parts
 		s.scanSel(offs, s.offset)
 		tok = token.SELECTOR
-		lit = string(bytes.TrimSpace(sel))
+		lit = string(sel)
 		return
-		// return pos, token.SELECTOR,
-		// string(bytes.TrimSpace(sel))
 	case ':':
-		return pos, token.RULE,
-			string(bytes.TrimSpace(sel))
+		return pos, token.RULE, string(sel)
+	case ';', '}':
+		//s.rewind(offs)
+		tok = token.STRING
+		s.rewind(offs)
+		lit = s.scanText(offs, 0, true, isText)
+		// lit = string(sel)
+		return
 	}
+	log.Println("delim failed")
 	// fmt.Printf("               rewinding: %q\n", string(sel))
 	s.rewind(offs)
 	return
@@ -461,7 +473,6 @@ func (s *Scanner) scanSel(offs, end int) {
 
 	// Now that the string has been identified as a selector parse it
 	// and prefetch the pieces
-
 	for {
 		if s.offset >= end {
 			return
@@ -601,21 +612,21 @@ func (s *Scanner) queueInterp(offs int) bool {
 // This should validate variable naming http://stackoverflow.com/a/17194994
 // a-zA-Z0-9_-
 // Also these if escaped with \ !"#$%&'()*+,./:;<=>?@[]^{|}~
-func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
+func (s *Scanner) scanText(offs int, end rune, whitespace bool, fn func(rune, bool) bool) string {
 	// offs := s.offset - 1 // catch first quote
 	var ch rune
-	for s.ch == '\\' || isText(s.ch, whitespace) ||
+	for s.ch == '\\' || fn(s.ch, whitespace) ||
 		// #id
 		s.ch == '#' ||
 		s.ch == end {
 		ch = s.ch
 		if _, tok, _ := s.scanInterp(offs); tok != token.ILLEGAL {
-			s.rewind(offs)
 			break
 		}
 		s.next()
 
-		if ch == '\\' {
+		// evidently, escaping only happens when unquoting
+		if ch == '\\' && false {
 			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
 				s.next()
 			} else {
@@ -633,7 +644,7 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool) string {
 		s.error(s.offset, "expected end of "+string(end))
 	}
 
-	ss := string(s.src[offs:s.offset])
+	ss := string(bytes.TrimSpace(s.src[offs:s.offset]))
 	return ss
 }
 
@@ -764,10 +775,10 @@ ruleAgain:
 				lit: "}",
 				tok: token.RBRACE,
 			}
-		} else {
-			// Not sure, this requires more specifics
-			fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
+			return
 		}
+		// Not sure, this requires more specifics
+		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
 		// tok = token.IDENT
 
 	}

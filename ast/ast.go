@@ -284,7 +284,7 @@ type (
 	Interp struct {
 		Lbrace token.Pos
 		Rbrace token.Pos
-		X      Expr
+		X      []Expr
 		Obj    *Object
 	}
 
@@ -346,6 +346,13 @@ type (
 	StarExpr struct {
 		Star token.Pos // position of "*"
 		X    Expr      // operand
+	}
+
+	StringExpr struct {
+		Kind   token.Token
+		List   []Expr
+		Lquote token.Pos
+		Rquote token.Pos
 	}
 
 	// A UnaryExpr node represents a unary expression.
@@ -459,6 +466,8 @@ func (x *CompositeLit) Pos() token.Pos {
 	}
 	return x.Lbrace
 }
+
+func (x *StringExpr) Pos() token.Pos     { return x.Lquote }
 func (x *ParenExpr) Pos() token.Pos      { return x.Lparen }
 func (x *SelectorExpr) Pos() token.Pos   { return x.X.Pos() }
 func (x *IndexExpr) Pos() token.Pos      { return x.X.Pos() }
@@ -497,6 +506,7 @@ func (x *Ellipsis) End() token.Pos {
 func (x *BasicLit) End() token.Pos       { return token.Pos(int(x.ValuePos) + len(x.Value)) }
 func (x *FuncLit) End() token.Pos        { return x.Body.End() }
 func (x *CompositeLit) End() token.Pos   { return x.Rbrace + 1 }
+func (x *StringExpr) End() token.Pos     { return x.Rquote + 1 }
 func (x *ParenExpr) End() token.Pos      { return x.Rparen + 1 }
 func (x *SelectorExpr) End() token.Pos   { return x.Sel.End() }
 func (x *IndexExpr) End() token.Pos      { return x.Rbrack + 1 }
@@ -530,6 +540,7 @@ func (*Ellipsis) exprNode()       {}
 func (*BasicLit) exprNode()       {}
 func (*FuncLit) exprNode()        {}
 func (*CompositeLit) exprNode()   {}
+func (*StringExpr) exprNode()     {}
 func (*ParenExpr) exprNode()      {}
 func (*SelectorExpr) exprNode()   {}
 func (*IndexExpr) exprNode()      {}

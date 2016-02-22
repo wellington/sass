@@ -13,7 +13,10 @@ func TestBinary_simple_int(t *testing.T) {
 		Op: token.ADD,
 		Y:  &ast.BasicLit{Kind: token.INT, Value: "2"},
 	}
-	lit := binary(bin)
+	lit, err := binary(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if lit.Kind != token.INT {
 		t.Fatal("unexpected kind")
@@ -31,7 +34,10 @@ func TestBinary_simple_str(t *testing.T) {
 		Op: token.ADD,
 		Y:  &ast.BasicLit{Kind: token.STRING, Value: "b"},
 	}
-	lit := binary(bin)
+	lit, err := binary(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if lit.Kind != token.STRING {
 		t.Fatal("unexpected kind")
@@ -46,7 +52,10 @@ func TestBinary_simple_str(t *testing.T) {
 		Op: token.ADD,
 		Y:  &ast.BasicLit{Kind: token.INT, Value: "1"},
 	}
-	lit = binary(bin)
+	lit, err = binary(bin)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if lit.Kind != token.STRING {
 		t.Fatal("unexpected kind")

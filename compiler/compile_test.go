@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
 
@@ -26,8 +27,8 @@ func findPaths() []file {
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
-		if !strings.Contains(input, "22_") {
-			// continue
+		if !strings.Contains(input, "26_") {
+			continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
@@ -79,7 +80,9 @@ func TestCompile_files(t *testing.T) {
 compiling: %s\n
 =================================
 `, f.input)
-		out, err := Run(f.input)
+		ctx := Context{mode: parser.Trace}
+		ctx.Init()
+		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
 			log.Println("failed to compile", f.input, err)

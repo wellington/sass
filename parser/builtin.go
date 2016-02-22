@@ -13,6 +13,7 @@ import (
 	// Include defined builtins
 	_ "github.com/wellington/sass/builtin/colors"
 	_ "github.com/wellington/sass/builtin/introspect"
+	_ "github.com/wellington/sass/builtin/strops"
 )
 
 var ErrNotFound = errors.New("function does not exist")
@@ -127,7 +128,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		for _, p := range incoming {
 			log.Printf("inc % #v\n", p)
 		}
-		log.Fatalf("mismatched arg count %s got: %d wanted: %d",
+		return nil, fmt.Errorf("mismatched arg count %s got: %d wanted: %d",
 			name, len(incoming), len(callargs))
 	}
 	for i, arg := range incoming {

@@ -36,7 +36,7 @@ hey, ho {
   b: a;
   c: #000;
   d: "a";
-  e: 'a';
+  e: "a";
   f: 1; }
 `
 	runParse(t, in, e)
@@ -63,4 +63,16 @@ func TestBuiltin_typeof(t *testing.T) {
 `
 	runParse(t, in, e)
 
+}
+
+func TestBuiltin_unit(t *testing.T) {
+	in := `div {
+  a: unit(10px);
+  b: unit(10);
+}`
+	e := `div {
+  a: "px";
+  b: ""; }
+`
+	runParse(t, in, e)
 }

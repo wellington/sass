@@ -2,7 +2,6 @@ package compiler
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -17,6 +16,7 @@ import (
 type Context struct {
 	buf      *bytes.Buffer
 	fileName *ast.Ident
+	mode     parser.Mode
 
 	err error
 	// Records the current level of selectors
@@ -50,11 +50,16 @@ func Run(path string) (string, error) {
 	return out, err
 }
 
+func (ctx *Context) SetMode(mode parser.Mode) error {
+	ctx.mode = mode
+	return nil
+}
+
 func (ctx *Context) run(path string, src interface{}) (string, error) {
 	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
 	ctx.fset = token.NewFileSet()
 	// pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments)
-	pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments|parser.Trace)
+	pf, err := parser.ParseFile(ctx.fset, path, src, ctx.mode)
 	if err != nil {
 		return "", err
 	}
@@ -254,7 +259,14 @@ func printExpr(ctx *Context, n ast.Node) {
 	switch v := n.(type) {
 	case *ast.File:
 	case *ast.BasicLit:
-		fmt.Fprintf(ctx.buf, "%s;", v.Value)
+		switch v.Kind {
+		case token.STRING:
+			fmt.Fprintf(ctx.buf, "%s;", v.Value)
+		case token.QSTRING:
+			fmt.Fprintf(ctx.buf, `"%s;"`, v.Value)
+		default:
+			panic("unsupported lit kind")
+		}
 	case *ast.Value:
 	case *ast.GenDecl:
 		// Ignoring these for some reason
@@ -313,18 +325,6 @@ func visitAssignStmt(ctx *Context, n ast.Node) {
 // Variable declarations
 func visitValueSpec(ctx *Context, n ast.Node) {
 	return
-}
-
-func exprString(expr ast.Expr) string {
-	switch v := (expr).(type) {
-	case *ast.Ident:
-		return v.String()
-	case *ast.BasicLit:
-		return v.Value
-	default:
-		panic(fmt.Sprintf("exprString %T: % #v\n", v, v))
-	}
-	return ""
 }
 
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
@@ -458,11 +458,14 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 	case *ast.BinaryExpr:
 		out, err = calculateExprs(ctx, v)
 	case *ast.CallExpr:
-		expr := v.Fun.(*ast.Ident).Obj.Decl.(*ast.BasicLit)
-		if expr == nil {
-			return "", errors.New("call return was nil")
+		fn, ok := v.Fun.(*ast.Ident)
+		if !ok {
+			return "", fmt.Errorf("unable to read func: % #v", v.Fun)
 		}
-		out = expr.Value
+		return resolveExpr(ctx, fn.Obj.Decl.(ast.Expr))
+	case *ast.StringExpr:
+		out, err = simplifyExprs(ctx, v.List)
+		return `"` + out + `"`, nil
 	case *ast.ParenExpr:
 		out, ctx.err = simplifyExprs(ctx, []ast.Expr{v.X})
 	case *ast.Ident:
@@ -474,6 +477,8 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 			// if ok {
 			// 	sums = append(sums, s)
 			// }
+		case token.QSTRING:
+			out = `"` + v.Value + `"`
 		default:
 			out = v.Value
 		}
@@ -484,7 +489,6 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 }
 
 func simplifyExprs(ctx *Context, exprs []ast.Expr) (string, error) {
-
 	sums := make([]string, 0, len(exprs))
 	for _, expr := range exprs {
 		s, err := resolveExpr(ctx, expr)

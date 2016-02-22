@@ -1,6 +1,7 @@
 package introspect
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/wellington/sass/ast"
@@ -9,8 +10,33 @@ import (
 )
 
 func init() {
-	builtin.Register("type-of($value)", typeOf)
 	builtin.Register("inspect($value)", inspect)
+	builtin.Register("unit($number)", unit)
+	builtin.Register("type-of($value)", typeOf)
+}
+
+func unit(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+	in := *args[0]
+	lit := &ast.BasicLit{
+		Kind:     token.QSTRING,
+		ValuePos: call.Pos(),
+	}
+	switch in.Kind {
+	case token.UEM:
+		lit.Value = "em"
+	case token.UPX:
+		lit.Value = "px"
+	case token.UPCT:
+		lit.Value = "%"
+	case token.INT, token.FLOAT:
+		lit.Value = ""
+	case token.STRING, token.QSTRING, token.QSSTRING:
+		return nil, fmt.Errorf(`$number: "%s" is not a number for unit`, in.Value)
+	default:
+		return nil, errors.New("unsupported type for type-of")
+	}
+
+	return lit, nil
 }
 
 func inspect(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {

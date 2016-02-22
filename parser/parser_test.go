@@ -143,38 +143,3 @@ div {
 	f, fset := testString(t, in, 0)
 	ast.Print(fset, f.Decls[0].(*ast.SelDecl).Body.List[0].(*ast.DeclStmt).Decl.(*ast.GenDecl).Specs[0].(*ast.RuleSpec).Values[0])
 }
-
-func TestParse_quotes(t *testing.T) {
-	f, err := ParseFile(token.NewFileSet(), "main.scss", `$zz : word;`, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	vals := f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
-	if e := 1; len(vals) != e {
-		for _, v := range vals {
-			fmt.Printf("%s % #v\n", v.(*ast.Ident), v)
-		}
-		t.Fatalf("got: %d wanted: %d", len(vals), e)
-	}
-
-	_, ok := vals[0].(*ast.BasicLit)
-	if !ok {
-		t.Fatal("IDENT not found")
-	}
-
-	f, err = ParseFile(token.NewFileSet(), "main.scss", `$zz : "word";`, 0)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	vals = f.Decls[0].(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Values
-	if e := 1; len(vals) != e {
-		t.Fatalf("got: %d wanted: %d", len(vals), e)
-	}
-
-	lit := vals[0].(*ast.BasicLit)
-	if e := token.QSTRING; e != lit.Kind {
-		t.Fatalf("got: %s wanted: %s", lit.Kind, e)
-	}
-}

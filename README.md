@@ -27,7 +27,7 @@ Glossary
 - [ ] No Support
 
 ### Compiler Status
-Passing 24 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
+Passing 25 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
 
 ### Function Status
 See [functions](functions.md)
@@ -58,7 +58,7 @@ See [functions](functions.md)
 - [x] Functions
 - [x] Keyword Arguments
 - [x] Interpolation: #{} (probably still issues with this)
-- [ ] & in SassScript
+- [x] & in SassScript
 - [ ] Variable Defaults: !default
 - @-Rules and Directives
   - [x] @import
@@ -98,10 +98,3 @@ See [functions](functions.md)
 - Function Directives :question:
 - [ ] Extending Sass
 - [ ] Defining Custom Sass Functions
-
-### Builtin Funcs
-Color functions only output hex strings for right now
-- [x] rgb()
-- [x] rgba()
-- [x] mix()
-- [x] invert()

@@ -39,7 +39,7 @@ Changes one or more properties of a color.
 - [ ] ie-hex-str($color)
 
 String Functions
-- [ ] unquote($string)
+- [x] unquote($string)
 - [ ] quote($string)
 - [ ] str-length($string)
 - [ ] str-insert($string, $insert, $index)
