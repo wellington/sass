@@ -638,7 +638,8 @@ func (p *parser) parseInterp() *ast.Interp {
 	return itp
 }
 
-// ain't nobody got time for interpolations
+// simplify and resolve expressions inside interpolation.
+// strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
 	if len(itp.X) == 0 {
 		return
@@ -658,6 +659,7 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 				continue
 			}
 			if lit.Kind != token.STRING {
+				// must call unquote here
 				kind = lit.Kind
 			}
 			x = lit

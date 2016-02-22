@@ -389,6 +389,8 @@ bypassSelector:
 func isText(ch rune, whitespace bool) bool {
 
 	switch {
+	case ch == '\\': // no f'ing idea
+		return true
 	case
 		isLetter(ch), isDigit(ch),
 		ch == '.', ch == '/':
@@ -623,8 +625,9 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool, fn func(rune, bo
 		}
 		s.next()
 
-		if ch == '\\' {
-			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~nr`, s.ch) {
+		// evidently, escaping only happens when unquoting
+		if ch == '\\' && false {
+			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
 				s.next()
 			} else {
 				s.error(s.offset, "attempted to escape invalid character "+string(s.ch))
