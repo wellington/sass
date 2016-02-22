@@ -35,7 +35,7 @@ func unit(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	default:
 		return nil, errors.New("unsupported type for type-of")
 	}
-	lit.Value = lit.Value
+
 	return lit, nil
 }
 

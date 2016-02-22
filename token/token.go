@@ -146,8 +146,8 @@ var Tokens = [...]string{
 	VAR:      "VAR",
 	RULE:     "rule",
 	STRING:   "string",
-	QSTRING:  `"string"`,
-	QSSTRING: `'string'`,
+	QSTRING:  `quote`,
+	QSSTRING: `singlequote`,
 	COLOR:    "color",
 	INTERP:   "INTERPOLATION",
 	// Selector tokens

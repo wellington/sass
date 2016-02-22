@@ -36,7 +36,7 @@ hey, ho {
   b: a;
   c: #000;
   d: "a";
-  e: 'a';
+  e: "a";
   f: 1; }
 `
 	runParse(t, in, e)

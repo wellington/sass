@@ -232,6 +232,10 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		fmt.Printf("cant resolve this: % #v\n", x)
 		return
 	}
+	// Likely func calls
+	if ident.Name[:1] != "$" {
+		return
+	}
 
 	assert(ident.Obj == nil, "identifier already declared or resolved")
 	if ident.Name == "_" {
@@ -263,7 +267,7 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// must be found either in the file scope, package scope
 	// (perhaps in another file), or universe scope --- collect
 	// them so that they can be resolved later
-	if collectUnresolved && !p.inMixin {
+	if collectUnresolved && !p.inMixin && p.mode&FuncOnly == 0 {
 		fmt.Printf("failed to resolve % #v\n", ident)
 
 		ident.Obj = unresolved
@@ -641,24 +645,30 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	}
 	itp.Obj = ast.NewObj(ast.Var, "")
 	ss := make([]string, 0, len(itp.X))
-	var err error
+	kind := token.STRING
+	var (
+		lit *ast.BasicLit
+		err error
+	)
 	for _, x := range itp.X {
 		if c, isCall := x.(*ast.CallExpr); isCall {
-			x, err = evaluateCall(c)
+			lit, err = evaluateCall(c)
 			if err != nil {
 				p.error(c.Pos(), err.Error())
 				continue
 			}
+			if lit.Kind != token.STRING {
+				kind = lit.Kind
+			}
+			x = lit
 		}
 		ss = append(ss, calc.Resolve(x).Value)
 	}
-	// lit := calc.Resolve(itp.X)
 	// interpolation always outputs a string
-	lit := &ast.BasicLit{
-		Kind:  token.STRING,
+	itp.Obj.Decl = &ast.BasicLit{
+		Kind:  kind,
 		Value: strings.Join(ss, " "),
 	}
-	itp.Obj.Decl = lit
 	return
 }
 
@@ -1522,6 +1532,18 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		x := p.parseInterp()
 		p.resolveInterp(x)
 		return x
+	case token.QSTRING, token.QSSTRING:
+		// TODO: most definitely short sighed
+		pos, tok := p.pos, p.tok
+		p.next()
+		x := &ast.BasicLit{
+			Kind:     token.QSTRING,
+			Value:    p.lit,
+			ValuePos: pos,
+		}
+		p.next()
+		p.expect(tok)
+		return x
 	case
 		token.COLOR,
 		token.UEM, token.UPCT, token.UPT, token.UPX, token.UREM,
@@ -1548,7 +1570,6 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	}
 
 	if typ := p.tryIdentOrType(); typ != nil {
-		fmt.Printf("% #v\n", typ)
 		// could be type for composite literal or conversion
 		_, isIdent := typ.(*ast.Ident)
 		assert(!isIdent, "type cannot be identifier")
@@ -1561,15 +1582,6 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	syncStmt(p)
 	return &ast.BadExpr{From: pos, To: p.pos}
 }
-
-// func (p *parser) parseSelector(x ast.Expr) ast.Expr {
-// 	if p.trace {
-// 		defer un(trace(p, "Selector"))
-// 	}
-// 	sel := p.parseIdent()
-// 	fmt.Println("sel", sel)
-// 	return &ast.SelectorExpr{X: x, Sel: sel}
-// }
 
 func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
 	if p.trace {
@@ -1651,10 +1663,8 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 			continue
 		}
 		if !p.atComma("argument list", token.RPAREN) {
-			fmt.Println("breaking!")
 			break
 		}
-		fmt.Println("eating", p.tok)
 		p.next()
 	}
 	p.exprLev--
@@ -1869,6 +1879,13 @@ func (p *parser) checkExprOrType(x ast.Expr) ast.Expr {
 	return x
 }
 
+func (p *parser) printf(format string, v ...interface{}) {
+	if p.mode&FuncOnly != 0 {
+		return
+	}
+	fmt.Printf(format, v...)
+}
+
 // If lhs is set and the result is an identifier, it is not resolved.
 func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	if p.trace {
@@ -1876,12 +1893,13 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 	}
 
 	x := p.parseOperand(lhs)
+	if lit, ok := x.(*ast.BasicLit); ok {
+		p.printf("op %s: % #v\n", lit.Kind, lit)
+	}
+
 L:
 	for {
 		switch p.tok {
-		case token.INTERP:
-			// Don't evaluate interpolation here
-			break L
 		case token.PERIOD:
 			p.next()
 			if lhs {

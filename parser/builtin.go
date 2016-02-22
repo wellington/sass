@@ -127,7 +127,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		for _, p := range incoming {
 			log.Printf("inc % #v\n", p)
 		}
-		log.Fatalf("mismatched arg count %s got: %d wanted: %d",
+		return nil, fmt.Errorf("mismatched arg count %s got: %d wanted: %d",
 			name, len(incoming), len(callargs))
 	}
 	for i, arg := range incoming {
