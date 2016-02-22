@@ -1,35 +1,56 @@
 package calc
 
 import (
-	"log"
+	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/token"
 )
 
 // Resolve simple math to create a basic lit
-func Resolve(in ast.Expr) *ast.BasicLit {
+func Resolve(in ast.Expr) (*ast.BasicLit, error) {
 	return resolve(in)
 }
 
-func resolve(in ast.Expr) *ast.BasicLit {
+func resolve(in ast.Expr) (*ast.BasicLit, error) {
+	x := &ast.BasicLit{}
+	var err error
 	switch v := in.(type) {
+	case *ast.StringExpr:
+		list := make([]string, 0, len(v.List))
+		for _, l := range v.List {
+			lit, err := resolve(l)
+			if err != nil {
+				return nil, err
+			}
+			list = append(list, lit.Value)
+		}
+		x.Kind = v.Kind
+		x.Value = strings.Join(list, "")
 	case *ast.UnaryExpr:
-		return v.X.(*ast.BasicLit)
+		x = v.X.(*ast.BasicLit)
 	case *ast.BinaryExpr:
-		return binary(v)
+		x, err = binary(v)
 	case *ast.BasicLit:
-		return v
+		x = v
 	default:
-		log.Fatalf("unsupported calc.resolve % #v\n", v)
+		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 	}
-	return nil
+	return x, err
 }
 
 // binary takes a BinaryExpr and simplifies it to a
-func binary(in *ast.BinaryExpr) *ast.BasicLit {
-	left, right := resolve(in.X), resolve(in.Y)
+func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
+	left, err := resolve(in.X)
+	if err != nil {
+		return nil, err
+	}
+	right, err := resolve(in.Y)
+	if err != nil {
+		return nil, err
+	}
 	out := &ast.BasicLit{
 		ValuePos: left.Pos(),
 		Kind:     token.STRING,
@@ -45,7 +66,7 @@ func binary(in *ast.BinaryExpr) *ast.BasicLit {
 			out.Value = left.Value + right.Value
 		}
 	default:
-		log.Fatalf("unsupported: %s", in.Op)
+		err = fmt.Errorf("unsupported: %s", in.Op)
 	}
-	return out
+	return out, err
 }
