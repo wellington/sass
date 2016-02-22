@@ -8,6 +8,7 @@ package scanner
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -241,7 +242,7 @@ scanAgain:
 		fallthrough
 	case ch == '.':
 		fallthrough
-	case ch == '+' || ch == '~':
+	case ch == '~':
 		fallthrough
 	case isLetter(ch):
 		// Scan until encountering {};
@@ -407,52 +408,58 @@ func (s *Scanner) scanParams() string {
 var colondelim = []byte(":")
 
 // scanDelim looks through ambiguous text (selectors, rules, functions)
-// and returns a properly parsed set.
+// and returns a properly parsed set. It scans until the first
+// ; : { } is found
 //
 // a#id { // 'a#id'
 // { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
-	tok = token.ILLEGAL
+	// fmt.Println("scanDelim")
+	// defer func() {
+	// 	fmt.Printf("scanDelim %s:%q\n", tok, lit)
+	// }()
+
 	pos = s.file.Pos(offs)
-	var loop int
 
-	for !strings.ContainsRune(";#{}()", s.ch) && s.ch != -1 {
-
-		loop++
-		if loop > 10 {
-			fmt.Println("loop detected:", string(s.ch))
-			return pos, token.ILLEGAL, string(s.src[offs:s.offset])
-		}
-
-		// runes not supported by scanText
-		if isAllowedRune(s.ch) {
-			s.next()
-		}
-		s.scanText(offs, 0, true, isText)
+	var ch rune
+	for !strings.ContainsRune(":;({}", s.ch) && s.ch != -1 {
+		ch = s.ch
+		s.next()
 	}
-	fmt.Println("exited loop", string(s.ch))
-	sel := s.src[offs:s.offset]
+	sel := bytes.TrimSpace(s.src[offs:s.offset])
 	// This is where we should evaluate the next rune and then kick back up
 	// for more scanning
 	switch s.ch {
 	case -1:
 		// TODO: this is wrong, but prevents hanging forever on invalid text
 		fallthrough
+	case '(':
+		tok = token.IDENT
+		lit = string(sel)
+		return
 	case '{':
+		if ch == '#' {
+			tok = token.STRING
+			s.backup()
+			lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+			return
+		}
 		// Break apart selector into requisite parts
 		s.scanSel(offs, s.offset)
 		tok = token.SELECTOR
-		lit = string(bytes.TrimSpace(sel))
+		lit = string(sel)
 		return
 	case ':':
-		return pos, token.RULE, string(bytes.TrimSpace(sel))
-	case ';':
-		fmt.Println("semi!")
-		s.rewind(offs)
+		return pos, token.RULE, string(sel)
+	case ';', '}':
+		//s.rewind(offs)
 		tok = token.STRING
+		s.rewind(offs)
 		lit = s.scanText(offs, 0, true, isText)
+		// lit = string(sel)
 		return
 	}
+	log.Println("delim failed")
 	// fmt.Printf("               rewinding: %q\n", string(sel))
 	s.rewind(offs)
 	return
@@ -464,7 +471,6 @@ func (s *Scanner) scanSel(offs, end int) {
 
 	// Now that the string has been identified as a selector parse it
 	// and prefetch the pieces
-
 	for {
 		if s.offset >= end {
 			return
@@ -475,7 +481,6 @@ func (s *Scanner) scanSel(offs, end int) {
 		case token.ILLEGAL, token.EOF:
 			return
 		default:
-			fmt.Println("queue sel", tok, lit)
 			s.queue <- prefetch{
 				pos: pos,
 				tok: tok,

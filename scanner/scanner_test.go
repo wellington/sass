@@ -154,7 +154,7 @@ func TestScan_selectors(t *testing.T) {
 		{token.STRING, "c"},
 		{token.ADD, "+"},
 		{token.STRING, "*"},
-		// {token.STRING, "{"},
+		{token.LBRACE, "{"},
 	})
 
 	testScan(t, []elt{
@@ -264,7 +264,7 @@ func TestScan_string(t *testing.T) {
 		{token.ADD, "+"},
 		{token.INT, "3"},
 		{token.RBRACE, "}"},
-		{token.STRING, `blah`},
+		{token.STRING, "blah"},
 		{token.QSTRING, `"`},
 		{token.SEMICOLON, `;`},
 	})
