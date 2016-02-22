@@ -624,7 +624,7 @@ func (s *Scanner) scanText(offs int, end rune, whitespace bool, fn func(rune, bo
 		s.next()
 
 		if ch == '\\' {
-			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~`, s.ch) {
+			if strings.ContainsRune(`!"#$%&'()*+,./:;<=>?@[]^{|}~nr`, s.ch) {
 				s.next()
 			} else {
 				s.error(s.offset, "attempted to escape invalid character "+string(s.ch))
