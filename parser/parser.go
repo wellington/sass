@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/builtin/strops"
 	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/scanner"
 	"github.com/wellington/sass/token"
@@ -646,7 +647,6 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	}
 	itp.Obj = ast.NewObj(ast.Var, "")
 	ss := make([]string, 0, len(itp.X))
-	kind := token.STRING
 	var (
 		lit *ast.BasicLit
 		err error
@@ -658,22 +658,21 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 				p.error(c.Pos(), err.Error())
 				continue
 			}
-			if lit.Kind != token.STRING {
-				// must call unquote here
-				kind = lit.Kind
-			}
 			x = lit
 		}
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
 		} else {
+			if res.Kind != token.STRING {
+				res.Value = strops.Unquote(res.Value)
+			}
 			ss = append(ss, res.Value)
 		}
 	}
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
-		Kind:  kind,
+		Kind:  token.STRING,
 		Value: strings.Join(ss, " "),
 	}
 	return

@@ -1,4 +1,4 @@
-package strings
+package strops
 
 import "testing"
 
@@ -21,7 +21,7 @@ func TestQuote_unescape(t *testing.T) {
 	}
 
 	for _, tst := range tests {
-		if s := sassUnescape(tst.s); s != tst.e {
+		if s := unescape(tst.s); s != tst.e {
 			t.Errorf("got: %#v wanted: %#v", s, tst.e)
 		}
 	}

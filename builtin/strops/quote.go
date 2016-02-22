@@ -1,4 +1,4 @@
-package strings
+package strops
 
 import (
 	"strconv"
@@ -18,7 +18,7 @@ func unquote(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	lit := &ast.BasicLit{
 		Kind:     token.STRING,
 		ValuePos: in.ValuePos,
-		Value:    sassUnquote(in.Value),
+		Value:    Unquote(in.Value),
 	}
 	// Because in Ruby Sass, there is no failure though libSass fails
 	// very easily
@@ -31,13 +31,13 @@ const (
 	quote      = `"`
 )
 
-func sassUnquote(in string) string {
-	return sassUnescape(in)
+func Unquote(in string) string {
+	return unescape(in)
 }
 
-// sassUnquote converts Sass's bizarre unicode escape format to valid
+// unquote converts Sass's bizarre unicode escape format to valid
 // unicode text
-func sassUnescape(in string) string {
+func unescape(in string) string {
 	ss := strings.Split(in, sassEscape)
 	// No sass unicode
 	if len(ss) == 1 {

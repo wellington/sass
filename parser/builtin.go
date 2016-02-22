@@ -13,6 +13,7 @@ import (
 	// Include defined builtins
 	_ "github.com/wellington/sass/builtin/colors"
 	_ "github.com/wellington/sass/builtin/introspect"
+	_ "github.com/wellington/sass/builtin/strops"
 )
 
 var ErrNotFound = errors.New("function does not exist")
