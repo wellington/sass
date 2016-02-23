@@ -419,15 +419,14 @@ var colondelim = []byte(":")
 // { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
 	fmt.Println("scanDelim")
-	// defer func() {
-	// 	fmt.Printf("scanDelim %s:%q\n", tok, lit)
-	// }()
+	defer func() {
+		fmt.Printf("scanDelim %s:%q\n", tok, lit)
+	}()
 
 	pos = s.file.Pos(offs)
 	var ch rune
 L:
 	for !strings.ContainsRune(":;({}", s.ch) && s.ch != -1 {
-		fmt.Println(string(s.ch))
 		ch = s.ch
 		s.next()
 	}
@@ -443,12 +442,18 @@ L:
 	}
 	end := s.offset
 	sel := bytes.TrimSpace(s.src[offs:s.offset])
+	fmt.Printf("prescanned: %q\n", string(sel))
 	// Now that we have identified the important delimiter, rewind and
 	// send to the appropriate targeted scanner for identifying token
 	// and lits
+	fmt.Print("delim chose ")
+
+	// fn should always return ILLEGAL when it fails to
+	// locate a token
 	var fn typedScanner
 	switch s.ch {
 	case '(':
+		fmt.Println("ident")
 		// function name (ident)
 		// libSass supports interpolation, ruby does not
 		tok = token.IDENT
@@ -461,11 +466,11 @@ L:
 		// This is only valid when a rule has one prop/value
 		fallthrough
 	case ';':
+		fmt.Println("value")
 		// value
-		tok = token.STRING
-		s.rewind(offs)
-		lit = s.scanText(offs, 0, true, isText)
-		return
+		// s.rewind(offs)
+		// lit = s.scanText(offs, 0, true, isText)
+		fn = s.scanValue
 	case -1:
 		// other compilers identify first non-rule text as
 		// a selector
@@ -488,6 +493,7 @@ L:
 			queue = append(queue, prefetch{pos, tok, lit})
 			continue
 		}
+		s.skipWhitespace()
 		// Maybe there's an interp, go ahead and try
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
@@ -506,6 +512,7 @@ L:
 	for _, pre := range queue[1:] {
 		s.push(pre)
 	}
+
 	// log.Fatal("delim failed")
 	// s.rewind(offs)
 	pos, tok, lit = queue[0].pos, queue[0].tok, queue[0].lit
@@ -623,8 +630,8 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 }
 
 // scanInterpBlock looks forward and matches all recursive interpolations
-// it does not provide any useful lit or tokens and is only useful for
-// figuring out if we're a selector or a string
+// it does not provide any useful lit or tokens and is only used
+// for prescanning text.
 func (s *Scanner) scanInterpBlock() bool {
 	fmt.Println("InterpBlock")
 	offs := s.offset
@@ -632,16 +639,19 @@ func (s *Scanner) scanInterpBlock() bool {
 		return false
 	}
 	for s.ch != -1 && s.ch != '}' {
-		// If we got here, we're already inside an interpBlock
+		// check for nested interpolation which is a thing!
 		if s.ch == '#' {
+			fmt.Println("nested")
 			s.next()
 			if s.ch == '{' {
 				s.scanInterpBlock()
 			}
 		}
 		s.next()
+		s.skipWhitespace()
 	}
 	if s.ch != '}' {
+		fmt.Printf("tried %s %q\n", string(s.ch), string(s.src[offs:s.offset]))
 		s.error(offs, "failed to locate interpolation end }")
 		return false
 	}
@@ -856,6 +866,22 @@ ruleAgain:
 		fmt.Printf("                fallback because %q: %s\n", string(s.ch), lit)
 		// tok = token.IDENT
 
+	}
+	return
+}
+
+// scanValue inspects rhs of ':' for every rule blocks
+func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit string) {
+	pos = s.file.Pos(offs)
+	// Only look for text here, numbers and symbols will be
+	// caught by Scan()
+	for isText(s.ch, false) || isDigit(s.ch) {
+		s.next()
+	}
+	// lit = s.scanText(offs, 0, true, isText)
+	if s.offset > offs {
+		tok = token.STRING
+		lit = string(s.src[offs:s.offset])
 	}
 	return
 }
