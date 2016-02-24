@@ -524,11 +524,11 @@ L:
 			continue
 		}
 		s.skipWhitespace()
+
 		// Maybe there's an interp, go ahead and try
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
 			queue = append(queue, prefetch{pos, tok, lit})
-
 			for tok != token.EOF && tok != token.RBRACE {
 				// body of interpolation
 				pos, tok, lit = s.scan()
@@ -562,6 +562,7 @@ L:
 func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
 		printf("selLoop ret %s:%q\n", tok, lit)
+		printf("selLoop res %q\n", string(s.src[s.offset:]))
 	}()
 	pos = s.file.Pos(offs)
 
@@ -576,7 +577,6 @@ func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string)
 				s.error(offs, runes+" selector must start with letter ie. .cla")
 			} else {
 				// Just love these interpolations
-				s.backup()
 				s.backup()
 				// interp bail
 				return

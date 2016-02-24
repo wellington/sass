@@ -6,6 +6,7 @@
 package scanner
 
 import (
+	"log"
 	"strings"
 	"testing"
 
@@ -287,6 +288,19 @@ func TestScan_string(t *testing.T) {
 }
 
 func TestScan_interp(t *testing.T) {
+	if false {
+		testScanMap(t, "f#{$x}r {",
+			[]elt{
+				// {token.SELECTOR, "f#{$x}r {"},
+				{token.STRING, "f"},
+				{token.INTERP, "#{"},
+				{token.VAR, "$x"},
+				{token.RBRACE, "}"},
+				{token.STRING, "r"},
+				{token.LBRACE, "{"},
+			})
+	}
+
 	testScan(t, []elt{
 		// {token.SELECTOR, ""},
 		{token.STRING, "f"},
@@ -327,14 +341,27 @@ func TestScan_func(t *testing.T) {
 }
 
 func testScan(t *testing.T, tokens []elt) {
-	whitespaceLinecount := newlineCount(whitespace)
 
+	testScanMap(t, source(tokens), tokens)
+}
+
+func testScanMap(t *testing.T, v interface{}, tokens []elt) {
+
+	var src []byte
+	switch vv := v.(type) {
+	case []byte:
+		src = vv
+	case string:
+		src = []byte(vv)
+	default:
+		log.Fatal("unsupported")
+	}
+
+	whitespaceLinecount := newlineCount(whitespace)
 	// error handler
 	eh := func(_ token.Position, msg string) {
 		t.Errorf("error handler called (msg = %s)", msg)
 	}
-
-	src := source(tokens)
 
 	var s Scanner
 	s.Init(fset.AddFile("", fset.Base(), len(src)), src, eh, ScanComments)
