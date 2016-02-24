@@ -12,6 +12,10 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+func init() {
+	trace = true
+}
+
 type elt struct {
 	tok token.Token
 	lit string
@@ -153,7 +157,7 @@ func TestScan_selectors(t *testing.T) {
 		{token.TIL, "~"},
 		{token.STRING, "c"},
 		{token.ADD, "+"},
-		{token.STRING, "*"},
+		{token.MUL, "*"},
 		{token.LBRACE, "{"},
 	})
 
