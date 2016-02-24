@@ -133,13 +133,3 @@ func TestBackRef(t *testing.T) {
 		t.Errorf("got: %s wanted: %s", nested.Resolved.Value, e)
 	}
 }
-
-func TestExprMath(t *testing.T) {
-	// Selectors act like boolean math
-	in := `
-div {
-  value: 1*(2+3);
-}`
-	f, fset := testString(t, in, 0)
-	ast.Print(fset, f.Decls[0].(*ast.SelDecl).Body.List[0].(*ast.DeclStmt).Decl.(*ast.GenDecl).Specs[0].(*ast.RuleSpec).Values[0])
-}
