@@ -296,6 +296,7 @@ func TestScan_interp(t *testing.T) {
 		{token.STRING, "r"},
 		{token.LBRACE, "{"},
 	})
+
 	testScan(t, []elt{
 		{token.STRING, "hello"},
 		{token.INTERP, "#{"}, // Sorry this is bizarre

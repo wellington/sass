@@ -20,6 +20,15 @@ var trace bool
 
 func printf(format string, v ...interface{}) {
 	if trace {
+		if len(v) > 0 {
+			if vv, ok := v[0].(string); ok {
+				vv = strings.Replace(vv, "\t", "", -1)
+				vv = strings.Replace(vv, "\r", "", -1)
+				vv = strings.Replace(vv, "\n", "", -1)
+				vv = strings.Replace(vv, " ", "", -1)
+				v[0] = vv
+			}
+		}
 		fmt.Printf(format, v...)
 	}
 }
@@ -213,9 +222,6 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
-	defer func() {
-		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
-	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -225,6 +231,15 @@ func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	default:
 		// If the queue is empty, do nothing
 	}
+	//pos, tok, lit = s.scan(-1)
+	return s.scan()
+}
+
+func (s *Scanner) scan() (pos token.Pos, tok token.Token, lit string) {
+
+	defer func() {
+		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+	}()
 
 scanAgain:
 	s.skipWhitespace()
@@ -513,17 +528,18 @@ L:
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
 			queue = append(queue, prefetch{pos, tok, lit})
-			pos, tok, lit = s.scanDelim(s.offset)
-			queue = append(queue, prefetch{pos, tok, lit})
-			if s.ch != '}' {
+
+			for tok != token.EOF && tok != token.RBRACE {
+				// body of interpolation
+				pos, tok, lit = s.scan()
+				//pos, tok, lit = s.scanDelim(s.offset)
+				queue = append(queue, prefetch{pos, tok, lit})
+
+			}
+
+			if tok != token.RBRACE {
 				s.error(s.offset, "could not find interpolation end")
 			}
-			queue = append(queue, prefetch{
-				s.file.Pos(s.offset),
-				token.RBRACE,
-				"",
-			})
-			s.next()
 			continue
 		}
 		if s.offset > end {
@@ -545,30 +561,32 @@ L:
 
 func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		printf("selLoop %s:%q\n", tok, lit)
+		printf("selLoop ret %s:%q\n", tok, lit)
 	}()
 	pos = s.file.Pos(offs)
-R:
+
 	switch ch := s.ch; {
 	case ch == '{':
 		tok = token.ILLEGAL
 	case ch == '#' || ch == '.':
 		s.next()
-		if !isLetter(s.ch) && s.ch != '{' {
-			runes := string(ch) + string(s.ch)
-			s.error(offs, runes+" selector must start with letter ie. .cla")
+		if !isLetter(s.ch) {
+			if s.ch != '{' {
+				runes := string(ch) + string(s.ch)
+				s.error(offs, runes+" selector must start with letter ie. .cla")
+			} else {
+				// Just love these interpolations
+				s.backup()
+				s.backup()
+				// interp bail
+				return
+			}
 		}
 		fallthrough
 	// Standard selectors ie. #id .cla div
 	case isLetter(ch):
-		if ch == '#' && s.ch == '{' {
-			s.backup()
-			// found interpolation, bail
-			return
-		}
 		s.next()
 		s.skipWhitespace()
-		fmt.Printf("isLetter:%q\n", string(s.src[offs:s.offset]))
 		tok = token.STRING
 		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' {
 			s.next()
@@ -578,8 +596,10 @@ R:
 				s.next()
 			}
 		}
-		if s.ch == '#' {
-			goto R
+		if ch == '#' && s.ch == '{' {
+			s.backup()
+			// found interpolation, bail
+			return
 		}
 		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	default:
