@@ -8,7 +8,6 @@ package scanner
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -215,7 +214,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
@@ -417,9 +416,10 @@ var colondelim = []byte(":")
 // a#id { // 'a#id'
 // { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
+	printf("Delim: %q\n", string(s.src[s.offset:]))
 	defer func() {
-		printf("scanDelim %s:%q\n", tok, lit)
-		printf("rest?%q\n", string(s.src[s.offset:]))
+		printf("finDelim %s:%q\n", tok, lit)
+		printf("rest? %q\n", string(s.src[s.offset:]))
 	}()
 
 	pos = s.file.Pos(offs)
@@ -457,6 +457,12 @@ L:
 	printf("delim chose ")
 
 	var queue []prefetch
+	defer func() {
+		if e := recover(); e != nil {
+			fmt.Printf("stack %q\n", queue)
+			panic(e)
+		}
+	}()
 	// fn should always return ILLEGAL when it fails to
 	// locate a token
 	var fn typedScanner
@@ -506,6 +512,17 @@ L:
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
 			queue = append(queue, prefetch{pos, tok, lit})
+			pos, tok, lit = s.scanDelim(s.offset)
+			queue = append(queue, prefetch{pos, tok, lit})
+			if s.ch != '}' {
+				s.error(s.offset, "could not find interpolation end")
+			}
+			queue = append(queue, prefetch{
+				s.file.Pos(s.offset),
+				token.RBRACE,
+				"",
+			})
+			s.next()
 			continue
 		}
 		if s.offset > end {
@@ -515,7 +532,7 @@ L:
 	}
 
 	if len(queue) == 0 {
-		log.Fatal("nothing found")
+		//log.Fatal("nothing found")
 	}
 	for _, pre := range queue[1:] {
 		s.push(pre)
@@ -537,8 +554,9 @@ R:
 		tok = token.ILLEGAL
 	case ch == '#' || ch == '.':
 		s.next()
-		if !isLetter(s.ch) {
-			s.error(offs, "selector must start with letter ie. .cla")
+		if !isLetter(s.ch) && s.ch != '{' {
+			runes := string(ch) + string(s.ch)
+			s.error(offs, runes+" selector must start with letter ie. .cla")
 		}
 		fallthrough
 	// Standard selectors ie. #id .cla div
@@ -610,7 +628,7 @@ R:
 				s.next()
 			}
 		default:
-			panic("nope")
+			s.error(s.offset, "unsupported character found: "+string(ch))
 			tok = token.ILLEGAL
 			lit = string(ch)
 		}
@@ -862,7 +880,7 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 	pos = s.file.Pos(offs)
 	// Only look for text here, numbers and symbols will be
 	// caught by Scan()
-	for isText(s.ch, false) || isDigit(s.ch) {
+	for s.ch == '$' || isText(s.ch, false) || isDigit(s.ch) {
 		s.next()
 	}
 	// lit = s.scanText(offs, 0, true, isText)
