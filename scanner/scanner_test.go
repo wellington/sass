@@ -271,12 +271,15 @@ func TestScan_string(t *testing.T) {
 }
 
 func TestScan_interp(t *testing.T) {
-	if false {
-		testScan(t, []elt{
-			{token.IDENT, "hello"},
-		})
-		return
-	}
+	testScan(t, []elt{
+		// {token.SELECTOR, ""},
+		{token.STRING, "f"},
+		{token.INTERP, "#{"},
+		{token.VAR, "$x"},
+		{token.RBRACE, "}"},
+		{token.STRING, "r"},
+		{token.LBRACE, "{"},
+	})
 	testScan(t, []elt{
 		{token.STRING, "hello"},
 		{token.INTERP, "#{"}, // Sorry this is bizarre

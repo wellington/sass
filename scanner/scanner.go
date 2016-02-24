@@ -418,10 +418,10 @@ var colondelim = []byte(":")
 // a#id { // 'a#id'
 // { color: blue; } // 'color' ':' 'blue'
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
-	fmt.Println("scanDelim")
-	defer func() {
-		fmt.Printf("scanDelim %s:%q\n", tok, lit)
-	}()
+	// fmt.Printf("scanDelim %q\n", string(s.src[offs:]))
+	// defer func() {
+	// 	fmt.Printf("scanDelim %s:%q\n", tok, lit)
+	// }()
 
 	pos = s.file.Pos(offs)
 	var ch rune
@@ -429,17 +429,26 @@ L:
 	for !strings.ContainsRune(":;({}", s.ch) && s.ch != -1 {
 		ch = s.ch
 		s.next()
+
 	}
 
+	// Return to scanning if '{' was interp not rule start
 	if ch == '#' && s.ch == '{' {
+		// Found interp
 		for s.ch != -1 && s.ch != '}' {
 			b := s.scanInterpBlock()
 			if !b {
 				s.error(offs, "failed to parse interpolation block")
 			}
 		}
+		// eat interpolation RBRACE
+		if s.ch != '}' {
+			s.error(offs, "failed to parse interpolation end")
+		}
+		s.next()
 		goto L
 	}
+
 	end := s.offset
 	sel := bytes.TrimSpace(s.src[offs:s.offset])
 	fmt.Printf("prescanned: %q\n", string(sel))
@@ -476,12 +485,7 @@ L:
 		// a selector
 		fallthrough
 	case '{':
-		// selector, both support interpolation
-		s.scanSel(offs, s.offset)
-		tok = token.SELECTOR
-		lit = ""
-		return
-
+		fn = s.selLoop
 	}
 	// Rewind and parse by correct typeScanner
 	s.rewind(offs)
@@ -520,8 +524,6 @@ L:
 }
 
 func (s *Scanner) scanSel(offs, end int) {
-	s.rewind(offs)
-
 	// Now that the string has been identified as a selector parse it
 	// and prefetch the pieces
 	for {
@@ -543,35 +545,35 @@ func (s *Scanner) scanSel(offs, end int) {
 	}
 }
 
-func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) {
-	s.skipWhitespace()
-
-	pos = s.file.Pos(s.offset)
-	offs := s.offset
-	if offs >= end {
-		return
-	}
-
+func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string) {
+	pos = s.file.Pos(offs)
+R:
 	switch ch := s.ch; {
-	case ch == '.':
+	case ch == '#' || ch == '.':
 		s.next()
-		fallthrough
-	case isLetter(ch) || ch == '#':
-		tok = token.STRING
-		if pos, tok, lit := s.scanInterp(s.offset); tok != token.ILLEGAL {
-			return pos, tok, lit
+		if !isLetter(s.ch) {
+			s.error(offs, "selector must start with letter ie. .cla")
 		}
-		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' ||
-			s.ch == '#' || s.ch == '&' {
-			if s.offset > end {
-				s.error(offs, "failed to parse selector string")
-				return
-			}
+		fallthrough
+	// Standard selectors ie. #id .cla div
+	case isLetter(ch):
+		if ch == '#' && s.ch == '{' {
+			s.backup()
+			// found interpolation, bail
+			return
+		}
+		s.next()
+		tok = token.STRING
+		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' {
 			s.next()
 			s.skipWhitespace()
+			if s.ch == '&' {
+				tok = token.AND
+				s.next()
+			}
 		}
-		if bytes.Contains(s.src[offs:s.offset], []byte{'&'}) {
-			tok = token.AND
+		if s.ch == '#' {
+			goto R
 		}
 		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	default:
@@ -604,6 +606,10 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 			tok = token.ATTRIBUTE
 			runes := []rune{ch, s.ch}
 			for s.ch != ']' {
+				if s.ch == -1 {
+					s.error(offs, "attribute selector not found")
+				}
+				// TODO check we ever find ']'
 				s.next()
 				if !unicode.IsSpace(s.ch) {
 					runes = append(runes, s.ch)
@@ -615,10 +621,6 @@ func (s *Scanner) selLoop(end int) (pos token.Pos, tok token.Token, lit string) 
 		case ':':
 			tok = token.PSEUDO
 			for s.ch != ',' && !unicode.IsSpace(s.ch) {
-				if s.offset > end {
-					s.error(offs, "failed to parse pseudo selector")
-					return
-				}
 				s.next()
 			}
 		default:
@@ -655,6 +657,7 @@ func (s *Scanner) scanInterpBlock() bool {
 		s.error(offs, "failed to locate interpolation end }")
 		return false
 	}
+
 	return true
 }
 
