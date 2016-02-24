@@ -152,6 +152,8 @@ func Walk(v Visitor, node Node) {
 	case *StarExpr:
 		Walk(v, n.X)
 
+	case *StringExpr:
+
 	case *UnaryExpr:
 		Walk(v, n.X)
 

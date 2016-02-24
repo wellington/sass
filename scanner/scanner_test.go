@@ -127,6 +127,11 @@ func TestScan_tokens(t *testing.T) {
 }
 
 func TestScan_selectors(t *testing.T) {
+	testScan(t, []elt{
+		// {token.SELECTOR, "i#grer"}
+		{token.STRING, "i#grer"},
+		{token.LBRACE, "{"},
+	})
 
 	// selectors are so flexible, that they must be tested in isolation
 	testScan(t, []elt{
@@ -254,11 +259,27 @@ func TestScan_duel(t *testing.T) {
 }
 
 func TestScan_params(t *testing.T) {
+	if false {
+		testScan(t, []elt{
+			{token.LPAREN, "("},
+			{token.VAR, "$a"},
+			{token.COMMA, ","},
+			{token.VAR, "$b"},
+			{token.COLON, ":"},
+			{token.STRING, "flug"},
+			{token.RPAREN, ")"},
+		})
+	}
+
 	testScan(t, []elt{
 		{token.LPAREN, "("},
-		{token.COMMA, ","},
 		{token.VAR, "$a"},
+		{token.COLON, ":"},
+		{token.STRING, "pug"},
+		{token.COMMA, ","},
 		{token.VAR, "$b"},
+		{token.COLON, ":"},
+		{token.STRING, "flug"},
 		{token.RPAREN, ")"},
 	})
 }

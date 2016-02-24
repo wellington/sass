@@ -8,6 +8,7 @@ package scanner
 import (
 	"bytes"
 	"fmt"
+	"log"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -222,6 +223,10 @@ func (s *Scanner) skipWhitespace() {
 // math 1 + 3 or (1 + 3)
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
+	defer func() {
+		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+	}()
+
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
 	select {
@@ -231,15 +236,12 @@ func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	default:
 		// If the queue is empty, do nothing
 	}
+
 	//pos, tok, lit = s.scan(-1)
 	return s.scan()
 }
 
 func (s *Scanner) scan() (pos token.Pos, tok token.Token, lit string) {
-
-	defer func() {
-		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
-	}()
 
 scanAgain:
 	s.skipWhitespace()
@@ -489,11 +491,17 @@ L:
 		tok = token.IDENT
 		fn = s.scanIdent
 	case ':':
-		// Rule
-		// both support interpolation
-		return pos, token.RULE, string(sel)
-	case ')':
+		printf("colon\n")
+		s.rewind(offs)
+		tok = token.STRING
+		lit = s.scanText(offs, 0, false, isText)
+		s.skipWhitespace()
+		if s.ch == ':' {
+			tok = token.RULE
+		}
 		return
+	case ')':
+		fallthrough
 	case '}':
 		// This is only valid when a rule has one prop/value
 		fallthrough
@@ -511,7 +519,8 @@ L:
 		printf("selector\n")
 		fn = s.selLoop
 		queue = []prefetch{{pos, token.SELECTOR, string(sel)}}
-
+	default:
+		log.Fatalf("unsupported delim %s", string(s.ch))
 	}
 	// Rewind and parse by correct typeScanner
 	s.rewind(offs)
@@ -588,18 +597,20 @@ func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string)
 		s.next()
 		s.skipWhitespace()
 		tok = token.STRING
-		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' {
+		for isLetter(s.ch) || isDigit(s.ch) ||
+			s.ch == '.' || s.ch == '#' {
+			ch = s.ch
 			s.next()
+			if ch == '#' && s.ch == '{' {
+				s.backup()
+				// found interpolation, bail
+				break
+			}
 			s.skipWhitespace()
 			if s.ch == '&' {
 				tok = token.AND
 				s.next()
 			}
-		}
-		if ch == '#' && s.ch == '{' {
-			s.backup()
-			// found interpolation, bail
-			return
 		}
 		lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	default:
@@ -907,8 +918,12 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 	// lit = s.scanText(offs, 0, true, isText)
 	if s.offset > offs {
 		tok = token.STRING
+		if s.src[offs] == '$' {
+			tok = token.VAR
+		}
 		lit = string(s.src[offs:s.offset])
 	}
+	fmt.Println("scanValue", lit)
 	return
 }
 
