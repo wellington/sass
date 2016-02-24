@@ -214,7 +214,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
@@ -502,6 +502,7 @@ L:
 	s.rewind(offs)
 	// call typedScanner until end is hit
 	for {
+		s.skipWhitespace()
 		pos, tok, lit := fn(s.offset)
 		if tok != token.ILLEGAL {
 			queue = append(queue, prefetch{pos, tok, lit})
@@ -548,7 +549,6 @@ func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string)
 	}()
 	pos = s.file.Pos(offs)
 R:
-	s.skipWhitespace()
 	switch ch := s.ch; {
 	case ch == '{':
 		tok = token.ILLEGAL
@@ -567,6 +567,8 @@ R:
 			return
 		}
 		s.next()
+		s.skipWhitespace()
+		fmt.Printf("isLetter:%q\n", string(s.src[offs:s.offset]))
 		tok = token.STRING
 		for isLetter(s.ch) || isDigit(s.ch) || s.ch == '.' {
 			s.next()
@@ -587,8 +589,7 @@ R:
 			lit = ""
 			tok = token.EOF
 		case '*': // Universal selector
-			lit = "*"
-			tok = token.STRING
+			tok = token.MUL
 		case '.':
 			tok = token.PERIOD
 		case '~':
