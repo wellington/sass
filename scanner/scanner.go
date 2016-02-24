@@ -215,7 +215,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		// printf("scan tok: %s lit: '%s' pos: %d\n", tok, lit, pos)
+		printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 	// Check the queue, which may contain tokens that were fetched
 	// in a previous scan while determing ambiguious tokens.
@@ -419,12 +419,13 @@ var colondelim = []byte(":")
 func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
 		printf("scanDelim %s:%q\n", tok, lit)
+		printf("rest?%q\n", string(s.src[s.offset:]))
 	}()
 
 	pos = s.file.Pos(offs)
 	var ch rune
 L:
-	for !strings.ContainsRune(":;({}", s.ch) && s.ch != -1 {
+	for !strings.ContainsRune(":;(){}", s.ch) && s.ch != -1 {
 		ch = s.ch
 		s.next()
 
@@ -455,6 +456,7 @@ L:
 	// and lits
 	printf("delim chose ")
 
+	var queue []prefetch
 	// fn should always return ILLEGAL when it fails to
 	// locate a token
 	var fn typedScanner
@@ -469,6 +471,8 @@ L:
 		// Rule
 		// both support interpolation
 		return pos, token.RULE, string(sel)
+	case ')':
+		return
 	case '}':
 		// This is only valid when a rule has one prop/value
 		fallthrough
@@ -485,10 +489,11 @@ L:
 	case '{':
 		printf("selector\n")
 		fn = s.selLoop
+		queue = []prefetch{{pos, token.SELECTOR, string(sel)}}
+
 	}
 	// Rewind and parse by correct typeScanner
 	s.rewind(offs)
-	var queue []prefetch
 	// call typedScanner until end is hit
 	for {
 		pos, tok, lit := fn(s.offset)
@@ -508,6 +513,7 @@ L:
 		}
 		break
 	}
+
 	if len(queue) == 0 {
 		log.Fatal("nothing found")
 	}
@@ -525,7 +531,10 @@ func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string)
 	}()
 	pos = s.file.Pos(offs)
 R:
+	s.skipWhitespace()
 	switch ch := s.ch; {
+	case ch == '{':
+		tok = token.ILLEGAL
 	case ch == '#' || ch == '.':
 		s.next()
 		if !isLetter(s.ch) {
@@ -572,7 +581,7 @@ R:
 				s.ch == '.' || s.ch == '#' {
 				s.next()
 			}
-			lit = string(s.src[offs:s.offset])
+			lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 		case '>':
 			tok = s.switch2(token.GTR, token.GEQ)
 		case '+':
@@ -600,9 +609,8 @@ R:
 			for s.ch != ',' && !unicode.IsSpace(s.ch) {
 				s.next()
 			}
-		case '{':
-			tok = token.LBRACE
 		default:
+			panic("nope")
 			tok = token.ILLEGAL
 			lit = string(ch)
 		}
@@ -867,14 +875,13 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 
 func (s *Scanner) scanIdent(offs int) (pos token.Pos, tok token.Token, lit string) {
 	pos = s.file.Pos(offs)
-	for isLetter(s.ch) || isDigit(s.ch) {
+	for isLetter(s.ch) || isDigit(s.ch) || s.ch == '-' {
 		s.next()
 	}
 	lit = string(s.src[offs:s.offset])
 	if len(lit) > 0 {
 		tok = token.IDENT
 	}
-	s.next()
 	return
 }
 

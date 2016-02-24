@@ -9,9 +9,9 @@ import (
 	"unicode"
 
 	"github.com/wellington/sass/ast"
-	"github.com/wellington/sass/builtin/strops"
 	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/scanner"
+	"github.com/wellington/sass/strops"
 	"github.com/wellington/sass/token"
 )
 

@@ -208,6 +208,18 @@ func TestScan_nested(t *testing.T) {
 		{token.RBRACE, "}"},
 	})
 
+	testScan(t, []elt{
+		{token.STRING, "div"},
+		{token.LBRACE, "{"},
+		{token.AND, "&"},
+		{token.LBRACE, "{"},
+		{token.RULE, "color"},
+		{token.COLON, ":"},
+		{token.STRING, "red"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+		{token.RBRACE, "}"},
+	})
 }
 
 func TestScan_media(t *testing.T) {
@@ -301,9 +313,14 @@ func TestScan_interp(t *testing.T) {
 }
 
 func TestScan_func(t *testing.T) {
+	// testScan(t, []elt{
+	// 	{token.IDENT, "inspect($value)"},
+	// })
+	// return
 	testScan(t, []elt{
-		{token.IDENT, "rgb"},
+		{token.IDENT, "type-of"},
 		{token.LPAREN, "("},
+		{token.VAR, "$number"},
 		{token.RPAREN, ")"},
 	})
 }
