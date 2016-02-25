@@ -273,13 +273,13 @@ func TestScan_params(t *testing.T) {
 
 	testScan(t, []elt{
 		{token.LPAREN, "("},
-		{token.VAR, "$a"},
+		{token.VAR, "$y"},
 		{token.COLON, ":"},
-		{token.STRING, "pug"},
+		{token.STRING, "kwd-y"},
 		{token.COMMA, ","},
-		{token.VAR, "$b"},
+		{token.VAR, "$x"},
 		{token.COLON, ":"},
-		{token.STRING, "flug"},
+		{token.STRING, "kwd-x"},
 		{token.RPAREN, ")"},
 	})
 }

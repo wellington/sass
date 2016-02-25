@@ -401,6 +401,14 @@ bypassSelector:
 	return
 }
 
+// this won't be around for long
+func isTextOrDash(ch rune, whitespace bool) bool {
+	if ch == '-' {
+		return true
+	}
+	return isText(ch, whitespace)
+}
+
 func isText(ch rune, whitespace bool) bool {
 
 	switch {
@@ -494,7 +502,7 @@ L:
 		printf("colon\n")
 		s.rewind(offs)
 		tok = token.STRING
-		lit = s.scanText(offs, 0, false, isText)
+		lit = s.scanText(offs, 0, false, isTextOrDash)
 		s.skipWhitespace()
 		if s.ch == ':' {
 			tok = token.RULE
@@ -912,7 +920,7 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 	pos = s.file.Pos(offs)
 	// Only look for text here, numbers and symbols will be
 	// caught by Scan()
-	for s.ch == '$' || isText(s.ch, false) || isDigit(s.ch) {
+	for s.ch == '$' || isTextOrDash(s.ch, false) || isDigit(s.ch) {
 		s.next()
 	}
 	// lit = s.scanText(offs, 0, true, isText)
