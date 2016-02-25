@@ -26,7 +26,7 @@ func printf(format string, v ...interface{}) {
 				vv = strings.Replace(vv, "\t", "", -1)
 				vv = strings.Replace(vv, "\r", "", -1)
 				vv = strings.Replace(vv, "\n", "", -1)
-				vv = strings.Replace(vv, " ", "", -1)
+				vv = strings.Replace(vv, "  ", " ", -1)
 				v[0] = vv
 			}
 		}
@@ -363,7 +363,14 @@ bypassSelector:
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
 	case '!':
-		tok = s.switch2(token.NOT, token.NEQ)
+		tok = token.NOT
+		for isLetter(s.ch) {
+			s.next()
+		}
+		// !global !default
+		if s.offset-offs > 1 {
+			tok = token.STRING
+		}
 	case ',':
 		tok = token.COMMA
 	case ';':
@@ -402,8 +409,8 @@ bypassSelector:
 }
 
 // this won't be around for long
-func isTextOrDash(ch rune, whitespace bool) bool {
-	if ch == '-' {
+func isValue(ch rune, whitespace bool) bool {
+	if ch == '-' || ch == '!' {
 		return true
 	}
 	return isText(ch, whitespace)
@@ -502,7 +509,7 @@ L:
 		printf("colon\n")
 		s.rewind(offs)
 		tok = token.STRING
-		lit = s.scanText(offs, 0, false, isTextOrDash)
+		lit = s.scanText(offs, 0, false, isValue)
 		s.skipWhitespace()
 		if s.ch == ':' {
 			tok = token.RULE
@@ -667,6 +674,9 @@ func (s *Scanner) selLoop(offs int) (pos token.Pos, tok token.Token, lit string)
 			for s.ch != ',' && !unicode.IsSpace(s.ch) {
 				s.next()
 			}
+		case '/':
+			s.backup()
+			// found a comment, unwind
 		default:
 			s.error(s.offset, "unsupported character found: "+string(ch))
 			tok = token.ILLEGAL
@@ -920,7 +930,7 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 	pos = s.file.Pos(offs)
 	// Only look for text here, numbers and symbols will be
 	// caught by Scan()
-	for s.ch == '$' || isTextOrDash(s.ch, false) || isDigit(s.ch) {
+	for s.ch == '$' || isValue(s.ch, false) || isDigit(s.ch) {
 		s.next()
 	}
 	// lit = s.scanText(offs, 0, true, isText)
@@ -931,7 +941,6 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 		}
 		lit = string(s.src[offs:s.offset])
 	}
-	fmt.Println("scanValue", lit)
 	return
 }
 

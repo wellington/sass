@@ -284,10 +284,24 @@ func TestScan_params(t *testing.T) {
 	})
 }
 
+func TestScan_value(t *testing.T) {
+	testScan(t, []elt{
+		{token.VAR, "$x"},
+		{token.STRING, "local"},
+		{token.STRING, "x"},
+		{token.STRING, "changed"},
+		{token.STRING, "by"},
+		{token.STRING, "foo"},
+		{token.STRING, "!global"},
+		{token.RBRACE, "}"},
+	})
+}
+
 func TestScan_attr_sel_now(t *testing.T) {
 	testScan(t, []elt{
 		//{token.SELECTOR},
 		{token.ATTRIBUTE, "[hey  =  'ho']"}, //"[hey  =  'ho'], a > b"
+		{token.COMMENT, "/* end of hux */"},
 		{token.LBRACE, "{"},
 	})
 }

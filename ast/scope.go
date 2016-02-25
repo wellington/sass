@@ -61,9 +61,17 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
+		last := len(assign.Rhs) - 1
+		var isGlobal bool
+		if lit, isLit := assign.Rhs[last].(*BasicLit); isLit {
+			if lit.Value == "!global" {
+				isGlobal = true
+				assign.Rhs = assign.Rhs[:last]
+			}
+		}
 		for i := range assign.Rhs {
 			blit, ok := assign.Rhs[i].(*BasicLit)
-			if ok && strings.HasSuffix(blit.Value, " !global") {
+			if ok && isGlobal {
 				decl2 := StmtCopy(assign)
 				assign2 := decl2.(*AssignStmt)
 				// Copy these b/c they might be introduced by a mixin
