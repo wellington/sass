@@ -9,9 +9,9 @@ import (
 	"unicode"
 
 	"github.com/wellington/sass/ast"
-	"github.com/wellington/sass/builtin/strops"
 	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/scanner"
+	"github.com/wellington/sass/strops"
 	"github.com/wellington/sass/token"
 )
 
@@ -82,9 +82,7 @@ func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mod
 	Globalfset = fset
 	p.file = fset.AddFile(filename, -1, len(src))
 	var m scanner.Mode
-	if mode&ParseComments != 0 {
-		m = scanner.ScanComments
-	}
+	m = scanner.ScanComments
 	eh := func(pos token.Position, msg string) { p.errors.Add(pos, msg) }
 	p.scanner.Init(p.file, src, eh, m)
 
@@ -178,8 +176,8 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 				}
 				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
 			} else {
-				// fmt.Printf("decl %8s(%p): % #v\n",
-				// 	ident, scope, obj.Decl)
+				fmt.Printf("decl %8s(%p): % #v\n",
+					ident, scope, obj.Decl)
 			}
 		}
 	}
@@ -228,22 +226,27 @@ var unresolved = new(ast.Object)
 //
 func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// nothing to do if x is not an identifier or the blank identifier
+	fmt.Println("resolve", x)
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
 		fmt.Printf("cant resolve this: % #v\n", x)
 		return
 	}
+
+	// These are also mixins, idiot
 	// Likely func calls
-	if ident.Name[:1] != "$" {
-		return
-	}
+	// if ident.Name[:1] != "$" {
+	// 	return
+	// }
 
 	assert(ident.Obj == nil, "identifier already declared or resolved")
 	if ident.Name == "_" {
 		return
 	}
+
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
+		fmt.Printf("trying %p\n", s)
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
 			if ok {
@@ -642,7 +645,11 @@ func (p *parser) parseInterp() *ast.Interp {
 // simplify and resolve expressions inside interpolation.
 // strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
+	if p.trace {
+		defer un(trace(p, "ResolveInterp"))
+	}
 	if len(itp.X) == 0 {
+		fmt.Println("bailed")
 		return
 	}
 	itp.Obj = ast.NewObj(ast.Var, "")
@@ -670,6 +677,7 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 			ss = append(ss, res.Value)
 		}
 	}
+	fmt.Printf("resolved.. %q\n", ss)
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
 		Kind:  token.STRING,
@@ -1273,7 +1281,6 @@ func (p *parser) parseParameters(scope *ast.Scope, ellipsisOk bool) *ast.FieldLi
 	if p.tok != token.RPAREN {
 		params = p.parseParameterList(scope, ellipsisOk)
 	}
-
 	rparen := p.expect(token.RPAREN)
 
 	return &ast.FieldList{Opening: lparen, List: params, Closing: rparen}
@@ -2132,7 +2139,7 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 		for _, expr := range x {
 			fmt.Printf("% #v\n", expr)
 		}
-		panic("boom")
+		panic("boom town")
 		p.errorExpected(x[0].Pos(), "1 expression")
 		// continue with first expression
 	}
@@ -2719,8 +2726,47 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		sel.Parent = p.sels[len(p.sels)-1]
 	}
 
-	// Parse selector tree
-	sel.Sel = p.parseCombSel(token.LowestPrec + 1)
+	var mustRescan bool
+	var xs []ast.Expr
+	for p.tok != token.LBRACE {
+		x := p.parseCombSel(token.LowestPrec + 1)
+		if xx, ok := x.(*ast.Interp); ok {
+			mustRescan = true
+			lit := xx.Obj.Decl.(*ast.BasicLit)
+			fmt.Printf("%s:%s\n", lit.Kind, lit.Value)
+		}
+		xs = append(xs, x)
+	}
+
+	sel.Sel = xs[0]
+
+	if mustRescan {
+		x := p.mergeInterps(xs)
+		sel.Sel = x[0]
+
+		lit = x[0].(*ast.BasicLit).Value + "{"
+		s := scanner.Scanner{}
+		fset := token.NewFileSet()
+		file := fset.AddFile("noop", -1, len(lit))
+		s.Init(file, []byte(lit), nil, 0)
+
+		// Now the selector has been parsed, and interpolations
+		// resolved. Selector has to be rescanned to
+		fmt.Printf("% #v\n", sel.Sel)
+
+		log.Fatal("sel.Sel", sel.Sel)
+		for {
+			pos, tok, lit := s.Scan()
+			_, _ = pos, lit
+			if tok == token.EOF {
+				panic("lbrace not found")
+			}
+			if tok == token.LBRACE {
+				break
+			}
+		}
+	}
+
 	sel.Resolve(Globalfset)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
@@ -2755,11 +2801,11 @@ func (p *parser) parseSel() ast.Expr {
 		p.next()
 		x := p.parseSel()
 		return &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
-	case token.STRING:
+	case token.STRING, token.ATTRIBUTE:
 		pos := p.pos
 		var lits []string
 		// eat all the strings
-		for p.tok == token.STRING {
+		for p.tok == token.STRING || p.tok == token.ATTRIBUTE {
 			lits = append(lits, p.lit)
 			p.next()
 		}
@@ -2772,9 +2818,10 @@ func (p *parser) parseSel() ast.Expr {
 			Value:    s,
 			ValuePos: pos,
 		}
+	default:
+		log.Fatalf("unsupported type %s:%q\n", p.tok, p.lit)
 	}
-	// This should never happen, but left here to confound future Drew
-	return p.parsePrimaryExpr(true)
+	return &ast.BasicLit{}
 }
 
 // Selectors fall in two buckets Combinators and Groups
@@ -2798,10 +2845,10 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 			pos := p.expect(tok)
 			y := p.parseCombSel(prec + 1)
 			x = &ast.BinaryExpr{
-				X:     p.checkExpr(x),
+				X:     x,
 				OpPos: pos,
 				Op:    tok,
-				Y:     p.checkExpr(y),
+				Y:     y,
 			}
 		}
 	}
@@ -3075,8 +3122,12 @@ func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 		return lits
 	case *ast.BasicLit:
 		return []*ast.BasicLit{typ}
+	case nil:
+		fmt.Printf("% #v\n", ident)
+		panic("ident is nil")
 	default:
-		panic(fmt.Sprintf("invalid Obj.Decl % #v", typ))
+
+		panic(fmt.Sprintf("invalid ident: % #v Obj.Decl % #v", ident, typ))
 	}
 }
 
@@ -3095,7 +3146,8 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	}
 	ident := spec.Name
 	p.resolve(ident)
-	assert(ident.Obj != nil, "failed to retrieve mixin: "+ident.Name)
+	assert(ident.Obj != nil,
+		fmt.Sprintf("failed to retrieve mixin: %s(%p)", ident.Name, p.topScope))
 	args := spec.Params
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 
@@ -3122,9 +3174,10 @@ func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 		defer un(trace(p, "ParseIncludeSpec"))
 	}
 	p.expect(token.INCLUDE)
-
 	expr := p.parseOperand(true)
-	// @include hux; returns BasicLit, enforce ident here
+	// Receives ident or basiclit here
+	// @include foo(); // ident
+	// @include hux;   // basiclit
 	ident := ast.ToIdent(expr)
 	assert(ident.Name != "_", "invalid include identifier")
 	args, _ := p.parseSignature(p.topScope)
@@ -3133,12 +3186,11 @@ func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 		Params: args,
 	}
 
-	if !doResolve {
-		fmt.Println("bailed on", ident)
-		// Inside mixin, just bail we will come back here later
-	}
 	if doResolve {
 		p.resolveIncludeSpec(spec)
+	} else {
+		// Inside mixin, just bail we will come back here later
+		fmt.Println("bailed on", ident)
 	}
 
 	return spec

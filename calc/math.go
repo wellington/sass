@@ -2,6 +2,7 @@ package calc
 
 import (
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
@@ -35,7 +36,16 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		x, err = binary(v)
 	case *ast.BasicLit:
 		x = v
+	case *ast.Ident:
+		rhs := v.Obj.Decl.(*ast.AssignStmt).Rhs
+		var val []string
+		for _, x := range rhs {
+			val = append(val, x.(*ast.BasicLit).Value)
+		}
+		// TODO: commas are missing
+		x.Value = strings.Join(val, ", ")
 	default:
+		log.Fatalf("% #v\n", v)
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 	}
 	return x, err

@@ -72,7 +72,7 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 	case nil:
 		return nil
 	default:
-		log.Fatalf("illegal walk % #v\n", v)
+		panic(fmt.Errorf("illegal walk % #v\n", v))
 	}
 	return d
 }
@@ -91,7 +91,6 @@ func register(s string, ch builtin.CallHandler) {
 			log.Fatal(err)
 		}
 	}
-
 	d := &desc{c: call{ch: ch}}
 	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])

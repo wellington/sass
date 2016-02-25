@@ -6,11 +6,16 @@
 package scanner
 
 import (
+	"log"
 	"strings"
 	"testing"
 
 	"github.com/wellington/sass/token"
 )
+
+func init() {
+	trace = true
+}
 
 type elt struct {
 	tok token.Token
@@ -122,6 +127,11 @@ func TestScan_tokens(t *testing.T) {
 }
 
 func TestScan_selectors(t *testing.T) {
+	testScan(t, []elt{
+		// {token.SELECTOR, "i#grer"}
+		{token.STRING, "i#grer"},
+		{token.LBRACE, "{"},
+	})
 
 	// selectors are so flexible, that they must be tested in isolation
 	testScan(t, []elt{
@@ -153,7 +163,7 @@ func TestScan_selectors(t *testing.T) {
 		{token.TIL, "~"},
 		{token.STRING, "c"},
 		{token.ADD, "+"},
-		{token.STRING, "*"},
+		{token.MUL, "*"},
 		{token.LBRACE, "{"},
 	})
 
@@ -204,6 +214,18 @@ func TestScan_nested(t *testing.T) {
 		{token.RBRACE, "}"},
 	})
 
+	testScan(t, []elt{
+		{token.STRING, "div"},
+		{token.LBRACE, "{"},
+		{token.AND, "&"},
+		{token.LBRACE, "{"},
+		{token.RULE, "color"},
+		{token.COLON, ":"},
+		{token.STRING, "red"},
+		{token.SEMICOLON, ";"},
+		{token.RBRACE, "}"},
+		{token.RBRACE, "}"},
+	})
 }
 
 func TestScan_media(t *testing.T) {
@@ -237,19 +259,63 @@ func TestScan_duel(t *testing.T) {
 }
 
 func TestScan_params(t *testing.T) {
+	if false {
+		testScan(t, []elt{
+			{token.LPAREN, "("},
+			{token.VAR, "$a"},
+			{token.COMMA, ","},
+			{token.VAR, "$b"},
+			{token.COLON, ":"},
+			{token.STRING, "flug"},
+			{token.RPAREN, ")"},
+		})
+	}
+
 	testScan(t, []elt{
 		{token.LPAREN, "("},
+		{token.VAR, "$y"},
+		{token.COLON, ":"},
+		{token.STRING, "kwd-y"},
 		{token.COMMA, ","},
-		{token.VAR, "$a"},
-		{token.VAR, "$b"},
+		{token.VAR, "$x"},
+		{token.COLON, ":"},
+		{token.STRING, "kwd-x"},
 		{token.RPAREN, ")"},
 	})
+
+	testScan(t, []elt{
+		{token.IDENT, "mix"},
+		{token.LPAREN, "("},
+		{token.IDENT, "rgba"},
+		{token.LPAREN, "("},
+		{token.INT, "255"},
+		{token.COMMA, ","},
+		{token.FLOAT, "0.5"},
+		{token.COMMA, ","},
+		{token.FLOAT, ".5"},
+		{token.RPAREN, ")"},
+	})
+}
+
+func TestScan_value(t *testing.T) {
+	testScan(t, []elt{
+		{token.VAR, "$x"},
+		{token.STRING, "local"},
+		{token.STRING, "x"},
+		{token.STRING, "changed"},
+		{token.STRING, "by"},
+		{token.STRING, "foo"},
+		{token.STRING, "!global"},
+		{token.RBRACE, "}"},
+	})
+
 }
 
 func TestScan_attr_sel_now(t *testing.T) {
 	testScan(t, []elt{
 		//{token.SELECTOR},
 		{token.ATTRIBUTE, "[hey  =  'ho']"}, //"[hey  =  'ho'], a > b"
+		{token.COMMENT, "/* end of hux */"},
 		{token.LBRACE, "{"},
 	})
 }
@@ -272,11 +338,28 @@ func TestScan_string(t *testing.T) {
 
 func TestScan_interp(t *testing.T) {
 	if false {
-		testScan(t, []elt{
-			{token.IDENT, "hello"},
-		})
-		return
+		testScanMap(t, "f#{$x}r {",
+			[]elt{
+				// {token.SELECTOR, "f#{$x}r {"},
+				{token.STRING, "f"},
+				{token.INTERP, "#{"},
+				{token.VAR, "$x"},
+				{token.RBRACE, "}"},
+				{token.STRING, "r"},
+				{token.LBRACE, "{"},
+			})
 	}
+
+	testScan(t, []elt{
+		// {token.SELECTOR, ""},
+		{token.STRING, "f"},
+		{token.INTERP, "#{"},
+		{token.VAR, "$x"},
+		{token.RBRACE, "}"},
+		{token.STRING, "r"},
+		{token.LBRACE, "{"},
+	})
+
 	testScan(t, []elt{
 		{token.STRING, "hello"},
 		{token.INTERP, "#{"}, // Sorry this is bizarre
@@ -294,22 +377,40 @@ func TestScan_interp(t *testing.T) {
 }
 
 func TestScan_func(t *testing.T) {
+	// testScan(t, []elt{
+	// 	{token.IDENT, "inspect($value)"},
+	// })
+	// return
 	testScan(t, []elt{
-		{token.IDENT, "rgb"},
+		{token.IDENT, "type-of"},
 		{token.LPAREN, "("},
+		{token.VAR, "$number"},
 		{token.RPAREN, ")"},
 	})
 }
 
 func testScan(t *testing.T, tokens []elt) {
-	whitespaceLinecount := newlineCount(whitespace)
 
+	testScanMap(t, source(tokens), tokens)
+}
+
+func testScanMap(t *testing.T, v interface{}, tokens []elt) {
+
+	var src []byte
+	switch vv := v.(type) {
+	case []byte:
+		src = vv
+	case string:
+		src = []byte(vv)
+	default:
+		log.Fatal("unsupported")
+	}
+
+	whitespaceLinecount := newlineCount(whitespace)
 	// error handler
 	eh := func(_ token.Position, msg string) {
 		t.Errorf("error handler called (msg = %s)", msg)
 	}
-
-	src := source(tokens)
 
 	var s Scanner
 	s.Init(fset.AddFile("", fset.Base(), len(src)), src, eh, ScanComments)
