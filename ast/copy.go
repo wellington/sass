@@ -79,6 +79,13 @@ func ExprCopy(in Expr) (out Expr) {
 	switch expr := in.(type) {
 	case *Ident:
 		out = IdentCopy(expr)
+	case *UnaryExpr:
+		out = &UnaryExpr{
+			Op:      expr.Op,
+			OpPos:   expr.OpPos,
+			X:       ExprCopy(expr.X),
+			Visited: expr.Visited,
+		}
 	case *BinaryExpr:
 		out = &BinaryExpr{
 			X:     ExprCopy(expr.X),
