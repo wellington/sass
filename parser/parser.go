@@ -3124,6 +3124,9 @@ func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 		return lits
 	case *ast.BasicLit:
 		return []*ast.BasicLit{typ}
+	case nil:
+		fmt.Printf("% #v\n", ident)
+		panic("ident is nil")
 	default:
 
 		panic(fmt.Sprintf("invalid ident: % #v Obj.Decl % #v", ident, typ))
@@ -3174,8 +3177,10 @@ func (p *parser) parseIncludeSpec(doResolve bool) *ast.IncludeSpec {
 	}
 	p.expect(token.INCLUDE)
 	expr := p.parseOperand(true)
-	// @include hux; returns BasicLit, enforce ident here
-	ident := expr.(*ast.Ident)
+	// Receives ident or basiclit here
+	// @include foo(); // ident
+	// @include hux;   // basiclit
+	ident := ast.ToIdent(expr)
 	assert(ident.Name != "_", "invalid include identifier")
 	args, _ := p.parseSignature(p.topScope)
 	spec := &ast.IncludeSpec{
