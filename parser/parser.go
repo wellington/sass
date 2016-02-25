@@ -2726,12 +2726,10 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		sel.Parent = p.sels[len(p.sels)-1]
 	}
 
-	var mustRescan bool
 	var xs []ast.Expr
 	for p.tok != token.LBRACE {
 		x := p.parseCombSel(token.LowestPrec + 1)
 		if xx, ok := x.(*ast.Interp); ok {
-			mustRescan = true
 			lit := xx.Obj.Decl.(*ast.BasicLit)
 			fmt.Printf("%s:%s\n", lit.Kind, lit.Value)
 		}
@@ -2739,34 +2737,6 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 	}
 
 	sel.Sel = xs[0]
-
-	if mustRescan {
-		x := p.mergeInterps(xs)
-		sel.Sel = x[0]
-
-		lit = x[0].(*ast.BasicLit).Value + "{"
-		s := scanner.Scanner{}
-		fset := token.NewFileSet()
-		file := fset.AddFile("noop", -1, len(lit))
-		s.Init(file, []byte(lit), nil, 0)
-
-		// Now the selector has been parsed, and interpolations
-		// resolved. Selector has to be rescanned to
-		fmt.Printf("% #v\n", sel.Sel)
-
-		log.Fatal("sel.Sel", sel.Sel)
-		for {
-			pos, tok, lit := s.Scan()
-			_, _ = pos, lit
-			if tok == token.EOF {
-				panic("lbrace not found")
-			}
-			if tok == token.LBRACE {
-				break
-			}
-		}
-	}
-
 	sel.Resolve(Globalfset)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
@@ -2819,7 +2789,7 @@ func (p *parser) parseSel() ast.Expr {
 			ValuePos: pos,
 		}
 	default:
-		log.Fatalf("unsupported type %s:%q\n", p.tok, p.lit)
+		log.Fatalf("unsupported sel type %s:%q\n", p.tok, p.lit)
 	}
 	return &ast.BasicLit{}
 }
@@ -2834,7 +2804,6 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 	}
 
 	x := p.parseSel()
-
 	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
 		for {
 			tok := p.tok
