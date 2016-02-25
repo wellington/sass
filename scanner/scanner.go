@@ -363,13 +363,14 @@ bypassSelector:
 	case '=':
 		tok = s.switch2(token.ASSIGN, token.EQL)
 	case '!':
-		tok = token.NOT
 		for isLetter(s.ch) {
 			s.next()
 		}
 		// !global !default
 		if s.offset-offs > 1 {
 			tok = token.STRING
+		} else {
+			tok = s.switch2(token.NOT, token.NEQ)
 		}
 	case ',':
 		tok = token.COMMA
@@ -930,17 +931,28 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 	pos = s.file.Pos(offs)
 	// Only look for text here, numbers and symbols will be
 	// caught by Scan()
+	if isDigit(s.ch) {
+		tok = token.INT
+	}
+
 	for s.ch == '$' || isValue(s.ch, false) || isDigit(s.ch) {
+		if s.ch == '.' {
+			tok = token.FLOAT
+		}
 		s.next()
 	}
+
 	// lit = s.scanText(offs, 0, true, isText)
 	if s.offset > offs {
-		tok = token.STRING
-		if s.src[offs] == '$' {
-			tok = token.VAR
+		if tok == token.ILLEGAL {
+			tok = token.STRING
+			if s.src[offs] == '$' {
+				tok = token.VAR
+			}
 		}
 		lit = string(s.src[offs:s.offset])
 	}
+
 	return
 }
 

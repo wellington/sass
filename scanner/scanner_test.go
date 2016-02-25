@@ -282,6 +282,19 @@ func TestScan_params(t *testing.T) {
 		{token.STRING, "kwd-x"},
 		{token.RPAREN, ")"},
 	})
+
+	testScan(t, []elt{
+		{token.IDENT, "mix"},
+		{token.LPAREN, "("},
+		{token.IDENT, "rgba"},
+		{token.LPAREN, "("},
+		{token.INT, "255"},
+		{token.COMMA, ","},
+		{token.FLOAT, "0.5"},
+		{token.COMMA, ","},
+		{token.FLOAT, ".5"},
+		{token.RPAREN, ")"},
+	})
 }
 
 func TestScan_value(t *testing.T) {
@@ -295,6 +308,7 @@ func TestScan_value(t *testing.T) {
 		{token.STRING, "!global"},
 		{token.RBRACE, "}"},
 	})
+
 }
 
 func TestScan_attr_sel_now(t *testing.T) {
