@@ -25,6 +25,12 @@ type stack struct {
 	syncCnt int
 }
 
+type triplet struct {
+	pos token.Pos
+	tok token.Token
+	lit string
+}
+
 // The parser structure holds the parser's internal state.
 type parser struct {
 	file    *token.File
@@ -33,7 +39,10 @@ type parser struct {
 
 	// Parser state is pushed onto importStack while imports
 	// are being scanned and parsed.
-	imps []stack
+	imps      []stack
+	lookahead triplet
+	inSel     bool // controler selector logic
+	prescan   bool // control interpolation joining
 
 	// Tracing/debugging
 	mode   Mode // parsing mode
@@ -313,6 +322,108 @@ func un(p *parser) {
 	p.printTrace(")")
 }
 
+func (p *parser) setLook(pos token.Pos, tok token.Token, lit string) {
+	l := &p.lookahead
+	l.pos, l.tok, l.lit = pos, tok, lit
+}
+
+func (p *parser) getLook() (token.Pos, token.Token, string) {
+	return p.lookahead.pos, p.lookahead.tok, p.lookahead.lit
+}
+
+func (p *parser) setToken(pos token.Pos, tok token.Token, lit string) {
+	p.pos, p.tok, p.lit = pos, tok, lit
+}
+
+// iptLvl tracks interpolation level. If itpLvl > 0 every '}' encountered
+// is an interpolation end
+var itpLvl int
+
+// Applies rules for merging on interpolation boundaries
+func concatTri(left, right triplet, dist int, issel bool) (lit string, is bool) {
+	is = issel || dist == 0
+
+	if is {
+		sep := ""
+		if dist > 0 {
+			sep = " "
+		}
+		lit = left.lit + sep + right.lit
+	}
+
+	return
+}
+
+// expand will unwrap interpolations and perform the necessary
+// string concat forwards or backwards. You should never
+// call Scan() directly unless you want a world of interpolation
+// pain.
+func (p *parser) nextExpand() {
+	// The very first token is always invalid file, so lookahead
+	// expansion isn't important for the first call.
+	if p.lookahead.pos == 0 {
+		p.setToken(p.scanner.Scan())
+		p.setLook(p.scanner.Scan())
+		return
+	}
+
+	// fetch from lookahead (current token)
+	pos, tok, lit := p.getLook()
+
+	// only expansion for selectors right now
+	if tok == token.SELECTOR {
+		p.inSel = true
+		p.prescan = true
+	} else if tok == token.LBRACE {
+		p.inSel = false
+		p.prescan = false
+	}
+
+	// pull next token
+	npos, ntok, nlit := p.scanner.Scan()
+	review := p.prescan
+	if review {
+		// interpolation boundaries are the only concern for review
+		if ntok != token.INTERP && ntok != token.RBRACE {
+			review = false
+		}
+	}
+	if true || !review {
+		p.setToken(pos, tok, lit)
+		p.setLook(npos, ntok, nlit)
+		return
+	}
+	// never runs
+
+	if ntok == token.INTERP {
+		dist := npos - pos // did the interpolation have a space before
+		npos, ntok, nlit = p.scanner.Scan()
+		if ntok == token.VAR {
+			ident := &ast.Ident{Name: nlit}
+			p.resolve(ident)
+			nlit = ident.Obj.Decl.(*ast.AssignStmt).Rhs[0].(*ast.BasicLit).Value
+			fmt.Println("found", ntok, nlit)
+		}
+		newlit, merged := concatTri(
+			triplet{pos, tok, lit},
+			triplet{npos, ntok, nlit},
+			int(dist),
+			p.inSel,
+		)
+		fmt.Println("newlit", newlit, "merged?", merged)
+	}
+
+	// lit followed by list interp (with space)
+	// "div" #{foo, bar}
+
+	// string followed by interp (no space)
+	// "div"#{.class}
+
+	// The next token is stored in lookahead
+
+	return
+}
+
 // Advance to the next token.
 func (p *parser) next0() {
 	// Because of one-token look-ahead, print the previous token
@@ -331,7 +442,7 @@ func (p *parser) next0() {
 		}
 	}
 
-	p.pos, p.tok, p.lit = p.scanner.Scan()
+	p.nextExpand()
 
 	// If we have encountered EOF, check the importStack before returning
 	// EOF
@@ -645,6 +756,9 @@ func (p *parser) parseInterp() *ast.Interp {
 // simplify and resolve expressions inside interpolation.
 // strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
+	defer func() {
+		fmt.Println("exited this")
+	}()
 	if p.trace {
 		defer un(trace(p, "ResolveInterp"))
 	}
@@ -2788,6 +2902,10 @@ func (p *parser) parseSel() ast.Expr {
 			Value:    s,
 			ValuePos: pos,
 		}
+	case token.INTERP:
+		x := p.parseInterp()
+		p.resolveInterp(x)
+		return x
 	default:
 		log.Fatalf("unsupported sel type %s:%q\n", p.tok, p.lit)
 	}

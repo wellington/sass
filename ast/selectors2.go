@@ -1,13 +1,14 @@
 package ast
 
 import (
+	"log"
 	"strings"
 
 	"github.com/wellington/sass/token"
 )
 
 func Selector(stmt *SelStmt) *BasicLit {
-	// log.Printf("\n==Selector=====\n")
+	log.Printf("\n==Selector=====\n")
 	// Merge the selector to groups
 	delim := " "
 	merged := mergeExpr(delim, stmt.Sel, 0)
@@ -15,10 +16,10 @@ func Selector(stmt *SelStmt) *BasicLit {
 	if stmt.Parent != nil {
 		par = stmt.Parent.Resolved.Value
 	}
-	// log.Printf("Sel                 %q\n", stmt.Name)
-	// log.Printf("Merged              %q\n", merged)
+	log.Printf("Sel                 %q\n", stmt.Name)
+	log.Printf("Merged              %q\n", merged)
 	merged = joinParent(delim, par, merged)
-	// log.Printf("Adopted             %q\n", merged)
+	log.Printf("Adopted             %q\n", merged)
 	return &BasicLit{
 		Value:    strings.Join(merged, ","+delim),
 		ValuePos: stmt.Pos(),
@@ -26,25 +27,8 @@ func Selector(stmt *SelStmt) *BasicLit {
 	}
 }
 
-func joinParent(delim, parent string, nodes []string) []string {
-	rep := "&"
-	if len(parent) == 0 {
-		rep = "& "
-	}
-	commadelim := "," + delim
-	parts := strings.Split(parent, commadelim)
-	var ret []string
-	for i := range parts {
-		for j := range nodes {
-			rep := strings.Replace(nodes[j], rep, parts[i], -1)
-			ret = append(ret, rep)
-		}
-	}
-	return ret
-}
-
 // mergeExpr recursively merges expressions into slice of groups
-// a + b, ~ d => [a + b, ~ d]
+// a + b, ~ d => ['a + b', '~ d']
 func mergeExpr(delim string, expr Expr, round int) []string {
 	// fmt.Printf("round %d: %-15T %v\n", round, expr, expr)
 	var ret []string
