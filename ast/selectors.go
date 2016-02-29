@@ -3,7 +3,6 @@ package ast
 import (
 	"bytes"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 
@@ -22,41 +21,9 @@ func (stmt *SelStmt) Resolve(fset *token.FileSet) {
 	if stmt.Sel == nil {
 		panic(fmt.Errorf("invalid selector: % #v\n", stmt))
 	}
-	delim := " "
-	var par string
-	if stmt.Parent != nil {
-		par = stmt.Parent.Resolved.Value
-	}
-	val := resolve3(par, stmt.Name.Name)
-	// log.SetOutput(os.Stderr)
+
 	stmt.Resolved = Selector(stmt)
-	stmt.Resolved = &BasicLit{
-		Kind:     token.STRING,
-		Value:    strings.Join(val, ","+delim),
-		ValuePos: stmt.Pos(),
-	}
 	return
-}
-
-var r = regexp.MustCompile("\\s{2,}")
-var d = regexp.MustCompile("\\s*([+~>])\\s*")
-
-// Third time is a charm
-func resolve3(par, raw string) []string {
-	delim := " "
-	fmt.Println("raw", raw)
-	// Replace consecutive whitespace with a single whitespace
-	clean := d.ReplaceAllString(raw, " $1 ")
-	fmt.Println("1", clean)
-	//clean = d.ReplaceAllString(clean, " $1 ")
-	fmt.Println("2", clean)
-	nodes := selSplit(clean)
-	fmt.Println("clean", clean)
-	log.Printf("Resolve3 Sel        %q\n", nodes)
-	log.Printf("Parent 3            %q\n", par)
-	merged := joinParent(delim, par, nodes)
-	log.Printf("Adopted3            %q\n", merged)
-	return merged
 }
 
 func selSplit(s string) []string {
