@@ -2843,12 +2843,16 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 	var xs []ast.Expr
 	for p.tok != token.LBRACE {
 		x := p.parseCombSel(token.LowestPrec + 1)
-		if xx, ok := x.(*ast.Interp); ok {
-			lit := xx.Obj.Decl.(*ast.BasicLit)
-			fmt.Printf("%s:%s\n", lit.Kind, lit.Value)
-		}
+		// if xx, ok := x.(*ast.Interp); ok {
+		// lit := xx.Obj.Decl.(*ast.BasicLit)
+		// fmt.Printf("%s:%s\n", lit.Kind, lit.Value)
+		// }
 		xs = append(xs, x)
 	}
+
+	s := itpMerge(xs)
+	fmt.Printf("xs:% #v\n", xs)
+	fmt.Println("itpMerge", s)
 
 	sel.Sel = xs[0]
 	sel.Resolve(Globalfset)
