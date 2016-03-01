@@ -26,25 +26,8 @@ func Selector(stmt *SelStmt) *BasicLit {
 	}
 }
 
-func joinParent(delim, parent string, nodes []string) []string {
-	rep := "&"
-	if len(parent) == 0 {
-		rep = "& "
-	}
-	commadelim := "," + delim
-	parts := strings.Split(parent, commadelim)
-	var ret []string
-	for i := range parts {
-		for j := range nodes {
-			rep := strings.Replace(nodes[j], rep, parts[i], -1)
-			ret = append(ret, rep)
-		}
-	}
-	return ret
-}
-
 // mergeExpr recursively merges expressions into slice of groups
-// a + b, ~ d => [a + b, ~ d]
+// a + b, ~ d => ['a + b', '~ d']
 func mergeExpr(delim string, expr Expr, round int) []string {
 	// fmt.Printf("round %d: %-15T %v\n", round, expr, expr)
 	var ret []string

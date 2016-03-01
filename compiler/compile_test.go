@@ -28,7 +28,7 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 		if !strings.Contains(input, "26_") {
-			//continue
+			// continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
@@ -81,6 +81,7 @@ compiling: %s\n
 =================================
 `, f.input)
 		ctx := Context{mode: parser.Trace}
+		ctx.mode = 0
 		ctx.Init()
 		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
@@ -170,6 +171,41 @@ func TestSelector_deep_nesting(t *testing.T) {
 	if e != out {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
+}
+
+func TestSelector_selector_interp(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+	input := `$x: oo, ba;
+$y: az, hu;
+
+f#{$x}r {
+  p: 1;
+  b#{$y}x {
+    q: 2;
+    mumble#{length($x) + length($y)} {
+      r: 3;
+    }
+  }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `foo, bar {
+  p: 1; }
+  foo baz, foo hux, bar baz, bar hux {
+    q: 2; }
+    foo baz mumble4, foo hux mumble4, bar baz mumble4, bar hux mumble4 {
+      r: 3; }
+`
+	if e != out {
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+	}
+
 }
 
 func TestSelector_nesting_implicit_unary(t *testing.T) {

@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -15,6 +16,10 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+func init() {
+	log.SetFlags(log.Llongfile)
+}
+
 type stack struct {
 	file    *token.File
 	scanner scanner.Scanner
@@ -25,6 +30,12 @@ type stack struct {
 	syncCnt int
 }
 
+type triplet struct {
+	pos token.Pos
+	tok token.Token
+	lit string
+}
+
 // The parser structure holds the parser's internal state.
 type parser struct {
 	file    *token.File
@@ -33,7 +44,10 @@ type parser struct {
 
 	// Parser state is pushed onto importStack while imports
 	// are being scanned and parsed.
-	imps []stack
+	imps      []stack
+	lookahead triplet
+	inSel     bool // controler selector logic
+	prescan   bool // control interpolation joining
 
 	// Tracing/debugging
 	mode   Mode // parsing mode
@@ -313,6 +327,108 @@ func un(p *parser) {
 	p.printTrace(")")
 }
 
+func (p *parser) setLook(pos token.Pos, tok token.Token, lit string) {
+	l := &p.lookahead
+	l.pos, l.tok, l.lit = pos, tok, lit
+}
+
+func (p *parser) getLook() (token.Pos, token.Token, string) {
+	return p.lookahead.pos, p.lookahead.tok, p.lookahead.lit
+}
+
+func (p *parser) setToken(pos token.Pos, tok token.Token, lit string) {
+	p.pos, p.tok, p.lit = pos, tok, lit
+}
+
+// iptLvl tracks interpolation level. If itpLvl > 0 every '}' encountered
+// is an interpolation end
+var itpLvl int
+
+// Applies rules for merging on interpolation boundaries
+func concatTri(left, right triplet, dist int, issel bool) (lit string, is bool) {
+	is = issel || dist == 0
+
+	if is {
+		sep := ""
+		if dist > 0 {
+			sep = " "
+		}
+		lit = left.lit + sep + right.lit
+	}
+
+	return
+}
+
+// expand will unwrap interpolations and perform the necessary
+// string concat forwards or backwards. You should never
+// call Scan() directly unless you want a world of interpolation
+// pain.
+func (p *parser) nextExpand() {
+	// The very first token is always invalid file, so lookahead
+	// expansion isn't important for the first call.
+	if p.lookahead.pos == 0 {
+		p.setToken(p.scanner.Scan())
+		p.setLook(p.scanner.Scan())
+		return
+	}
+
+	// fetch from lookahead (current token)
+	pos, tok, lit := p.getLook()
+
+	// only expansion for selectors right now
+	if tok == token.SELECTOR {
+		p.inSel = true
+		p.prescan = true
+	} else if tok == token.LBRACE {
+		p.inSel = false
+		p.prescan = false
+	}
+
+	// pull next token
+	npos, ntok, nlit := p.scanner.Scan()
+	review := p.prescan
+	if review {
+		// interpolation boundaries are the only concern for review
+		if ntok != token.INTERP && ntok != token.RBRACE {
+			review = false
+		}
+	}
+	if true || !review {
+		p.setToken(pos, tok, lit)
+		p.setLook(npos, ntok, nlit)
+		return
+	}
+	// never runs
+
+	if ntok == token.INTERP {
+		dist := npos - pos // did the interpolation have a space before
+		npos, ntok, nlit = p.scanner.Scan()
+		if ntok == token.VAR {
+			ident := &ast.Ident{Name: nlit}
+			p.resolve(ident)
+			nlit = ident.Obj.Decl.(*ast.AssignStmt).Rhs[0].(*ast.BasicLit).Value
+			fmt.Println("found", ntok, nlit)
+		}
+		newlit, merged := concatTri(
+			triplet{pos, tok, lit},
+			triplet{npos, ntok, nlit},
+			int(dist),
+			p.inSel,
+		)
+		fmt.Println("newlit", newlit, "merged?", merged)
+	}
+
+	// lit followed by list interp (with space)
+	// "div" #{foo, bar}
+
+	// string followed by interp (no space)
+	// "div"#{.class}
+
+	// The next token is stored in lookahead
+
+	return
+}
+
 // Advance to the next token.
 func (p *parser) next0() {
 	// Because of one-token look-ahead, print the previous token
@@ -331,7 +447,7 @@ func (p *parser) next0() {
 		}
 	}
 
-	p.pos, p.tok, p.lit = p.scanner.Scan()
+	p.nextExpand()
 
 	// If we have encountered EOF, check the importStack before returning
 	// EOF
@@ -642,9 +758,35 @@ func (p *parser) parseInterp() *ast.Interp {
 	return itp
 }
 
+// Walks through UnaryExpr, CallExpr, and BinaryExpr resolving
+// any CallExprs
+func (p *parser) resolveCall(x ast.Expr) ast.Expr {
+	switch v := x.(type) {
+	case *ast.CallExpr:
+		lit, err := evaluateCall(v)
+		if err != nil {
+			p.error(x.Pos(), err.Error())
+		}
+		x = lit
+	case *ast.BinaryExpr:
+		l := p.resolveCall(v.X)
+		r := p.resolveCall(v.Y)
+		v.X, v.Y = l, r
+		x = v
+	case *ast.UnaryExpr:
+		l := p.resolveCall(v.X)
+		v.X = l
+		x = v
+	}
+	return x
+}
+
 // simplify and resolve expressions inside interpolation.
 // strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
+	defer func() {
+		fmt.Println("exited this")
+	}()
 	if p.trace {
 		defer un(trace(p, "ResolveInterp"))
 	}
@@ -654,19 +796,11 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	}
 	itp.Obj = ast.NewObj(ast.Var, "")
 	ss := make([]string, 0, len(itp.X))
-	var (
-		lit *ast.BasicLit
-		err error
-	)
+
 	for _, x := range itp.X {
-		if c, isCall := x.(*ast.CallExpr); isCall {
-			lit, err = evaluateCall(c)
-			if err != nil {
-				p.error(c.Pos(), err.Error())
-				continue
-			}
-			x = lit
-		}
+		// calc does not understand calls, so simplify those before
+		// performing calc
+		x = p.resolveCall(x)
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -677,7 +811,6 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 			ss = append(ss, res.Value)
 		}
 	}
-	fmt.Printf("resolved.. %q\n", ss)
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
 		Kind:  token.STRING,
@@ -2726,53 +2859,53 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		sel.Parent = p.sels[len(p.sels)-1]
 	}
 
-	var mustRescan bool
 	var xs []ast.Expr
 	for p.tok != token.LBRACE {
 		x := p.parseCombSel(token.LowestPrec + 1)
-		if xx, ok := x.(*ast.Interp); ok {
-			mustRescan = true
-			lit := xx.Obj.Decl.(*ast.BasicLit)
-			fmt.Printf("%s:%s\n", lit.Kind, lit.Value)
-		}
+		// if xx, ok := x.(*ast.Interp); ok {
+		// lit := xx.Obj.Decl.(*ast.BasicLit)
+		// fmt.Printf("%s:%s\n", lit.Kind, lit.Value)
+		// }
 		xs = append(xs, x)
 	}
 
 	sel.Sel = xs[0]
-
-	if mustRescan {
-		x := p.mergeInterps(xs)
-		sel.Sel = x[0]
-
-		lit = x[0].(*ast.BasicLit).Value + "{"
-		s := scanner.Scanner{}
-		fset := token.NewFileSet()
-		file := fset.AddFile("noop", -1, len(lit))
-		s.Init(file, []byte(lit), nil, 0)
-
-		// Now the selector has been parsed, and interpolations
-		// resolved. Selector has to be rescanned to
-		fmt.Printf("% #v\n", sel.Sel)
-
-		log.Fatal("sel.Sel", sel.Sel)
-		for {
-			pos, tok, lit := s.Scan()
-			_, _ = pos, lit
-			if tok == token.EOF {
-				panic("lbrace not found")
-			}
-			if tok == token.LBRACE {
-				break
-			}
+	s, ok := itpMerge(xs)
+	if ok {
+		fmt.Println("itpMerge", s)
+		stmt, err := reparseSelector(s)
+		if err != nil {
+			p.error(pos, err.Error())
 		}
+		sel.Sel = stmt.Sel
+		sel.Resolved = stmt.Resolved
 	}
-
 	sel.Resolve(Globalfset)
+	fmt.Printf("selSel:% #v\n", sel.Sel)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
 
 	return sel
+}
+
+// reparseSelector starts an entirely new scanner/parser to generate an ast for
+// This is entirely overkill and stupid, but interpolation support
+// is not at a place where selectors can support them without a
+// reparse after interpolation merging.
+func reparseSelector(orig string) (*ast.SelStmt, error) {
+	orig += "{}" // ensures scanner processes this as a selector
+	pf, err := ParseFile(token.NewFileSet(), "nope", orig, Trace)
+	if err != nil {
+		log.Fatal("reparse fail", err)
+	}
+
+	if len(pf.Decls) == 0 {
+		return nil, errors.New("No declarations found")
+	}
+	decl := pf.Decls[0].(*ast.SelDecl)
+
+	return decl.SelStmt, nil
 }
 
 // similar to inferExpr, but for selectors
@@ -2818,8 +2951,12 @@ func (p *parser) parseSel() ast.Expr {
 			Value:    s,
 			ValuePos: pos,
 		}
+	case token.INTERP:
+		x := p.parseInterp()
+		p.resolveInterp(x)
+		return x
 	default:
-		log.Fatalf("unsupported type %s:%q\n", p.tok, p.lit)
+		log.Fatalf("unsupported sel type %s:%q\n", p.tok, p.lit)
 	}
 	return &ast.BasicLit{}
 }
@@ -2834,7 +2971,6 @@ func (p *parser) parseCombSel(prec1 int) ast.Expr {
 	}
 
 	x := p.parseSel()
-
 	for prec := p.tok.SelPrecedence(); prec >= prec1; prec-- {
 		for {
 			tok := p.tok
