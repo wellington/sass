@@ -1629,14 +1629,21 @@ func (p *parser) parseMediaStmt() *ast.MediaStmt {
 	}
 
 	pos := p.expect(token.MEDIA)
+	med := &ast.Ident{
+		NamePos: pos,
+	}
+	lit := &ast.BasicLit{
+		Kind:     token.STRING,
+		Value:    "@media " + p.lit,
+		ValuePos: p.pos,
+	}
+	p.expect(token.STRING)
 
 	return &ast.MediaStmt{
-		Spec: &ast.MediaSpec{
-			Name: &ast.Ident{
-				NamePos: pos,
-			},
-			Sel: p.parseRuleSelDecl(),
-		}}
+		Name:  med,
+		Query: lit,
+		Body:  p.parseBody(p.topScope),
+	}
 }
 
 // ----------------------------------------------------------------------------
@@ -2861,6 +2868,7 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 
 	var xs []ast.Expr
 	for p.tok != token.LBRACE {
+		fmt.Println("looking at", p.lit)
 		x := p.parseCombSel(token.LowestPrec + 1)
 		// if xx, ok := x.(*ast.Interp); ok {
 		// lit := xx.Obj.Decl.(*ast.BasicLit)
@@ -2869,6 +2877,10 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		xs = append(xs, x)
 	}
 
+	if len(xs) == 0 {
+		p.error(p.pos, "no selector found...")
+		return sel
+	}
 	sel.Sel = xs[0]
 	s, ok := itpMerge(xs)
 	if ok {
@@ -2895,7 +2907,7 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 // reparse after interpolation merging.
 func reparseSelector(orig string) (*ast.SelStmt, error) {
 	orig += "{}" // ensures scanner processes this as a selector
-	pf, err := ParseFile(token.NewFileSet(), "nope", orig, Trace)
+	pf, err := ParseFile(token.NewFileSet(), "nope", orig, 0)
 	if err != nil {
 		log.Fatal("reparse fail", err)
 	}

@@ -126,6 +126,14 @@ func TestScan_tokens(t *testing.T) {
 	testScan(t, elts)
 }
 
+func TestScan_directive(t *testing.T) {
+	testScan(t, []elt{
+		{token.MEDIA, "@media"},
+		{token.STRING, "print and (foo: 1 2 3), (bar: 3px hux(muz)), not screen"},
+		{token.LBRACE, "{"},
+	})
+}
+
 func TestScan_selectors(t *testing.T) {
 	testScan(t, []elt{
 		// {token.SELECTOR, "i#grer"}

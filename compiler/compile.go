@@ -23,13 +23,19 @@ type Context struct {
 	// Each time a selector is encountered, increase
 	// by one. Each time a block is exited, remove
 	// the last selector
-	sels      [][]*ast.Ident
+	sels [][]*ast.Ident
+	// activeSel maintains the current selector
+	// it is never flushed, but will be replaced when the next
+	// selstmt is encountered
 	activeSel *ast.BasicLit
-	firstRule bool
-	level     int
-	printers  map[ast.Node]func(*Context, ast.Node)
-	fset      *token.FileSet
-	scope     Scope
+	// activeMedia maintains the current media query
+	// Once flushed, it should never be printed again
+	activeMedia *ast.BasicLit
+	firstRule   bool
+	level       int
+	printers    map[ast.Node]func(*Context, ast.Node)
+	fset        *token.FileSet
+	scope       Scope
 }
 
 func File(path string, out string) error {
@@ -109,10 +115,18 @@ func (ctx *Context) blockIntro() {
 	if ctx.buf.Len() > 0 {
 		if ctx.level == 0 {
 			fmt.Fprint(ctx.buf, "\n")
-		} else {
-
 		}
 	}
+
+	if ctx.activeMedia != nil {
+		val := ctx.activeMedia.Value
+		ctx.activeMedia = nil
+		// media queries have invalid indention, move up one
+		ctx.level--
+		ctx.out(fmt.Sprintf("%s {\n", val))
+		ctx.level++
+	}
+
 	sel := "MISSING"
 	if ctx.activeSel != nil {
 		sel = ctx.activeSel.Value
@@ -145,7 +159,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		if ctx.scope.RuleLen() > 0 {
+		fmt.Println("block", ctx.scope.RuleLen())
+		if ctx.scope.RuleLen() > 0 || ctx.activeMedia != nil {
 			ctx.level = ctx.level + 1
 			if !ctx.firstRule {
 				fmt.Fprintf(ctx.buf, " }\n")
@@ -182,6 +197,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:
+		fmt.Println("rulespec")
 		key = ruleSpec
 	case *ast.SelStmt:
 		// We will need to combine parent selectors
@@ -201,6 +217,9 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.CallExpr:
 	case nil:
 		return ctx
+	case *ast.MediaStmt:
+		fmt.Println("mediastmt")
+		key = mediaStmt
 	case *ast.EmptyStmt:
 	case *ast.AssignStmt:
 		key = assignStmt
@@ -226,6 +245,7 @@ var (
 	comment     *ast.Comment
 	funcDecl    *ast.FuncDecl
 	includeSpec *ast.IncludeSpec
+	mediaStmt   *ast.MediaStmt
 )
 
 func (ctx *Context) Init() {
@@ -243,6 +263,7 @@ func (ctx *Context) Init() {
 	ctx.printers[propSpec] = printPropValueSpec
 	ctx.printers[expr] = printExpr
 	ctx.printers[comment] = printComment
+	ctx.printers[mediaStmt] = printMedia
 	ctx.scope = NewScope(empty)
 	// ctx.printers[typeSpec] = visitTypeSpec
 	// assign printers
@@ -292,6 +313,11 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 	var s string
 	s, ctx.err = simplifyExprs(ctx, spec.Values)
 	fmt.Fprintf(ctx.buf, "%s;", s)
+}
+
+func printMedia(ctx *Context, n ast.Node) {
+	stmt := n.(*ast.MediaStmt)
+	ctx.activeMedia = stmt.Query
 }
 
 func printPropValueSpec(ctx *Context, n ast.Node) {

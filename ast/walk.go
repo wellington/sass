@@ -145,6 +145,9 @@ func Walk(v Visitor, node Node) {
 			Walk(v, n.Type)
 		}
 
+	case *MediaStmt:
+		Walk(v, n.Body)
+
 	case *CallExpr:
 		Walk(v, n.Fun)
 		walkExprList(v, n.Args)

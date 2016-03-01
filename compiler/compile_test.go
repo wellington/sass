@@ -81,7 +81,7 @@ compiling: %s\n
 =================================
 `, f.input)
 		ctx := Context{mode: parser.Trace}
-		ctx.mode = 0
+		// ctx.mode = 0
 		ctx.Init()
 		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
@@ -90,9 +90,9 @@ compiling: %s\n
 		}
 
 		if e := string(f.expect); e != sout {
-			//t.Fatalf("got:\n%s", out)
-			t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
-			// t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+			// t.Fatalf("got:\n%s", out)
+			// t.Fatalf("got:\n%q\nwanted:\n%q", out, e)
+			t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 		}
 		fmt.Printf(`
 =================================

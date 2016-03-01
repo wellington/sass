@@ -780,7 +780,9 @@ type (
 
 	// A MediaStmt wrapes a MediaSpec
 	MediaStmt struct {
-		Spec *MediaSpec
+		Name  *Ident
+		Query *BasicLit
+		Body  *BlockStmt
 	}
 )
 
@@ -811,7 +813,7 @@ func (s *RangeStmt) Pos() token.Pos      { return s.For }
 
 func (s *SelStmt) Pos() token.Pos     { return s.NamePos }
 func (s *IncludeStmt) Pos() token.Pos { return s.Spec.Pos() }
-func (s *MediaStmt) Pos() token.Pos   { return s.Spec.Pos() }
+func (s *MediaStmt) Pos() token.Pos   { return s.Name.Pos() }
 
 func (s *BadStmt) End() token.Pos  { return s.To }
 func (s *DeclStmt) End() token.Pos { return s.Decl.End() }
@@ -870,7 +872,7 @@ func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
 
 func (s *SelStmt) End() token.Pos     { return s.Body.End() }
 func (s *IncludeStmt) End() token.Pos { return s.Spec.End() }
-func (s *MediaStmt) End() token.Pos   { return s.Spec.End() }
+func (s *MediaStmt) End() token.Pos   { return s.Body.End() }
 
 // stmtNode() ensures that only statement nodes can be
 // assigned to a Stmt.
@@ -963,16 +965,7 @@ type (
 		Params *FieldList // (incoming) parameters; or nil
 		List   []Stmt     // Statements contained in the mixin referred to by this include
 	}
-
-	MediaSpec struct {
-		Name *Ident
-		Sel  *SelDecl
-	}
 )
-
-func (s *MediaSpec) Pos() token.Pos {
-	return s.Name.Pos()
-}
 
 func (s *SelSpec) Pos() token.Pos {
 	return s.Name.Pos()
@@ -999,7 +992,6 @@ func (s *ValueSpec) Pos() token.Pos     { return s.Names[0].Pos() }
 func (s *PropValueSpec) Pos() token.Pos { return s.Name.Pos() }
 func (s *TypeSpec) Pos() token.Pos      { return s.Name.Pos() }
 
-func (s *MediaSpec) End() token.Pos { return s.Name.End() }
 func (s *SelSpec) End() token.Pos {
 	return s.Name.End()
 }
@@ -1043,7 +1035,6 @@ func (*PropValueSpec) specNode() {}
 func (*TypeSpec) specNode()      {}
 func (*SelSpec) specNode()       {}
 func (*IncludeSpec) specNode()   {}
-func (*MediaSpec) specNode()     {}
 func (*RuleSpec) specNode()      {}
 
 // A declaration is represented by one of the following declaration nodes.

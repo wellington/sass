@@ -18,9 +18,9 @@ func (s Stmts) lookup(pos int) int {
 	case *CommStmt:
 	case *BlockStmt:
 		// This is an error situation, but better errors are
-		// reported if it just gets sorted
+		// reported if it gets sorted
 		i = 1000
-	case *SelStmt:
+	case *SelStmt, *MediaStmt:
 		// log.Printf("pushing to end % #v\n", v)
 		//Print(token.NewFileSet(), v)
 		i = 1
