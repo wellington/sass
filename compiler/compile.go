@@ -31,11 +31,14 @@ type Context struct {
 	// activeMedia maintains the current media query
 	// Once flushed, it should never be printed again
 	activeMedia *ast.BasicLit
-	firstRule   bool
-	level       int
-	printers    map[ast.Node]func(*Context, ast.Node)
-	fset        *token.FileSet
-	scope       Scope
+	// indicates that a media closing bracket needs to be
+	// flushed
+	inMedia   bool
+	firstRule bool
+	level     int
+	printers  map[ast.Node]func(*Context, ast.Node)
+	fset      *token.FileSet
+	scope     Scope
 }
 
 func File(path string, out string) error {
@@ -146,8 +149,13 @@ func (ctx *Context) blockOutro() {
 	}
 
 	ctx.firstRule = true
+	buf := " }\n"
+	if ctx.inMedia {
+		ctx.inMedia = false
+		buf = " }" + buf
+	}
 	// if !skipParen {
-	fmt.Fprintf(ctx.buf, " }\n")
+	fmt.Fprintf(ctx.buf, buf)
 	// }
 }
 
@@ -318,6 +326,7 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 func printMedia(ctx *Context, n ast.Node) {
 	stmt := n.(*ast.MediaStmt)
 	ctx.activeMedia = stmt.Query
+	ctx.inMedia = true
 }
 
 func printPropValueSpec(ctx *Context, n ast.Node) {
