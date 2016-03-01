@@ -4,16 +4,20 @@ import "github.com/wellington/sass/ast"
 
 // mergeExprs looks for interpolation and performs literal merges
 // The return is just a string, so YMMV
-func itpMerge(in []ast.Expr) string {
+func itpMerge(in []ast.Expr) (string, bool) {
+	var found bool
 	var comb string
 	for i := range in {
+		if _, ok := in[i].(*ast.Interp); ok {
+			found = true
+		}
 		if i+1 >= len(in) {
 			continue
 		}
 		comb += itpExpand(in[i], in[i+1])
 	}
 	comb += itpExpand(in[len(in)-1], nil)
-	return comb
+	return comb, found
 }
 
 func itpExpand(left, right ast.Expr) string {

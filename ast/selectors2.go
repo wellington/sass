@@ -1,14 +1,13 @@
 package ast
 
 import (
-	"log"
 	"strings"
 
 	"github.com/wellington/sass/token"
 )
 
 func Selector(stmt *SelStmt) *BasicLit {
-	log.Printf("\n==Selector=====\n")
+	// log.Printf("\n==Selector=====\n")
 	// Merge the selector to groups
 	delim := " "
 	merged := mergeExpr(delim, stmt.Sel, 0)
@@ -16,10 +15,10 @@ func Selector(stmt *SelStmt) *BasicLit {
 	if stmt.Parent != nil {
 		par = stmt.Parent.Resolved.Value
 	}
-	log.Printf("Sel                 %q\n", stmt.Name)
-	log.Printf("Merged              %q\n", merged)
+	// log.Printf("Sel                 %q\n", stmt.Name)
+	// log.Printf("Merged              %q\n", merged)
 	merged = joinParent(delim, par, merged)
-	log.Printf("Adopted             %q\n", merged)
+	// log.Printf("Adopted             %q\n", merged)
 	return &BasicLit{
 		Value:    strings.Join(merged, ","+delim),
 		ValuePos: stmt.Pos(),

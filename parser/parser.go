@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"path/filepath"
@@ -14,6 +15,10 @@ import (
 	"github.com/wellington/sass/strops"
 	"github.com/wellington/sass/token"
 )
+
+func init() {
+	log.SetFlags(log.Llongfile)
+}
 
 type stack struct {
 	file    *token.File
@@ -753,6 +758,29 @@ func (p *parser) parseInterp() *ast.Interp {
 	return itp
 }
 
+// Walks through UnaryExpr, CallExpr, and BinaryExpr resolving
+// any CallExprs
+func (p *parser) resolveCall(x ast.Expr) ast.Expr {
+	switch v := x.(type) {
+	case *ast.CallExpr:
+		lit, err := evaluateCall(v)
+		if err != nil {
+			p.error(x.Pos(), err.Error())
+		}
+		x = lit
+	case *ast.BinaryExpr:
+		l := p.resolveCall(v.X)
+		r := p.resolveCall(v.Y)
+		v.X, v.Y = l, r
+		x = v
+	case *ast.UnaryExpr:
+		l := p.resolveCall(v.X)
+		v.X = l
+		x = v
+	}
+	return x
+}
+
 // simplify and resolve expressions inside interpolation.
 // strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
@@ -768,19 +796,11 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	}
 	itp.Obj = ast.NewObj(ast.Var, "")
 	ss := make([]string, 0, len(itp.X))
-	var (
-		lit *ast.BasicLit
-		err error
-	)
+
 	for _, x := range itp.X {
-		if c, isCall := x.(*ast.CallExpr); isCall {
-			lit, err = evaluateCall(c)
-			if err != nil {
-				p.error(c.Pos(), err.Error())
-				continue
-			}
-			x = lit
-		}
+		// calc does not understand calls, so simplify those before
+		// performing calc
+		x = p.resolveCall(x)
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -791,7 +811,6 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 			ss = append(ss, res.Value)
 		}
 	}
-	fmt.Printf("resolved.. %q\n", ss)
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
 		Kind:  token.STRING,
@@ -2850,17 +2869,43 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		xs = append(xs, x)
 	}
 
-	s := itpMerge(xs)
-	fmt.Printf("xs:% #v\n", xs)
-	fmt.Println("itpMerge", s)
-
 	sel.Sel = xs[0]
+	s, ok := itpMerge(xs)
+	if ok {
+		fmt.Println("itpMerge", s)
+		stmt, err := reparseSelector(s)
+		if err != nil {
+			p.error(pos, err.Error())
+		}
+		sel.Sel = stmt.Sel
+		sel.Resolved = stmt.Resolved
+	}
 	sel.Resolve(Globalfset)
+	fmt.Printf("selSel:% #v\n", sel.Sel)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
 
 	return sel
+}
+
+// reparseSelector starts an entirely new scanner/parser to generate an ast for
+// This is entirely overkill and stupid, but interpolation support
+// is not at a place where selectors can support them without a
+// reparse after interpolation merging.
+func reparseSelector(orig string) (*ast.SelStmt, error) {
+	orig += "{}" // ensures scanner processes this as a selector
+	pf, err := ParseFile(token.NewFileSet(), "nope", orig, Trace)
+	if err != nil {
+		log.Fatal("reparse fail", err)
+	}
+
+	if len(pf.Decls) == 0 {
+		return nil, errors.New("No declarations found")
+	}
+	decl := pf.Decls[0].(*ast.SelDecl)
+
+	return decl.SelStmt, nil
 }
 
 // similar to inferExpr, but for selectors

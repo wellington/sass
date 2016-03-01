@@ -2,7 +2,6 @@ package calc
 
 import (
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -45,8 +44,8 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		// TODO: commas are missing
 		x.Value = strings.Join(val, ", ")
 	default:
-		log.Fatalf("% #v\n", v)
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
+		panic(err)
 	}
 	return x, err
 }
