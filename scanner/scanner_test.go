@@ -6,6 +6,7 @@
 package scanner
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -136,7 +137,13 @@ func TestScan_directive(t *testing.T) {
 	testScan(t, []elt{
 		{token.IDENT, "url"},
 		{token.LPAREN, "("},
-		{token.STRING, "http://fonts.googleapis.com/css?family=Karla:400,700,400italic|Anonymous+Pro:400,700,400italic"},
+		//{token.STRING, "http://fudge#{$x}/styles.css"}, //"http://fonts.googleapis.com/css?family=Karla:400,700,400italic|Anonymous+Pro:400,700,400italic"},
+		//"http://fonts.googleapis.com/css?family=Karla:400,700,400italic|Anonymous+Pro:400,700,400italic"},
+		{token.STRING, "http://fudge"},
+		{token.INTERP, "#{"},
+		{token.VAR, "$x"},
+		{token.RBRACE, "}"},
+		{token.STRING, "/styles.css"},
 		{token.RPAREN, ")"},
 	})
 }
@@ -459,6 +466,7 @@ func testScanMap(t *testing.T, v interface{}, tokens []elt) {
 			index++
 		}
 		if tok != e.tok {
+			fmt.Println(pos)
 			t.Errorf("bad token for %q: got %s, expected %s", lit, tok, e.tok)
 		}
 		// check literal

@@ -224,7 +224,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 
 	// Check the queue, which may contain tokens that were fetched
@@ -382,6 +382,7 @@ bypassSelector:
 		s.inParams = true
 		tok = token.LPAREN
 	case ')':
+		fmt.Println("yerp")
 		s.inParams = false
 		tok = token.RPAREN
 	case '[':
@@ -514,12 +515,9 @@ L:
 			if s.ch == '/' {
 				s.next()
 				if s.ch == '/' {
-					for !isSpace(s.ch) && s.ch != ')' {
-						s.next()
-					}
 					tok = token.STRING
-					lit = string(s.src[offs:s.offset])
-					return
+					fn = s.scanHTTP
+					break
 				}
 			}
 		}
@@ -569,13 +567,13 @@ L:
 		// Maybe there's an interp, go ahead and try
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
+			fmt.Println("interp!")
 			queue = append(queue, prefetch{pos, tok, lit})
 			for tok != token.EOF && tok != token.RBRACE {
 				// body of interpolation
 				pos, tok, lit = s.scan()
 				//pos, tok, lit = s.scanDelim(s.offset)
 				queue = append(queue, prefetch{pos, tok, lit})
-
 			}
 
 			if tok != token.RBRACE {
@@ -597,6 +595,30 @@ L:
 	}
 
 	pos, tok, lit = queue[0].pos, queue[0].tok, queue[0].lit
+	return
+}
+
+func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string) {
+	var ch rune
+	for !isSpace(s.ch) && s.ch != ')' && s.ch != -1 {
+		ch = s.ch
+		s.next()
+		if ch == '#' && s.ch == '{' {
+			s.backup()
+			fmt.Println("done")
+			break
+		}
+	}
+	if s.ch == -1 {
+		s.error(offs, "failed to find end of http")
+	}
+	pos = s.file.Pos(offs)
+	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	if len(lit) > 0 {
+		fmt.Println("string", lit)
+		tok = token.STRING
+	}
+	fmt.Println(tok, "lit", lit, "rest?", string(s.src[s.offset:]))
 	return
 }
 
@@ -956,6 +978,7 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 			tok = token.FLOAT
 		}
 		s.next()
+		fmt.Println("float!")
 	}
 
 	// lit = s.scanText(offs, 0, true, isText)
@@ -968,7 +991,7 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 		}
 		lit = string(s.src[offs:s.offset])
 	}
-
+	fmt.Println(lit)
 	return
 }
 
