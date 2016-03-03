@@ -507,6 +507,22 @@ L:
 		tok = token.IDENT
 		fn = s.scanIdent
 	case ':':
+		lit = string(s.src[offs:s.offset])
+		// http detect!
+		if lit == "http" {
+			s.next()
+			if s.ch == '/' {
+				s.next()
+				if s.ch == '/' {
+					for !isSpace(s.ch) && s.ch != ')' {
+						s.next()
+					}
+					tok = token.STRING
+					lit = string(s.src[offs:s.offset])
+					return
+				}
+			}
+		}
 		printf("colon\n")
 		s.rewind(offs)
 		tok = token.STRING

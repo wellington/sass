@@ -132,6 +132,13 @@ func TestScan_directive(t *testing.T) {
 		{token.STRING, "print and (foo: 1 2 3), (bar: 3px hux(muz)), not screen"},
 		{token.LBRACE, "{"},
 	})
+
+	testScan(t, []elt{
+		{token.IDENT, "url"},
+		{token.LPAREN, "("},
+		{token.STRING, "http://fonts.googleapis.com/css?family=Karla:400,700,400italic|Anonymous+Pro:400,700,400italic"},
+		{token.RPAREN, ")"},
+	})
 }
 
 func TestScan_selectors(t *testing.T) {
