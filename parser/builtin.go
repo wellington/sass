@@ -14,6 +14,7 @@ import (
 	_ "github.com/wellington/sass/builtin/colors"
 	_ "github.com/wellington/sass/builtin/introspect"
 	_ "github.com/wellington/sass/builtin/strops"
+	_ "github.com/wellington/sass/builtin/url"
 )
 
 var ErrNotFound = errors.New("function does not exist")
