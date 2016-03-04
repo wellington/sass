@@ -600,7 +600,8 @@ L:
 
 func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string) {
 	var ch rune
-	for !isSpace(s.ch) && s.ch != ')' && s.ch != -1 {
+	for isText(s.ch, false) || strings.ContainsRune(":/", s.ch) {
+
 		ch = s.ch
 		s.next()
 		if ch == '#' && s.ch == '{' {
@@ -618,7 +619,7 @@ func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string
 		fmt.Println("string", lit)
 		tok = token.STRING
 	}
-	fmt.Println(tok, "lit", lit, "rest?", string(s.src[s.offset:]))
+	fmt.Printf("tok: %s lit: %s, rest: %q\n", tok, lit, string(s.src[s.offset:]))
 	return
 }
 
@@ -972,13 +973,17 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 	if isDigit(s.ch) {
 		tok = token.INT
 	}
-
+	var maybeFloat bool
 	for s.ch == '$' || isValue(s.ch, false) || isDigit(s.ch) {
-		if s.ch == '.' {
+		if maybeFloat && isDigit(s.ch) {
 			tok = token.FLOAT
+		} else if maybeFloat {
+			maybeFloat = false
+		}
+		if s.ch == '.' {
+			maybeFloat = true
 		}
 		s.next()
-		fmt.Println("float!")
 	}
 
 	// lit = s.scanText(offs, 0, true, isText)
@@ -991,7 +996,6 @@ func (s *Scanner) scanValue(offs int) (pos token.Pos, tok token.Token, lit strin
 		}
 		lit = string(s.src[offs:s.offset])
 	}
-	fmt.Println(lit)
 	return
 }
 

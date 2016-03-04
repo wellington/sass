@@ -137,6 +137,40 @@ func TestScan_directive(t *testing.T) {
 	testScan(t, []elt{
 		{token.IDENT, "url"},
 		{token.LPAREN, "("},
+		{token.QSTRING, `"`},
+		{token.STRING, "http://fudge/styles.css"},
+		{token.QSTRING, `"`},
+		{token.RPAREN, ")"},
+	})
+
+	testScan(t, []elt{
+		{token.IDENT, "url"},
+		{token.LPAREN, "("},
+		{token.QSTRING, `"`},
+		{token.STRING, "http://"},
+		{token.INTERP, "#{"},
+		{token.VAR, "$x"},
+		{token.RBRACE, "}"},
+		{token.STRING, "/styles.css"},
+		{token.QSTRING, `"`},
+		{token.RPAREN, ")"},
+	})
+
+	testScan(t, []elt{
+		{token.IDENT, "url"},
+		{token.LPAREN, "("},
+		{token.STRING, `fudge`},
+		{token.INTERP, "#{"},
+		{token.VAR, "$x"},
+		{token.RBRACE, "}"},
+		{token.STRING, ".css"},
+		{token.RPAREN, ")"},
+	})
+
+	return
+	testScan(t, []elt{
+		{token.IDENT, "url"},
+		{token.LPAREN, "("},
 		//{token.STRING, "http://fudge#{$x}/styles.css"}, //"http://fonts.googleapis.com/css?family=Karla:400,700,400italic|Anonymous+Pro:400,700,400italic"},
 		//"http://fonts.googleapis.com/css?family=Karla:400,700,400italic|Anonymous+Pro:400,700,400italic"},
 		{token.STRING, "http://fudge"},
