@@ -36,6 +36,9 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 	case *ast.BasicLit:
 		x = v
 	case *ast.Ident:
+		if v.Obj == nil {
+			return nil, fmt.Errorf("calc: undefined variable %s", v.Name)
+		}
 		rhs := v.Obj.Decl.(*ast.AssignStmt).Rhs
 		var val []string
 		for _, x := range rhs {

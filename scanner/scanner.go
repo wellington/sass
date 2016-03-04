@@ -600,7 +600,7 @@ L:
 
 func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string) {
 	var ch rune
-	for isText(s.ch, false) || strings.ContainsRune(":/", s.ch) {
+	for isText(s.ch, false) || strings.ContainsRune("-_+=.:/|?,", s.ch) {
 
 		ch = s.ch
 		s.next()

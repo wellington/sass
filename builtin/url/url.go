@@ -12,7 +12,11 @@ func init() {
 }
 
 func url(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	val := "url(" + args[0].Value + ")"
+	val := args[0].Value
+	if args[0].Kind == token.QSTRING {
+		val = `"` + val + `"`
+	}
+	val = "url(" + val + ")"
 	lit := &ast.BasicLit{
 		Kind:     token.STRING,
 		Value:    val,

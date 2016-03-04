@@ -125,8 +125,9 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 	incoming := expr.Args
 	// Verify args and convert to BasicLit before passing along
 	if len(callargs) < len(incoming) {
-		for _, p := range incoming {
-			log.Printf("inc % #v\n", p)
+		for i, p := range incoming {
+			lit := p.(*ast.BasicLit)
+			log.Printf("inc %d %s:% #v\n", i, lit.Kind, p)
 		}
 		return nil, fmt.Errorf("mismatched arg count %s got: %d wanted: %d",
 			name, len(incoming), len(callargs))
@@ -156,6 +157,15 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			case *ast.CallExpr:
 				incoming[i] = v
 				callargs[argpos] = v.Resolved
+			}
+		case *ast.StringExpr:
+			if len(v.List) > 1 {
+				log.Fatalf("% #v\n", v.List)
+			}
+			val := v.List[0].(*ast.BasicLit)
+			callargs[argpos] = &ast.BasicLit{
+				Kind:  token.QSTRING,
+				Value: val.Value,
 			}
 		case *ast.BinaryExpr:
 			log.Fatalf("% #v\n", v)

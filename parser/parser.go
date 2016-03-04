@@ -784,12 +784,6 @@ func (p *parser) resolveCall(x ast.Expr) ast.Expr {
 // simplify and resolve expressions inside interpolation.
 // strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
-	defer func() {
-		fmt.Println("exited this")
-	}()
-	if p.trace {
-		defer un(trace(p, "ResolveInterp"))
-	}
 	if len(itp.X) == 0 {
 		fmt.Println("bailed")
 		return
@@ -1815,6 +1809,10 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 			p.next()
 		}
 		if p.tok == token.INTERP {
+			x := p.parseInterp()
+			// This shouldn't happen inside mixins
+			p.resolveInterp(x)
+			list = append(list, x)
 			continue
 		}
 		if !p.atComma("argument list", token.RPAREN) {
@@ -2111,7 +2109,8 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		x := p.parseUnaryExpr(false)
 		un := &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
 		return un
-
+	case token.QSTRING, token.QSSTRING:
+		return p.inferExpr(lhs)
 	case token.ARROW:
 		// channel type or receive expression
 		arrow := p.pos

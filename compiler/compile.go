@@ -205,7 +205,6 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:
-		fmt.Println("rulespec")
 		key = ruleSpec
 	case *ast.SelStmt:
 		// We will need to combine parent selectors
