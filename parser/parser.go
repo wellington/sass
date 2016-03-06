@@ -2450,14 +2450,38 @@ func (p *parser) parseEachDir() ast.Stmt {
 	p.openScope()
 	r := ast.NewIdent(itr.Name)
 	// at some point, all decl are enforced as AssignStmt
-	stmt := &ast.AssignStmt{
+	ass := &ast.AssignStmt{
 		Lhs:    []ast.Expr{r},
 		TokPos: list[0].Pos(),
 		Rhs:    []ast.Expr{list[0]},
 	}
-	p.declare(stmt, nil, p.topScope, ast.Var, r)
+	p.declare(ass, nil, p.topScope, ast.Var, r)
 	body := p.parseBody(p.topScope)
 	p.closeScope()
+
+	stmts := body.List
+	for _, l := range list[1:] {
+		p.openScope()
+		r := ast.NewIdent(itr.Name)
+		// at some point, all decl are enforced as AssignStmt
+		ass := &ast.AssignStmt{
+			Lhs:    []ast.Expr{r},
+			TokPos: list[0].Pos(),
+			Rhs:    []ast.Expr{l},
+		}
+		p.declare(ass, nil, p.topScope, ast.Var, r)
+		// Copy the body from list 1
+		copy := make([]ast.Stmt, len(stmts))
+		for i := range stmts {
+			copy[i] = ast.StmtCopy(stmts[i])
+		}
+		// body := p.parseBody(p.topScope)
+		body.List = append(body.List, p.resolveStmts(p.topScope, copy)...)
+		p.closeScope()
+	}
+
+	// Now walk through the rest of the list copying body
+	// statements then reresolving with the new iterator value
 
 	// // Walk through values, setting itr to each
 	// for _, l := range list {
@@ -3256,8 +3280,7 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 // Resolves a block within a new scope parsing the called arguments
 // against the provided signature
 // Currently only used for mixin and include
-func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList, stmts []ast.Stmt) []ast.Stmt {
-	p.processFuncArgs(scope, signature, arguments)
+func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 
 	ret := make([]ast.Stmt, 0, len(stmts))
 	// fmt.Println("visit Resolve Stmt")
@@ -3277,9 +3300,7 @@ func (p *parser) resolveStmts(scope *ast.Scope, signature *ast.FieldList, argume
 			}
 			decl.Resolve(Globalfset)
 			p.openSelector(decl)
-			decl.Body.List = p.resolveStmts(scope,
-				&ast.FieldList{},
-				&ast.FieldList{}, decl.Body.List)
+			decl.Body.List = p.resolveStmts(scope, decl.Body.List)
 			p.closeSelector()
 		case *ast.EmptyStmt, nil:
 			// Trim from result
@@ -3411,7 +3432,8 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	// All the identifiers within this list need to be re-resolved
 	// with the args passed in the include
 	p.openScope()
-	spec.List = p.resolveStmts(p.topScope, copyparams, copyargs, spec.List)
+	p.processFuncArgs(p.topScope, copyparams, copyargs)
+	spec.List = p.resolveStmts(p.topScope, spec.List)
 	p.closeScope()
 }
 

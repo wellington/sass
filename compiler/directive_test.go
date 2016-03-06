@@ -13,8 +13,6 @@ func TestDirective_each_paran(t *testing.T) {
 	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
-  $v: 4;
-  v: $v;
   @each $i in (1 2 3 4 5) {
    i: $i;
   }
@@ -26,7 +24,6 @@ func TestDirective_each_paran(t *testing.T) {
 	}
 
 	e := `div {
-  i: blah;
   i: 1;
   i: 2;
   i: 3;
