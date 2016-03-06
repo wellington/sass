@@ -270,6 +270,8 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 				}
 				fmt.Printf("resolved  %8s: scope(%p) %d: %s\n",
 					ident, s, len(decl.Rhs), srh)
+			} else {
+				fmt.Printf("unsupported decl % #v\n", decl)
 			}
 			ident.Obj = obj
 			return
@@ -875,6 +877,36 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 		list = append(list, p.checkExpr(p.parseExpr(lhs)))
 	}
 	return
+}
+
+// sass list uses no delimiters, and may optionally be surrounded
+// by parens
+func (p *parser) parseSassList(lhs bool) (list []ast.Expr) {
+	if p.trace {
+		defer un(trace(p, "SassList"))
+	}
+	if p.tok == token.LPAREN {
+		p.next()
+	}
+
+	list = append(list, p.checkExpr(p.inferExpr(lhs)))
+	for p.tok != token.SEMICOLON &&
+		// possible closers
+		p.tok != token.LBRACE && p.tok != token.RPAREN &&
+		// failure scenario
+		p.tok != token.EOF {
+		list = append(list, p.checkExpr(p.inferExpr(lhs)))
+	}
+
+	if p.tok == token.EOF {
+		p.error(p.pos, "could not find list end")
+	}
+	if p.tok == token.RPAREN {
+		p.next()
+	}
+
+	return
+
 }
 
 func (p *parser) inferLhsList() []ast.Expr {
@@ -2390,6 +2422,73 @@ func (p *parser) parseTypeList() (list []ast.Expr) {
 	return
 }
 
+// @each $i in (1 2 3)
+// @each $i in a b c
+func (p *parser) parseEachDir() ast.Stmt {
+	if p.trace {
+		defer un(trace(p, "EachDir"))
+	}
+
+	pos := p.expect(token.EACH)
+	_ = pos
+	p.openScope()
+	defer p.closeScope()
+
+	// each variable iterator
+	itr := p.parseVarType(true).(*ast.Ident)
+
+	// in
+	if p.lit != "in" {
+		p.errorExpected(p.pos, "expected in after iterator in each")
+	} else {
+		p.next()
+	}
+
+	list := p.parseSassList(true)
+
+	// Run the first one with the first itr
+	p.openScope()
+	r := ast.NewIdent(itr.Name)
+	// at some point, all decl are enforced as AssignStmt
+	stmt := &ast.AssignStmt{
+		Lhs:    []ast.Expr{r},
+		TokPos: list[0].Pos(),
+		Rhs:    []ast.Expr{list[0]},
+	}
+	p.declare(stmt, nil, p.topScope, ast.Var, r)
+	body := p.parseBody(p.topScope)
+	p.closeScope()
+
+	// // Walk through values, setting itr to each
+	// for _, l := range list {
+	// 	p.openScope()
+	// 	r := ast.NewIdent(itr.Name)
+	// 	p.declare(l, nil, p.topScope, ast.Var, r)
+	// 	var b *ast.BlockStmt
+	// 	if p.tok == token.LBRACE {
+	// 		b = p.parseBody(p.topScope)
+	// 	}
+	// 	p.closeScope()
+	// 	if body == nil {
+	// 		body = b
+	// 	} else if {
+	// 		fmt.Printf("% #v\n", body)
+	// 		fmt.Println(body.List)
+	// 		if le
+	// 		fmt.Println(b.List)
+	// 		body.List = append(body.List, b.List...)
+	// 	}
+	// }
+
+	return &ast.EachStmt{
+		Each: pos,
+		X:    itr,
+		List: list,
+		Body: body,
+	}
+
+}
+
 func (p *parser) parseForStmt() ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "ForStmt"))
@@ -2510,6 +2609,8 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 		if _, isLabeledStmt := s.(*ast.LabeledStmt); !isLabeledStmt {
 			p.expectSemi()
 		}
+	case token.EACH:
+		s = p.parseEachDir()
 	case token.RETURN:
 		s = p.parseReturnStmt()
 	case token.MEDIA:

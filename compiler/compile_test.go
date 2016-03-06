@@ -62,27 +62,6 @@ func findPaths() []file {
 	return files
 }
 
-func TestSelector_each(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
-	ctx.fset = token.NewFileSet()
-	input := `div {
-  @each $i in (1 2 3 4 5) {
-   i: $i;
-  }
-}
-`
-	out, err := ctx.run("", input)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	e := ``
-	if e != out {
-		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
-	}
-}
-
 func TestCompile_files(t *testing.T) {
 	// It will be a long time before these are all supported, so let's just
 	// short these for now.

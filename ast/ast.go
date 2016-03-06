@@ -765,12 +765,21 @@ type (
 		Resolved *BasicLit // Resolved Selector to a token.STRING
 		NamePos  token.Pos
 		Names    []*Ident
-		Sel      Expr
+		Sel      Expr // parsed selector ast Tree
 		Doc      *CommentGroup
 		Body     *BlockStmt
 		Parent   *SelStmt
 		// Thorough breaking of a selector into it's maining separatable
 		// parts
+	}
+
+	// A EachStmt represents @each
+	EachStmt struct {
+		Each token.Pos // position of @each
+		X    *Ident    // iterator
+		Body *BlockStmt
+		List []Expr // List of values can be nil
+		// Map Expr // TODO: maps are valid
 	}
 
 	// A IncludeStmt wraps an IncludeSpec
@@ -814,9 +823,9 @@ func (s *RangeStmt) Pos() token.Pos      { return s.For }
 func (s *SelStmt) Pos() token.Pos     { return s.NamePos }
 func (s *IncludeStmt) Pos() token.Pos { return s.Spec.Pos() }
 func (s *MediaStmt) Pos() token.Pos   { return s.Name.Pos() }
-
-func (s *BadStmt) End() token.Pos  { return s.To }
-func (s *DeclStmt) End() token.Pos { return s.Decl.End() }
+func (s *EachStmt) Pos() token.Pos    { return s.Each }
+func (s *BadStmt) End() token.Pos     { return s.To }
+func (s *DeclStmt) End() token.Pos    { return s.Decl.End() }
 func (s *EmptyStmt) End() token.Pos {
 	if s.Implicit {
 		return s.Semicolon
@@ -873,6 +882,7 @@ func (s *RangeStmt) End() token.Pos  { return s.Body.End() }
 func (s *SelStmt) End() token.Pos     { return s.Body.End() }
 func (s *IncludeStmt) End() token.Pos { return s.Spec.End() }
 func (s *MediaStmt) End() token.Pos   { return s.Body.End() }
+func (s *EachStmt) End() token.Pos    { return s.Body.End() }
 
 // stmtNode() ensures that only statement nodes can be
 // assigned to a Stmt.
@@ -900,6 +910,7 @@ func (*SelectStmt) stmtNode()     {}
 func (*ForStmt) stmtNode()        {}
 func (*RangeStmt) stmtNode()      {}
 func (*SelStmt) stmtNode()        {}
+func (*EachStmt) stmtNode()       {}
 func (*IncludeStmt) stmtNode()    {}
 func (*MediaStmt) stmtNode()      {}
 
@@ -1083,6 +1094,13 @@ type (
 	// As a shortcut, RULE are identified as token.IDENT
 	SelDecl struct {
 		*SelStmt
+	}
+
+	// A EachDecl node represents a @each declaration. These
+	// can appear inside selectors and outside. To simplify this
+	// behavior, Decl will contain EachStmt
+	EachDecl struct {
+		*EachStmt
 	}
 )
 

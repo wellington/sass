@@ -224,7 +224,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 
 	// Check the queue, which may contain tokens that were fetched
