@@ -800,7 +800,6 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
 // strings are always unquoted
 func (p *parser) resolveInterp(itp *ast.Interp) {
 	if len(itp.X) == 0 {
-		fmt.Println("bailed")
 		return
 	}
 	itp.Obj = ast.NewObj(ast.Var, "")
@@ -1042,6 +1041,9 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	out := make([]ast.Expr, 0, len(in))
 
 	for i := 0; i < len(in); i++ {
+		if in[i].Pos() == 0 {
+			log.Fatal("invalid position")
+		}
 		itp, isInterp := in[i].(*ast.Interp)
 		if !isInterp {
 			lit, ok := in[i].(*ast.BasicLit)
@@ -1051,6 +1053,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 				if l.End() == lit.Pos() {
 					prev := out[len(out)-1].(*ast.Interp)
 					prev.X = append(prev.X, lit)
+					// changes to interp require resolution
 					p.resolveInterp(prev)
 					continue
 				}
@@ -1084,13 +1087,15 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 				// merge
 				// target.Kind = token.STRING
 				itp.X = append([]ast.Expr{target}, itp.X...)
+				p.resolveInterp(itp)
 				out[len(out)-1] = itp
 				continue
 			}
 			// has to be interp, or we're screwed
 			pitp := out[len(out)-1].(*ast.Interp)
 			pitp.X = append(pitp.X, itp.X...)
-			fmt.Printf("~~>% #v\n", pitp)
+			// changes to interp require resolution
+			p.resolveInterp(pitp)
 			continue
 		}
 		itp.Obj.Decl = lit
