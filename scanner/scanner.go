@@ -909,6 +909,35 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	}
 	lit = string(s.src[offs:s.offset])
 	switch lit {
+	case "@if":
+		tok = token.IF
+	case "@else":
+		s.skipWhitespace()
+		if s.ch != 'i' {
+			tok = token.ELSE
+		}
+		s.next()
+		if s.ch == 'f' {
+			s.next()
+			lit = string(s.src[offs:s.offset])
+			tok = token.ELSEIF
+			break
+		}
+		// else if check failed
+		s.backup()
+	case "@for":
+		tok = token.FOR
+	case "@each":
+		tok = token.EACH
+		s.scanEach(s.offset)
+	case "@include":
+		tok = token.INCLUDE
+	case "@function":
+		tok = token.FUNC
+	case "@mixin":
+		tok = token.MIXIN
+	case "@return":
+		tok = token.RETURN
 	case "@import":
 		tok = token.IMPORT
 	case "@media":
@@ -925,18 +954,10 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 			tok: token.STRING,
 			lit: string(bytes.TrimSpace(lit)),
 		}
-	case "@mixin":
-		tok = token.MIXIN
 	case "@extend":
 		tok = token.EXTEND
 	case "@at-root":
 		tok = token.ATROOT
-	case "@each":
-		tok = token.EACH
-		s.scanEach(s.offset)
-		// log.Fatal("done")
-	case "@include":
-		tok = token.INCLUDE
 	case "@debug":
 		tok = token.DEBUG
 	case "@warn":

@@ -129,6 +129,12 @@ func TestScan_tokens(t *testing.T) {
 
 func TestScan_directive(t *testing.T) {
 	testScan(t, []elt{
+		{token.IF, "@if"},
+		{token.ELSE, "@else"},
+		{token.ELSEIF, "@else if"},
+	})
+
+	testScan(t, []elt{
 		{token.MEDIA, "@media"},
 		{token.STRING, "print and (foo: 1 2 3), (bar: 3px hux(muz)), not screen"},
 		{token.LBRACE, "{"},

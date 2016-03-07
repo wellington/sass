@@ -99,6 +99,7 @@ const (
 	keyword_beg
 	IF      // @if
 	ELSE    // @else
+	ELSEIF  // @elseif
 	EACH    // @each
 	INCLUDE // @include
 	FOR     // @for
@@ -215,6 +216,7 @@ var Tokens = [...]string{
 
 	IF:      "@if",
 	ELSE:    "@else",
+	ELSEIF:  "@else if",
 	FOR:     "@for",
 	EACH:    "@each",
 	INCLUDE: "@include",
@@ -226,7 +228,7 @@ var Tokens = [...]string{
 	IMPORT: "@import",
 	MEDIA:  "@media",
 	EXTEND: "@extend",
-	ATROOT: "@atroot",
+	ATROOT: "@at-root",
 	DEBUG:  "@debug",
 	WARN:   "@warn",
 	ERROR:  "@error",
