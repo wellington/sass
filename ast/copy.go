@@ -128,21 +128,7 @@ func ExprCopy(in Expr) (out Expr) {
 // be looked up after the fact
 func IdentCopy(in *Ident) (out *Ident) {
 	out = NewIdent(in.Name)
-	return
-	if in.Obj == nil {
-		return
-	}
-
-	obj := NewObj(in.Obj.Kind, in.Obj.Name)
-	// switch d := in.Obj.Decl.(type) {
-	// case *AssignStmt:
-	// 	out.Obj.Decl = StmtCopy(d)
-	// case nil:
-	// default:
-	// 	log.Fatalf("unsupported obj: % #v\n", d)
-	// }
-
-	out.Obj = obj
+	out.NamePos = in.Pos()
 	return
 }
 
