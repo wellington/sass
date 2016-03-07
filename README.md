@@ -27,7 +27,7 @@ Glossary
 - [ ] No Support
 
 ### Compiler Status
-Passing 25 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
+Passing 28 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
 
 ### Function Status
 See [functions](functions.md)
@@ -57,7 +57,7 @@ See [functions](functions.md)
   - Parentheses :question:
 - [x] Functions
 - [x] Keyword Arguments
-- [x] Interpolation: #{} (probably still issues with this)
+- [x] Interpolation: #{} (there are still edge cases with support)
 - [x] & in SassScript
 - [ ] Variable Defaults: !default
 - @-Rules and Directives
@@ -68,7 +68,7 @@ See [functions](functions.md)
     - [ ] Multiple Extends
     - [ ] Chaining Extends
 - [ ] Selector Sequences
-  - [ ] Merging Selector Sequences
+- [ ] Merging Selector Sequences
 - [ ] @extend-Only Selectors
 - [ ] The !optional Flag
 - [ ] @extend in Directives
@@ -81,11 +81,11 @@ See [functions](functions.md)
   - [ ] if()
   - [ ] @if
   - [ ] @for
-  - [ ] @each
-    - [ ] Multiple Assignment
+  - [x] @each
+  - [ ] Multiple Assignment
   - [ ] @while
-  - [ ] url(/local/path)
-  - [ ] url(http://remote/path)
+  - [x] url(/local/path)
+  - [x] url(http://remote/path)
 - Mixin Directives
   - [x] Defining a Mixin: @mixin
   - [x] Including a Mixin: @include
