@@ -15,7 +15,9 @@ func Resolve(in ast.Expr) (*ast.BasicLit, error) {
 }
 
 func resolve(in ast.Expr) (*ast.BasicLit, error) {
-	x := &ast.BasicLit{}
+	x := &ast.BasicLit{
+		ValuePos: in.Pos(),
+	}
 	var err error
 	switch v := in.(type) {
 	case *ast.StringExpr:

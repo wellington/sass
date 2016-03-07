@@ -86,6 +86,12 @@ func ExprCopy(in Expr) (out Expr) {
 			X:       ExprCopy(expr.X),
 			Visited: expr.Visited,
 		}
+	case *Interp:
+		out = &Interp{
+			Lbrace: expr.Lbrace,
+			Rbrace: expr.Rbrace,
+			X:      ExprsCopy(expr.X),
+		}
 	case *BinaryExpr:
 		out = &BinaryExpr{
 			X:     ExprCopy(expr.X),

@@ -181,18 +181,20 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		obj.Decl = decl
 		obj.Data = data
 		ident.Obj = obj
-		if ident.Name != "_" {
-			if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
+		if ident.Name == "_" {
+			return
+		}
 
-				prevDecl := ""
-				if pos := alt.Pos(); pos.IsValid() {
-					prevDecl = fmt.Sprintf("\n\tprevious declaration at %s", p.file.Position(pos))
-				}
-				p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
-			} else {
-				fmt.Printf("decl %8s(%p): % #v\n",
-					ident, scope, obj.Decl)
+		if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
+
+			prevDecl := ""
+			if pos := alt.Pos(); pos.IsValid() {
+				prevDecl = fmt.Sprintf("\n\tprevious declaration at %s", p.file.Position(pos))
 			}
+			p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
+		} else {
+			fmt.Printf("declared ~> %8s(%p): % #v\n",
+				ident, scope, obj.Decl)
 		}
 	}
 }
@@ -766,6 +768,10 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
 	isResolved := true
 	switch v := x.(type) {
 	case *ast.CallExpr:
+		// hold on soldier, first lets resolve all arguments
+		for i := range v.Args {
+			p.resolveExpr(p.topScope, v.Args[i])
+		}
 		lit, err := evaluateCall(v)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -780,6 +786,10 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
 		l, _ := p.resolveCall(v.X)
 		v.X = l
 		x = v
+	case *ast.Ident:
+		if v.Obj == nil {
+			p.resolve(x)
+		}
 	default:
 		isResolved = false
 	}
@@ -793,21 +803,36 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 		fmt.Println("bailed")
 		return
 	}
+	fmt.Println("resolveInterp")
 	itp.Obj = ast.NewObj(ast.Var, "")
 	ss := make([]string, 0, len(itp.X))
-
+	var merge bool
 	for _, x := range itp.X {
-		// calc does not understand calls, so simplify those before
+		// copied ident won't be resolved, do so
+
 		// performing calc
 		x, _ = p.resolveCall(x)
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
-		} else {
-			if res.Kind != token.STRING {
-				res.Value = strops.Unquote(res.Value)
-			}
+			continue
+		}
+		if res.Kind != token.STRING {
+			res.Value = strops.Unquote(res.Value)
+		}
+		// Append value to interp
+		if res.Pos() >= itp.End() {
+			merge = true
+		}
+		if !merge {
 			ss = append(ss, res.Value)
+		} else {
+			merge = false
+			ss[len(ss)-1] += res.Value
+		}
+		// Preprend value to interp
+		if res.End() <= itp.Pos() {
+			merge = true
 		}
 	}
 	// interpolation always outputs a string
@@ -1025,8 +1050,9 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 			if ok && len(out) > 0 {
 				l := in[i-1]
 				if l.End() == lit.Pos() {
-					prev := out[len(out)-1].(*ast.BasicLit)
-					prev.Value += lit.Value
+					prev := out[len(out)-1].(*ast.Interp)
+					prev.X = append(prev.X, lit)
+					p.resolveInterp(prev)
 					continue
 				}
 			}
@@ -1041,21 +1067,42 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 
 		lit := itp.Obj.Decl.(*ast.BasicLit)
 		if i == 0 {
-			out = append(out, lit)
+			if itp.Pos() == 0 {
+				log.Fatal("invalid position")
+			}
+			out = append(out, itp)
 			continue
 		}
 
-		val := lit.Value
 		// Look behind and see if the previous token should
 		// be appended to
 		if in[i-1].End() == itp.Pos() {
-			target := out[len(out)-1].(*ast.BasicLit)
-			// merge
-			target.Kind = token.STRING
-			target.Value += val
+			// Oh shit, it does need to be merged
+			// Replace existing preceeding Expr with an interp
+			// shouldn't do this, it's going to be a problem
+			target, ok := out[len(out)-1].(*ast.BasicLit)
+			if ok {
+				// merge
+				// target.Kind = token.STRING
+				itp.X = append([]ast.Expr{target}, itp.X...)
+				out[len(out)-1] = itp
+				continue
+			}
+			// has to be interp, or we're screwed
+			pitp := out[len(out)-1].(*ast.Interp)
+			pitp.X = append(pitp.X, itp.X...)
+			fmt.Printf("~~>% #v\n", pitp)
 			continue
 		}
-		out = append(out, lit)
+		itp.Obj.Decl = lit
+		out = append(out, itp)
+	}
+	for _, o := range out {
+		if o.Pos() == 0 {
+			log.Fatalf("invalid position % #v\n", o)
+		} else {
+			fmt.Printf("%d % #v\n", o.Pos(), o)
+		}
 	}
 	return out
 }
@@ -1104,7 +1151,6 @@ func (p *parser) parseString() *ast.StringExpr {
 	rquote := p.expectClosing(tok, "string list")
 	expr.List = p.mergeInterps(list)
 	expr.Rquote = rquote
-	// ast.Print(token.NewFileSet(), expr)
 	return expr
 }
 
@@ -2476,8 +2522,10 @@ func (p *parser) parseEachDir() ast.Stmt {
 		for i := range stmts {
 			copy[i] = ast.StmtCopy(stmts[i])
 		}
+		fmt.Println("resolve copied stuff!")
+		copy = p.resolveStmts(p.topScope, copy)
 		// body := p.parseBody(p.topScope)
-		body.List = append(body.List, p.resolveStmts(p.topScope, copy)...)
+		body.List = append(body.List, copy...)
 		p.closeScope()
 	}
 
@@ -3286,6 +3334,7 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 	ret := make([]ast.Stmt, 0, len(stmts))
 	// fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
+		fmt.Printf("resolving % #v\n", stmts[i])
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
@@ -3315,6 +3364,28 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 	return ret
 }
 
+func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicLit) {
+	fmt.Printf("resolveExpr: % #v\n", expr)
+	switch v := expr.(type) {
+	case *ast.BasicLit:
+		out = append(out, v)
+	case *ast.CallExpr:
+		x, _ := p.resolveCall(v)
+		out = append(out, x.(*ast.BasicLit))
+	case *ast.Interp:
+		p.resolveInterp(v)
+		fmt.Println("resolved...", v.Obj.Decl.(*ast.BasicLit))
+		out = append(out, v.Obj.Decl.(*ast.BasicLit))
+	case *ast.Ident:
+		assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
+		p.resolve(v)
+		out = basicLitFromIdent(v)
+	default:
+		panic(fmt.Errorf("unsupported expr % #v", v))
+	}
+	return
+}
+
 // resolveDecl reevalutes all found IDENTs with new scope provided by
 // arg list.
 func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
@@ -3327,30 +3398,12 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 		for _, spec := range v.Specs {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
+				fmt.Printf("rulespec % #v\n", sv)
 				var lits []*ast.BasicLit
 				for i := range sv.Values {
 					val := sv.Values[i]
-					lit, ok := val.(*ast.BasicLit)
-					if ok {
-						lits = append(lits, lit)
-						// Not ident, already resolved
-						continue
-					}
-					// Maybe CallExpr
-					x, ok := p.resolveCall(val)
-					if ok {
-						lits = append(lits, x.(*ast.BasicLit))
-						continue
-					}
-					ident, ok := val.(*ast.Ident)
-					if !ok {
-						panic(fmt.Errorf("could not resolve: % #v\n", val))
-					}
-					assert(ident.Obj == nil, "statement had previous value, was it copied correctly?")
-					p.resolve(ident)
-					idlits := basicLitFromIdent(ident)
-
-					lits = append(lits, idlits...)
+					fmt.Printf("% #v\n", val)
+					lits = append(lits, p.resolveExpr(scope, val)...)
 				}
 				sv.Values = make([]ast.Expr, len(lits))
 				for i := range lits {

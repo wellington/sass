@@ -94,3 +94,28 @@ func TestInterp_merge_both(t *testing.T) {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
+
+func TestInterp_copy(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.SetMode(parser.Trace)
+	ctx.fset = token.NewFileSet()
+	input := `div {
+  @each $i in 1 2 {
+    hello: text#{$i};
+  }
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `div {
+  hello: text1;
+  hello: text2; }
+`
+	if e != out {
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}

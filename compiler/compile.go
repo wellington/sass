@@ -512,6 +512,8 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 
 func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 	switch v := expr.(type) {
+	case *ast.Interp:
+		return resolveExpr(ctx, v.Obj.Decl.(ast.Expr))
 	case *ast.Value:
 		panic("ast.Value")
 	case *ast.BinaryExpr:
