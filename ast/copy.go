@@ -99,6 +99,13 @@ func ExprCopy(in Expr) (out Expr) {
 			Value:    expr.Value,
 			ValuePos: expr.ValuePos,
 		}
+	case *CallExpr:
+		out = &CallExpr{
+			Rparen: expr.Rparen,
+			Lparen: expr.Lparen,
+			Args:   ExprsCopy(expr.Args),
+			Fun:    ExprCopy(expr.Fun),
+		}
 	case *KeyValueExpr:
 		kv := &KeyValueExpr{}
 		kv.Colon = expr.Colon

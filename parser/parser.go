@@ -762,7 +762,8 @@ func (p *parser) parseInterp() *ast.Interp {
 
 // Walks through UnaryExpr, CallExpr, and BinaryExpr resolving
 // any CallExprs
-func (p *parser) resolveCall(x ast.Expr) ast.Expr {
+func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
+	isResolved := true
 	switch v := x.(type) {
 	case *ast.CallExpr:
 		lit, err := evaluateCall(v)
@@ -771,16 +772,18 @@ func (p *parser) resolveCall(x ast.Expr) ast.Expr {
 		}
 		x = lit
 	case *ast.BinaryExpr:
-		l := p.resolveCall(v.X)
-		r := p.resolveCall(v.Y)
+		l, _ := p.resolveCall(v.X)
+		r, _ := p.resolveCall(v.Y)
 		v.X, v.Y = l, r
 		x = v
 	case *ast.UnaryExpr:
-		l := p.resolveCall(v.X)
+		l, _ := p.resolveCall(v.X)
 		v.X = l
 		x = v
+	default:
+		isResolved = false
 	}
-	return x
+	return x, isResolved
 }
 
 // simplify and resolve expressions inside interpolation.
@@ -796,7 +799,7 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	for _, x := range itp.X {
 		// calc does not understand calls, so simplify those before
 		// performing calc
-		x = p.resolveCall(x)
+		x, _ = p.resolveCall(x)
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -1006,6 +1009,9 @@ func (p *parser) inferRhsList() []ast.Expr {
 // the value should be merged with the previous or subsequent
 // value.
 func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
+	if p.trace {
+		defer un(trace(p, "MergeInterps"))
+	}
 	if len(in) == 0 {
 		return in
 	}
@@ -1014,47 +1020,42 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	for i := 0; i < len(in); i++ {
 		itp, isInterp := in[i].(*ast.Interp)
 		if !isInterp {
+			lit, ok := in[i].(*ast.BasicLit)
+			// lookbehind if this is a candidate for merge
+			if ok && len(out) > 0 {
+				l := in[i-1]
+				if l.End() == lit.Pos() {
+					prev := out[len(out)-1].(*ast.BasicLit)
+					prev.Value += lit.Value
+					continue
+				}
+			}
 			out = append(out, in[i])
 			continue
 		}
+
 		if itp.Obj == nil || itp.Obj.Decl == nil {
 			p.error(itp.Pos(), "interpolation is unresolved")
 			continue
 		}
+
 		lit := itp.Obj.Decl.(*ast.BasicLit)
 		if i == 0 {
 			out = append(out, lit)
 			continue
 		}
-		target := i
+
 		val := lit.Value
 		// Look behind and see if the previous token should
 		// be appended to
 		if in[i-1].End() == itp.Pos() {
-			target = i - 1
+			target := out[len(out)-1].(*ast.BasicLit)
 			// merge
-			val = in[i-1].(*ast.BasicLit).Value + val
+			target.Kind = token.STRING
+			target.Value += val
+			continue
 		}
-		// Look ahead to see if next token should be merged
-		if i+1 < len(in) {
-			if in[i+1].Pos() == itp.End() {
-				val = val + in[i+1].(*ast.BasicLit).Value
-				// Skip this token
-				i++
-			}
-		}
-		if target == i {
-			lit.Value = val
-			// If any concat happened, it's not a string
-			if len(val) > len(lit.Value) {
-				lit.Kind = token.STRING
-			}
-			out = append(out, lit)
-		} else {
-			tlit := in[target].(*ast.BasicLit)
-			tlit.Value = val
-			tlit.Kind = token.STRING
-		}
+		out = append(out, lit)
 	}
 	return out
 }
@@ -2439,7 +2440,7 @@ func (p *parser) parseEachDir() ast.Stmt {
 
 	// in
 	if p.lit != "in" {
-		p.errorExpected(p.pos, "expected in after iterator in each")
+		p.errorExpected(p.pos, "in after iterator ie @each in")
 	} else {
 		p.next()
 	}
@@ -3333,6 +3334,12 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 					if ok {
 						lits = append(lits, lit)
 						// Not ident, already resolved
+						continue
+					}
+					// Maybe CallExpr
+					x, ok := p.resolveCall(val)
+					if ok {
+						lits = append(lits, x.(*ast.BasicLit))
 						continue
 					}
 					ident, ok := val.(*ast.Ident)

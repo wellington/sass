@@ -320,11 +320,6 @@ func Walk(v Visitor, node Node) {
 		if n.Comment != nil {
 			Walk(v, n.Comment)
 		}
-		fmt.Printf("% #v\n", n)
-		fmt.Printf("% #v\n", n.Name)
-		if id, ok := n.Values[0].(*Ident); ok {
-			fmt.Printf("val % #v\n", id.Obj.Decl)
-		}
 		// if n.Values != nil {
 		// 	walkExprList(v, n.Values)
 		// }

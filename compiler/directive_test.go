@@ -50,7 +50,11 @@ func TestDirective_each(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	e := ``
+	e := `div {
+  i: a;
+  i: b;
+  i: c; }
+`
 	if e != out {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
