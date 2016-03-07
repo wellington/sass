@@ -167,7 +167,6 @@ func TestScan_directive(t *testing.T) {
 		{token.RPAREN, ")"},
 	})
 
-	return
 	testScan(t, []elt{
 		{token.IDENT, "url"},
 		{token.LPAREN, "("},
@@ -179,6 +178,25 @@ func TestScan_directive(t *testing.T) {
 		{token.RBRACE, "}"},
 		{token.STRING, "/styles.css"},
 		{token.RPAREN, ")"},
+	})
+
+	testScan(t, []elt{
+		{token.EACH, "@each"},
+		{token.VAR, "$i"},
+		{token.STRING, "in"},
+		{token.LPAREN, "("},
+		{token.STRING, "a"},
+		{token.STRING, "b"},
+		{token.RPAREN, ")"},
+		{token.LBRACE, "{"},
+	})
+
+	testScan(t, []elt{
+		{token.EACH, "@each"},
+		{token.VAR, "$i"},
+		{token.STRING, "in"},
+		{token.STRING, "a"},
+		{token.LBRACE, "{"},
 	})
 }
 

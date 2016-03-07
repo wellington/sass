@@ -55,7 +55,6 @@ func Walk(v Visitor, node Node) {
 	if v = v.Visit(node); v == nil {
 		return
 	}
-
 	// walk children
 	// (the order of the cases matches the order
 	// of the corresponding node types in ast.go)
@@ -122,7 +121,8 @@ func Walk(v Visitor, node Node) {
 	case *SelectorExpr:
 		Walk(v, n.X)
 		Walk(v, n.Sel)
-
+	case *EachStmt:
+		Walk(v, n.Body)
 	case *IndexExpr:
 		Walk(v, n.X)
 		Walk(v, n.Index)

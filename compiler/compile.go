@@ -33,12 +33,13 @@ type Context struct {
 	activeMedia *ast.BasicLit
 	// indicates that a media closing bracket needs to be
 	// flushed
-	inMedia   bool
-	firstRule bool
-	level     int
-	printers  map[ast.Node]func(*Context, ast.Node)
-	fset      *token.FileSet
-	scope     Scope
+	inMedia     bool
+	firstRule   bool // first rules print { otherwise don't
+	hiddenBlock bool // @each has hidden blocks, probably other examples of this
+	level       int
+	printers    map[ast.Node]func(*Context, ast.Node)
+	fset        *token.FileSet
+	scope       Scope
 }
 
 func File(path string, out string) error {
@@ -168,14 +169,17 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	switch v := node.(type) {
 	case *ast.BlockStmt:
 		fmt.Println("block", ctx.scope.RuleLen())
-		if ctx.scope.RuleLen() > 0 || ctx.activeMedia != nil {
+		if (ctx.scope.RuleLen() > 0 || ctx.activeMedia != nil) &&
+			!ctx.hiddenBlock {
 			ctx.level = ctx.level + 1
 			if !ctx.firstRule {
 				fmt.Fprintf(ctx.buf, " }\n")
 			}
 		}
 		ctx.scope = NewScope(ctx.scope)
-		ctx.firstRule = true
+		if !ctx.hiddenBlock {
+			ctx.firstRule = true
+		}
 		for _, node := range v.List {
 			ast.Walk(ctx, node)
 		}
@@ -183,8 +187,11 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 			ctx.level = ctx.level - 1
 		}
 		ctx.scope = CloseScope(ctx.scope)
-		ctx.blockOutro()
-		ctx.firstRule = true
+		if !ctx.hiddenBlock {
+			ctx.blockOutro()
+			ctx.firstRule = true
+		}
+		ctx.hiddenBlock = false
 		// ast.Walk(ctx, v.List)
 		// fmt.Fprintf(ctx.buf, "}")
 		return nil
@@ -230,6 +237,8 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.EmptyStmt:
 	case *ast.AssignStmt:
 		key = assignStmt
+	case *ast.EachStmt:
+		key = eachStmt
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
@@ -253,6 +262,7 @@ var (
 	funcDecl    *ast.FuncDecl
 	includeSpec *ast.IncludeSpec
 	mediaStmt   *ast.MediaStmt
+	eachStmt    *ast.EachStmt
 )
 
 func (ctx *Context) Init() {
@@ -271,6 +281,7 @@ func (ctx *Context) Init() {
 	ctx.printers[expr] = printExpr
 	ctx.printers[comment] = printComment
 	ctx.printers[mediaStmt] = printMedia
+	ctx.printers[eachStmt] = printEach
 	ctx.scope = NewScope(empty)
 	// ctx.printers[typeSpec] = visitTypeSpec
 	// assign printers
@@ -320,6 +331,11 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 	var s string
 	s, ctx.err = simplifyExprs(ctx, spec.Values)
 	fmt.Fprintf(ctx.buf, "%s;", s)
+}
+
+func printEach(ctx *Context, n ast.Node) {
+	// surprise, not media but behavior is same!
+	ctx.hiddenBlock = true
 }
 
 func printMedia(ctx *Context, n ast.Node) {
@@ -496,6 +512,8 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 
 func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 	switch v := expr.(type) {
+	case *ast.Interp:
+		return resolveExpr(ctx, v.Obj.Decl.(ast.Expr))
 	case *ast.Value:
 		panic("ast.Value")
 	case *ast.BinaryExpr:

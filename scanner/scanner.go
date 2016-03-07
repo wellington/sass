@@ -224,7 +224,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 
 	// Check the queue, which may contain tokens that were fetched
@@ -382,7 +382,6 @@ bypassSelector:
 		s.inParams = true
 		tok = token.LPAREN
 	case ')':
-		fmt.Println("yerp")
 		s.inParams = false
 		tok = token.RPAREN
 	case '[':
@@ -390,6 +389,8 @@ bypassSelector:
 	case ']':
 		tok = token.RBRACK
 	case '{':
+		// reset inParams set by @each
+		s.inParams = false
 		tok = token.LBRACE
 	case '}':
 		tok = token.RBRACE
@@ -546,6 +547,11 @@ L:
 		// a selector
 		fallthrough
 	case '{':
+		if s.inParams {
+			printf("value override\n")
+			fn = s.scanValue
+			break
+		}
 		printf("selector\n")
 		fn = s.selLoop
 		queue = []prefetch{{pos, token.SELECTOR, string(sel)}}
@@ -591,7 +597,7 @@ L:
 		//log.Fatal("nothing found")
 	}
 	for _, pre := range queue[1:] {
-		s.push(pre)
+		s.pushPre(pre)
 	}
 
 	pos, tok, lit = queue[0].pos, queue[0].tok, queue[0].lit
@@ -606,7 +612,6 @@ func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string
 		s.next()
 		if ch == '#' && s.ch == '{' {
 			s.backup()
-			fmt.Println("done")
 			break
 		}
 	}
@@ -754,6 +759,35 @@ func (s *Scanner) scanInterpBlock() bool {
 	return true
 }
 
+// syntax of @each easily fools scanDelim
+// @each {variable} in {list/map}
+func (s *Scanner) scanEach(offs int) {
+	// queue the iterator, look for in and parse the list/map
+	s.next()
+	s.push(s.scan())
+
+	// find 'in'
+	s.skipWhitespace()
+	inoffs := s.offset
+	for isText(s.ch, false) {
+		s.next()
+	}
+	inlit := string(s.src[inoffs:s.offset])
+	if inlit != "in" {
+		fmt.Println("NOTIN?", inlit)
+		s.error(inoffs, "in must be present in @each statement")
+	}
+	s.push(s.file.Pos(inoffs), token.STRING, inlit)
+	s.skipWhitespace()
+	// list is surrounded with params, we're done here
+	if s.ch == '(' {
+		return
+	}
+	// must tell scanDelim that we're implicit params
+	s.inParams = true
+	return
+}
+
 func (s *Scanner) scanInterp(offs int) (pos token.Pos, tok token.Token, lit string) {
 	if s.ch != '#' {
 		return
@@ -767,7 +801,11 @@ func (s *Scanner) scanInterp(offs int) (pos token.Pos, tok token.Token, lit stri
 	return s.file.Pos(offs), token.INTERP, "#{"
 }
 
-func (s *Scanner) push(pre prefetch) {
+func (s *Scanner) push(pos token.Pos, tok token.Token, lit string) {
+	s.queue <- prefetch{pos, tok, lit}
+}
+
+func (s *Scanner) pushPre(pre prefetch) {
 	// TODO: check for full queue
 	s.queue <- pre
 }
@@ -893,6 +931,10 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 		tok = token.EXTEND
 	case "@at-root":
 		tok = token.ATROOT
+	case "@each":
+		tok = token.EACH
+		s.scanEach(s.offset)
+		// log.Fatal("done")
 	case "@include":
 		tok = token.INCLUDE
 	case "@debug":

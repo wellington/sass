@@ -15,7 +15,9 @@ func Resolve(in ast.Expr) (*ast.BasicLit, error) {
 }
 
 func resolve(in ast.Expr) (*ast.BasicLit, error) {
-	x := &ast.BasicLit{}
+	x := &ast.BasicLit{
+		ValuePos: in.Pos(),
+	}
 	var err error
 	switch v := in.(type) {
 	case *ast.StringExpr:
@@ -40,12 +42,19 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 			return nil, fmt.Errorf("calc: undefined variable %s", v.Name)
 		}
 		rhs := v.Obj.Decl.(*ast.AssignStmt).Rhs
+		kind := token.INT
 		var val []string
 		for _, x := range rhs {
-			val = append(val, x.(*ast.BasicLit).Value)
+			lit := x.(*ast.BasicLit)
+			// TODO: insufficient!
+			if lit.Kind != kind {
+				kind = lit.Kind
+			}
+			val = append(val, lit.Value)
 		}
 		// TODO: commas are missing
 		x.Value = strings.Join(val, ", ")
+		x.Kind = kind
 	default:
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 		panic(err)

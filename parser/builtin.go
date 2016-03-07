@@ -162,7 +162,11 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 			if len(v.List) > 1 {
 				log.Fatalf("% #v\n", v.List)
 			}
-			val := v.List[0].(*ast.BasicLit)
+			val, ok := v.List[0].(*ast.BasicLit)
+			if !ok {
+				// try again on interp
+				val = v.List[0].(*ast.Interp).Obj.Decl.(*ast.BasicLit)
+			}
 			callargs[argpos] = &ast.BasicLit{
 				Kind:  token.QSTRING,
 				Value: val.Value,
@@ -176,6 +180,12 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 				return nil, err
 			}
 			callargs[argpos] = lit
+		case *ast.Interp:
+			if v.Obj == nil {
+				ast.Print(token.NewFileSet(), v)
+				log.Fatalf("nil")
+			}
+			callargs[argpos] = v.Obj.Decl.(*ast.BasicLit)
 		default:
 			log.Fatalf("eval call unsupported % #v\n", v)
 		}

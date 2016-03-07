@@ -86,6 +86,12 @@ func ExprCopy(in Expr) (out Expr) {
 			X:       ExprCopy(expr.X),
 			Visited: expr.Visited,
 		}
+	case *Interp:
+		out = &Interp{
+			Lbrace: expr.Lbrace,
+			Rbrace: expr.Rbrace,
+			X:      ExprsCopy(expr.X),
+		}
 	case *BinaryExpr:
 		out = &BinaryExpr{
 			X:     ExprCopy(expr.X),
@@ -98,6 +104,13 @@ func ExprCopy(in Expr) (out Expr) {
 			Kind:     expr.Kind,
 			Value:    expr.Value,
 			ValuePos: expr.ValuePos,
+		}
+	case *CallExpr:
+		out = &CallExpr{
+			Rparen: expr.Rparen,
+			Lparen: expr.Lparen,
+			Args:   ExprsCopy(expr.Args),
+			Fun:    ExprCopy(expr.Fun),
 		}
 	case *KeyValueExpr:
 		kv := &KeyValueExpr{}
@@ -115,21 +128,7 @@ func ExprCopy(in Expr) (out Expr) {
 // be looked up after the fact
 func IdentCopy(in *Ident) (out *Ident) {
 	out = NewIdent(in.Name)
-	return
-	if in.Obj == nil {
-		return
-	}
-
-	obj := NewObj(in.Obj.Kind, in.Obj.Name)
-	// switch d := in.Obj.Decl.(type) {
-	// case *AssignStmt:
-	// 	out.Obj.Decl = StmtCopy(d)
-	// case nil:
-	// default:
-	// 	log.Fatalf("unsupported obj: % #v\n", d)
-	// }
-
-	out.Obj = obj
+	out.NamePos = in.Pos()
 	return
 }
 
