@@ -803,7 +803,6 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 		fmt.Println("bailed")
 		return
 	}
-	fmt.Println("resolveInterp")
 	itp.Obj = ast.NewObj(ast.Var, "")
 	ss := make([]string, 0, len(itp.X))
 	var merge bool
@@ -1183,22 +1182,17 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		return p.parseString()
 	case token.RULE:
 		basic.Kind = token.RULE
-	case token.VAR:
-		expr = &ast.Ident{
-			NamePos: p.pos,
-			Name:    p.lit,
-		}
-		// Inside mixins, this should not be marked as unresolved
-		// Since pkgScope means nothings to us, we don't care about
-		// resolving this again at the package scope.
-		if !lhs {
-			p.tryResolve(expr, false)
-		}
-		// basic = &ast.BasicLit{
-		// 	ValuePos: p.pos,
-		// 	Value:    p.lit,
-		// 	Kind:     token.VAR,
-		// }
+	// case token.VAR:
+	// 	expr = &ast.Ident{
+	// 		NamePos: p.pos,
+	// 		Name:    p.lit,
+	// 	}
+	// 	// Inside mixins, this should not be marked as unresolved
+	// 	// Since pkgScope means nothings to us, we don't care about
+	// 	// resolving this again at the package scope.
+	// 	if !lhs {
+	// 		p.tryResolve(expr, false)
+	// 	}
 	case token.INTERP:
 		x := p.parseInterp()
 		p.resolveInterp(x)

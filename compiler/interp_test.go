@@ -119,3 +119,28 @@ func TestInterp_copy(t *testing.T) {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
+
+func TestInterp_math(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.SetMode(parser.Trace)
+	ctx.fset = token.NewFileSet()
+	input := `div {
+  $i: 123;
+  hello: #{123+321};
+  there: #{$i+321};
+}
+`
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `div {
+  hello: 444;
+  there: 444; }
+`
+	if e != out {
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
