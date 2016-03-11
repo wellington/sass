@@ -13,6 +13,7 @@ import (
 	// Include defined builtins
 	_ "github.com/wellington/sass/builtin/colors"
 	_ "github.com/wellington/sass/builtin/introspect"
+	_ "github.com/wellington/sass/builtin/list"
 	_ "github.com/wellington/sass/builtin/strops"
 	_ "github.com/wellington/sass/builtin/url"
 )
@@ -20,13 +21,14 @@ import (
 var ErrNotFound = errors.New("function does not exist")
 
 type call struct {
-	name string
-	args []*ast.KeyValueExpr
-	ch   builtin.CallHandler
+	name   string
+	params []*ast.KeyValueExpr
+	ch     builtin.CallHandler
+	handle builtin.CallHandle
 }
 
 func (c *call) Pos(key *ast.Ident) int {
-	for i, arg := range c.args {
+	for i, arg := range c.params {
 		switch v := arg.Key.(type) {
 		case *ast.Ident:
 			if key.Name == v.Name {
@@ -60,9 +62,9 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 		for _, arg := range v.Args {
 			switch v := arg.(type) {
 			case *ast.KeyValueExpr:
-				d.c.args = append(d.c.args, v)
+				d.c.params = append(d.c.params, v)
 			case *ast.Ident:
-				d.c.args = append(d.c.args, &ast.KeyValueExpr{
+				d.c.params = append(d.c.params, &ast.KeyValueExpr{
 					Key: v,
 				})
 			default:
@@ -84,7 +86,7 @@ func init() {
 	builtin.BindRegister(register)
 }
 
-func register(s string, ch builtin.CallHandler) {
+func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
 	fset := token.NewFileSet()
 	pf, err := ParseFile(fset, "", s, FuncOnly)
 	if err != nil {
@@ -92,7 +94,10 @@ func register(s string, ch builtin.CallHandler) {
 			log.Fatal(err)
 		}
 	}
-	d := &desc{c: call{ch: ch}}
+	d := &desc{c: call{
+		ch:     ch,
+		handle: h,
+	}}
 	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])
 	if d.err != nil {
@@ -105,7 +110,7 @@ func register(s string, ch builtin.CallHandler) {
 }
 
 // This might not be enough
-func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
+func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
 
@@ -114,24 +119,32 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		return nil, fmt.Errorf("func %s was not found", name)
 	}
 
-	callargs := make([]*ast.BasicLit, len(fn.args))
-	for i := range fn.args {
-		expr := fn.args[i].Value
-		if expr != nil {
-			callargs[i] = expr.(*ast.BasicLit)
-		}
+	// Walk through the function
+	// These should be processed at registration time
+	callargs := make([]ast.Expr, len(fn.params))
+	for i := range fn.params {
+		expr := fn.params[i].Value
+		// if expr != nil {
+		// 	callargs[i] = expr.(*ast.BasicLit)
+		// }
+		callargs[i] = expr
 	}
 	var argpos int
 	incoming := expr.Args
+
 	// Verify args and convert to BasicLit before passing along
 	if len(callargs) < len(incoming) {
 		for i, p := range incoming {
-			lit := p.(*ast.BasicLit)
+			lit, ok := p.(*ast.BasicLit)
+			if !ok {
+				log.Fatalf("failed to convert to lit % #v\n", p)
+			}
 			log.Printf("inc %d %s:% #v\n", i, lit.Kind, p)
 		}
 		return nil, fmt.Errorf("mismatched arg count %s got: %d wanted: %d",
 			name, len(incoming), len(callargs))
 	}
+
 	for i, arg := range incoming {
 		if argpos < i {
 			argpos = i
@@ -191,5 +204,7 @@ func evaluateCall(expr *ast.CallExpr) (*ast.BasicLit, error) {
 		}
 
 	}
-	return fn.ch(expr, callargs...)
+
+	return fn.handle(expr, callargs...)
+	// return fn.ch(expr, callargs...)
 }

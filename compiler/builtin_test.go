@@ -76,3 +76,15 @@ func TestBuiltin_unit(t *testing.T) {
 `
 	runParse(t, in, e)
 }
+
+func TestBuiltin_nth(t *testing.T) {
+	in := `$x: a b 1+2;
+div {
+   c: nth($x, 1);
+}
+`
+	e := `div {
+  c: a; }
+`
+	runParse(t, in, e)
+}
