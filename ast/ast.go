@@ -265,6 +265,13 @@ type (
 		Value    string      // literal string; e.g. 42, 0x7f, 3.14, 1e-9, 2.4i, 'a', '\x7f', "foo" or `\m\n\o`
 	}
 
+	// A ListLit node represents a space delimited list
+	ListLit struct {
+		ValuePos token.Pos // start of list
+		Value    []Expr
+		EndPos   token.Pos // end of list
+	}
+
 	// A FuncLit node represents a function literal.
 	FuncLit struct {
 		Type *FuncType  // function type
@@ -459,6 +466,7 @@ func (x *Value) Pos() token.Pos    { return x.NamePos }
 func (x *Interp) Pos() token.Pos   { return x.Lbrace }
 func (x *Ellipsis) Pos() token.Pos { return x.Ellipsis }
 func (x *BasicLit) Pos() token.Pos { return x.ValuePos }
+func (x *ListLit) Pos() token.Pos  { return x.ValuePos }
 func (x *FuncLit) Pos() token.Pos  { return x.Type.Pos() }
 func (x *CompositeLit) Pos() token.Pos {
 	if x.Type != nil {
@@ -504,6 +512,7 @@ func (x *Ellipsis) End() token.Pos {
 	return x.Ellipsis + 3 // len("...")
 }
 func (x *BasicLit) End() token.Pos       { return token.Pos(int(x.ValuePos) + len(x.Value)) }
+func (x *ListLit) End() token.Pos        { return x.EndPos }
 func (x *FuncLit) End() token.Pos        { return x.Body.End() }
 func (x *CompositeLit) End() token.Pos   { return x.Rbrace + 1 }
 func (x *StringExpr) End() token.Pos     { return x.Rquote + 1 }
@@ -538,6 +547,7 @@ func (*Value) exprNode()          {}
 func (*Interp) exprNode()         {}
 func (*Ellipsis) exprNode()       {}
 func (*BasicLit) exprNode()       {}
+func (*ListLit) exprNode()        {}
 func (*FuncLit) exprNode()        {}
 func (*CompositeLit) exprNode()   {}
 func (*StringExpr) exprNode()     {}
