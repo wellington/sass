@@ -22,11 +22,9 @@ func nth(call *ast.CallExpr, args ...ast.Expr) (ast.Expr, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	// Sass is 1 index, of course
 	pos = pos - 1
-
-	// In lieu of real list struct
-	// ss := strings.Split(in.Value, " ")
 
 	for _, arg := range call.Args {
 		log.Printf("% #v\n", arg)

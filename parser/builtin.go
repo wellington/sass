@@ -109,6 +109,71 @@ func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
 	builtins[d.c.name] = d.c
 }
 
+func exprToLit(x ast.Expr) (lit *ast.BasicLit, ok bool) {
+	switch v := x.(type) {
+	case *ast.BasicLit:
+		return v, true
+	case *ast.Ident:
+		if v.Obj == nil {
+			panic(fmt.Errorf("ident unresolved: % #v\n",
+				v))
+		}
+		assign := v.Obj.Decl.(*ast.AssignStmt)
+		if len(assign.Rhs) > 0 {
+			return
+		}
+		return exprToLit(assign.Rhs[0])
+		// Resolving an assignment should also update the ctx.
+		switch v := assign.Rhs[0].(type) {
+		case *ast.BasicLit:
+			return v, true
+			// incoming[i] = v
+			// callargs[argpos] = v
+		case *ast.CallExpr:
+			// incoming[i] = v
+			// callargs[argpos] = v.Resolved
+			return exprToLit(v.Resolved)
+		}
+	case *ast.StringExpr:
+		if len(v.List) > 1 {
+			log.Fatalf("% #v\n", v.List)
+		}
+		val, ok := v.List[0].(*ast.BasicLit)
+		if !ok {
+			// try again on interp
+			val = v.List[0].(*ast.Interp).Obj.Decl.(*ast.BasicLit)
+		}
+		return &ast.BasicLit{
+			Kind:  token.QSTRING,
+			Value: val.Value,
+		}, true
+	case *ast.BinaryExpr:
+		log.Fatalf("% #v\n", v)
+	case *ast.CallExpr:
+		// Nested function call
+		x, err := evaluateCall(v)
+		if err != nil {
+			log.Printf("I need parser context: %s\n", err)
+			return
+		}
+		return exprToLit(x)
+		// callargs[argpos] = lit
+	case *ast.Interp:
+		if v.Obj == nil {
+			ast.Print(token.NewFileSet(), v)
+			log.Fatalf("nil")
+		}
+		l, ok := v.Obj.Decl.(*ast.BasicLit)
+		if ok {
+			return l, true
+		}
+		// callargs[argpos] = v.Obj.Decl.(*ast.BasicLit)
+	default:
+		log.Fatalf("eval call unsupported % #v\n", v)
+	}
+	return
+}
+
 // This might not be enough
 func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 	ident := expr.Fun.(*ast.Ident)
@@ -149,60 +214,17 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		if argpos < i {
 			argpos = i
 		}
-
+		fmt.Printf("%d % #v\n", i, arg)
 		switch v := arg.(type) {
-		case *ast.BasicLit:
-			callargs[argpos] = v
 		case *ast.KeyValueExpr:
 			pos := fn.Pos(v.Key.(*ast.Ident))
 			callargs[pos] = v.Value.(*ast.BasicLit)
-		case *ast.Ident:
-			if v.Obj == nil {
-				panic(fmt.Errorf("ident unresolved: % #v\n",
-					v))
-			}
-			assign := v.Obj.Decl.(*ast.AssignStmt)
-			// Resolving an assignment should also update the ctx.
-			switch v := assign.Rhs[0].(type) {
-			case *ast.BasicLit:
-				incoming[i] = v
-				callargs[argpos] = v
-			case *ast.CallExpr:
-				incoming[i] = v
-				callargs[argpos] = v.Resolved
-			}
-		case *ast.StringExpr:
-			if len(v.List) > 1 {
-				log.Fatalf("% #v\n", v.List)
-			}
-			val, ok := v.List[0].(*ast.BasicLit)
-			if !ok {
-				// try again on interp
-				val = v.List[0].(*ast.Interp).Obj.Decl.(*ast.BasicLit)
-			}
-			callargs[argpos] = &ast.BasicLit{
-				Kind:  token.QSTRING,
-				Value: val.Value,
-			}
-		case *ast.BinaryExpr:
-			log.Fatalf("% #v\n", v)
-		case *ast.CallExpr:
-			// Nested function call
-			lit, err := evaluateCall(v)
-			if err != nil {
-				return nil, err
-			}
-			callargs[argpos] = lit
-		case *ast.Interp:
-			if v.Obj == nil {
-				ast.Print(token.NewFileSet(), v)
-				log.Fatalf("nil")
-			}
-			callargs[argpos] = v.Obj.Decl.(*ast.BasicLit)
 		default:
-			log.Fatalf("eval call unsupported % #v\n", v)
+			lit, ok := exprToLit(v)
+			if ok {
+				callargs[argpos] = lit
+			}
 		}
-
 	}
 
 	return fn.handle(expr, callargs...)
