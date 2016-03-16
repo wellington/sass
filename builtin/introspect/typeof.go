@@ -12,7 +12,7 @@ import (
 func init() {
 	builtin.Register("inspect($value)", inspect)
 	builtin.Register("unit($number)", unit)
-	builtin.Register("type-of($value)", typeOf)
+	builtin.Reg("type-of($value)", typeOf)
 }
 
 func unit(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
@@ -46,21 +46,25 @@ func inspect(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	return args[0], nil
 }
 
-func typeOf(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
+func typeOf(call *ast.CallExpr, args ...ast.Expr) (ast.Expr, error) {
 	if len(args) != 1 {
 		return nil, fmt.Errorf("wrong number of arguments (%d for 1) for 'type-of'", len(args))
 	}
-	lit := *args[0]
-	lit.Kind = token.STRING
-	switch args[0].Kind {
-	case token.COLOR:
-		lit.Value = "color"
-	case token.INT, token.FLOAT:
-		lit.Value = "number"
-	case token.STRING, token.QSSTRING, token.QSTRING:
-		lit.Value = "string"
-	default:
-		lit.Kind = token.ILLEGAL
+	x := args[0]
+	switch v := x.(type) {
+	case *ast.BasicLit:
+		lit := &ast.BasicLit{Kind: token.STRING}
+		switch v.Kind {
+		case token.COLOR:
+			lit.Value = "color"
+		case token.INT, token.FLOAT:
+			lit.Value = "number"
+		case token.STRING, token.QSSTRING, token.QSTRING:
+			lit.Value = "string"
+		default:
+			lit.Kind = token.ILLEGAL
+		}
+		return lit, nil
 	}
-	return &lit, nil
+	return nil, nil
 }

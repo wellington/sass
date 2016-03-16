@@ -113,6 +113,8 @@ func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
 
 func exprToLit(x ast.Expr) (lit *ast.BasicLit, ok bool) {
 	switch v := x.(type) {
+	case *ast.BadExpr:
+		panic("")
 	case *ast.BasicLit:
 		return v, true
 	case *ast.Ident:
@@ -180,7 +182,6 @@ func exprToLit(x ast.Expr) (lit *ast.BasicLit, ok bool) {
 func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
-
 	fn, ok := builtins[name]
 	if !ok {
 		return nil, fmt.Errorf("func %s was not found", name)
@@ -224,8 +225,14 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		case *ast.ListLit:
 			callargs[argpos] = v
 		case *ast.Ident:
-			ass := v.Obj.Decl.(*ast.AssignStmt)
-			callargs[argpos] = ass.Rhs[0]
+			if v.Obj != nil {
+				ass := v.Obj.Decl.(*ast.AssignStmt)
+				fmt.Printf("ass % #v\n", ass)
+				callargs[argpos] = ass.Rhs[0]
+			} else {
+				callargs[argpos] = v
+			}
+
 		default:
 			lit, ok := exprToLit(v)
 			if ok {
@@ -235,7 +242,17 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 			}
 		}
 	}
+	if fn.ch != nil {
+		lits := make([]*ast.BasicLit, len(callargs))
+		for i, x := range callargs {
+			lits[i], ok = exprToLit(x)
+			if !ok {
+				log.Fatalf("litize % #v\n", x)
+			}
+		}
+		return fn.ch(expr, lits...)
+	}
+	x, err := fn.handle(expr, callargs...)
+	return x, err
 
-	return fn.handle(expr, callargs...)
-	// return fn.ch(expr, callargs...)
 }

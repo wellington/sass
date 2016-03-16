@@ -169,7 +169,6 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		fmt.Println("block", ctx.scope.RuleLen())
 		if (ctx.scope.RuleLen() > 0 || ctx.activeMedia != nil) &&
 			!ctx.hiddenBlock {
 			ctx.level = ctx.level + 1

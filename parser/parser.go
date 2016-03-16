@@ -1922,6 +1922,12 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	}
 	ident := fun.(*ast.Ident)
 	if p.mode&FuncOnly == 0 {
+		defer func() {
+			if e := recover(); e != nil {
+				ast.Print(token.NewFileSet(), call)
+				panic("done")
+			}
+		}()
 		lit, err := evaluateCall(call)
 		call.Resolved = lit
 		// Manually set object, because Ident name isn't unique
@@ -2031,6 +2037,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.Ident:
 	case *ast.BasicLit:
 	case *ast.FuncLit:
+	case *ast.StringExpr:
 	case *ast.CompositeLit:
 	case *ast.ParenExpr:
 		panic("unreachable")
@@ -3050,7 +3057,6 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 
 	var xs []ast.Expr
 	for p.tok != token.LBRACE {
-		fmt.Println("looking at", p.lit)
 		x := p.parseCombSel(token.LowestPrec + 1)
 		// if xx, ok := x.(*ast.Interp); ok {
 		// lit := xx.Obj.Decl.(*ast.BasicLit)
