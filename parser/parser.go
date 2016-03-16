@@ -211,7 +211,6 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 			// remember corresponding assignment for other tools
 			obj.Decl = decl
 			ident.Obj = obj
-
 			if ident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
 					fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
@@ -1916,12 +1915,6 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	}
 	ident := fun.(*ast.Ident)
 	if p.mode&FuncOnly == 0 {
-		defer func() {
-			if e := recover(); e != nil {
-				ast.Print(token.NewFileSet(), call)
-				panic("done")
-			}
-		}()
 		lit, err := evaluateCall(call)
 		call.Resolved = lit
 		// Manually set object, because Ident name isn't unique
@@ -2890,6 +2883,8 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 				// 	NamePos: vv.ValuePos,
 				// 	Kind:    vv.Kind,
 				// }
+			case *ast.ListLit:
+				values[i] = vv
 			default:
 				panic(fmt.Errorf("fail % #v\n", vv))
 			}
@@ -3390,7 +3385,10 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 			p.resolve(v)
 		}
 		out = basicLitFromIdent(v)
-
+	case *ast.ListLit:
+		for _, x := range v.Value {
+			out = append(out, p.resolveExpr(scope, x)...)
+		}
 	default:
 		panic(fmt.Errorf("unsupported expr % #v", v))
 	}

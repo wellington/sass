@@ -460,6 +460,11 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 			last := len(list) - 1
 			list[last].Value = list[last].Value + `"`
 			lits = append(lits, list...)
+		case *ast.ListLit:
+			lits = make([]*ast.BasicLit, len(v.Value))
+			for i := range v.Value {
+				lits[i] = v.Value[i].(*ast.BasicLit)
+			}
 		default:
 			log.Fatalf("default rhs %s % #v\n", rhs, rhs)
 		}

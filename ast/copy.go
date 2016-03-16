@@ -118,6 +118,14 @@ func ExprCopy(in Expr) (out Expr) {
 		kv.Key = ExprCopy(expr.Key)
 		kv.Value = ExprCopy(expr.Value)
 		out = kv
+	case *ListLit:
+		lit := &ListLit{
+			Comma:    expr.Comma,
+			ValuePos: expr.Pos(),
+			EndPos:   expr.End(),
+		}
+		lit.Value = ExprsCopy(expr.Value)
+		out = lit
 	default:
 		log.Fatalf("unsupported expr copy: % #v\n", expr)
 	}
