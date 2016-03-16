@@ -8,16 +8,14 @@ import (
 )
 
 func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
-
-	if x.Kind != y.Kind || x.Kind == token.STRING {
-		return stringOp(op, x, y)
-	}
-
-	switch x.Kind {
-	case token.INT:
-		return intOp(op, x, y)
-	case token.COLOR:
+	kind := x.Kind
+	switch {
+	case kind == token.COLOR:
 		return colorOp(op, x, y)
+	case kind == token.STRING || x.Kind != y.Kind:
+		return stringOp(op, x, y)
+	case kind == token.INT:
+		return intOp(op, x, y)
 	default:
 		return nil, fmt.Errorf("unsupported Op %s", x.Kind)
 	}

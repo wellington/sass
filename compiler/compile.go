@@ -381,8 +381,11 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 
 	lit, err := calc.Resolve(bin)
-
-	return lit.Value, err
+	ast.Print(token.NewFileSet(), bin)
+	if err != nil {
+		return "", err
+	}
+	return lit.Value, nil
 }
 
 func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {

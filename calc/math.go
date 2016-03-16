@@ -72,6 +72,8 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		// TODO: commas are missing
 		x.Value = strings.Join(val, ", ")
 		x.Kind = kind
+	case *ast.CallExpr:
+		return resolve(v.Resolved)
 	default:
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 		panic(err)
@@ -89,12 +91,13 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	if err != nil {
 		return nil, err
 	}
+	fmt.Printf("binary % #v\n% #v\n", left, right)
 	out := &ast.BasicLit{
 		ValuePos: left.Pos(),
 		Kind:     token.STRING,
 	}
 	switch in.Op {
-	case token.ADD:
+	case token.ARROW:
 		if left.Kind == token.INT && right.Kind == token.INT {
 			l, _ := strconv.Atoi(left.Value)
 			r, _ := strconv.Atoi(right.Value)
@@ -103,7 +106,7 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 		} else {
 			out.Value = left.Value + right.Value
 		}
-	case token.SUB, token.MUL, token.QUO:
+	case token.ADD, token.SUB, token.MUL, token.QUO:
 		return combineLits(in.Op, left, right)
 	default:
 		fmt.Printf("l: % #v\nr: % #v\n", left, right)
