@@ -109,6 +109,9 @@ func Walk(v Visitor, node Node) {
 		Walk(v, n.Type)
 		Walk(v, n.Body)
 
+	case *ListLit:
+		walkExprList(v, n.Value)
+
 	case *CompositeLit:
 		if n.Type != nil {
 			Walk(v, n.Type)

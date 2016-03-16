@@ -80,7 +80,9 @@ func TestCompile_files(t *testing.T) {
 compiling: %s\n
 =================================
 `, f.input)
-		ctx := Context{mode: parser.Trace}
+		ctx := Context{
+		//mode: parser.Trace
+		}
 		// ctx.mode = 0
 		ctx.Init()
 		out, err := ctx.Run(f.input)
@@ -175,6 +177,7 @@ func TestSelector_deep_nesting(t *testing.T) {
 
 func TestSelector_selector_interp(t *testing.T) {
 	ctx := &Context{}
+	ctx.SetMode(parser.Trace)
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
 	input := `$x: oo, ba;

@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
@@ -168,7 +169,6 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	var key ast.Node
 	switch v := node.(type) {
 	case *ast.BlockStmt:
-		fmt.Println("block", ctx.scope.RuleLen())
 		if (ctx.scope.RuleLen() > 0 || ctx.activeMedia != nil) &&
 			!ctx.hiddenBlock {
 			ctx.level = ctx.level + 1
@@ -239,6 +239,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = assignStmt
 	case *ast.EachStmt:
 		key = eachStmt
+	case *ast.ListLit:
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
@@ -378,54 +379,10 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 }
 
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
-	x := bin.X
-	y := bin.Y
 
-	var err error
-	// Convert CallExpr to BasicLit
-	if cx, ok := x.(*ast.CallExpr); ok {
-		fmt.Printf("cx (%p) % #v\n", cx.Fun, cx.Fun.(*ast.Ident))
-		x = cx.Fun.(*ast.Ident).Obj.Decl.(ast.Expr)
-	}
-	if cy, ok := y.(*ast.CallExpr); ok {
-		fmt.Printf("cy (%p) % #v\n", cy.Fun, cy.Fun)
-		y = cy.Fun.(*ast.Ident).Obj.Decl.(ast.Expr)
-	}
+	lit, err := calc.Resolve(bin)
 
-	if err != nil {
-		return "", err
-	}
-
-	bx := x.(*ast.BasicLit)
-	by := y.(*ast.BasicLit)
-
-	if bx == nil || by == nil {
-		return "", fmt.Errorf("operand is nil % #v: % #v", bx, by)
-	}
-
-	// Attempt color math
-	if bx.Kind == token.COLOR {
-		z := bx.Op(bin.Op, by)
-		if z == nil {
-			// Op failed, just do string math
-			z = &ast.BasicLit{
-				Kind:  token.STRING,
-				Value: bx.Value + by.Value,
-			}
-			// panic(fmt.Sprintf("invalid return op: %q x: % #v y: % #v",
-			// 	bin.Op, bx, by,
-			// ))
-		}
-		return z.Value, nil
-	}
-
-	// We're looking at INT and non-INT, treat as strings
-	if bx.Kind == token.INT && by.Kind != token.INT {
-		// Treat everything as strings
-		return bx.Value + bin.Op.String() + by.Value, nil
-	}
-
-	return "", nil
+	return lit.Value, err
 }
 
 func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {
@@ -503,6 +460,11 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 			last := len(list) - 1
 			list[last].Value = list[last].Value + `"`
 			lits = append(lits, list...)
+		case *ast.ListLit:
+			lits = make([]*ast.BasicLit, len(v.Value))
+			for i := range v.Value {
+				lits[i] = v.Value[i].(*ast.BasicLit)
+			}
 		default:
 			log.Fatalf("default rhs %s % #v\n", rhs, rhs)
 		}
@@ -543,6 +505,18 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 		default:
 			out = v.Value
 		}
+	case *ast.ListLit:
+		vals := make([]string, len(v.Value))
+		delim := " "
+		if v.Comma {
+			delim = ", "
+		}
+		for i, x := range v.Value {
+			o, err := resolveExpr(ctx, x)
+			_ = err // fuq this error
+			vals[i] = o
+		}
+		return strings.Join(vals, delim), nil
 	default:
 		panic(fmt.Sprintf("unhandled expr: % #v\n", v))
 	}

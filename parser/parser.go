@@ -192,7 +192,7 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 				prevDecl = fmt.Sprintf("\n\tprevious declaration at %s", p.file.Position(pos))
 			}
 			p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
-		} else {
+		} else if p.trace {
 			fmt.Printf("declared ~> %8s(%p): % #v\n",
 				ident, scope, obj.Decl)
 		}
@@ -211,7 +211,6 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 			// remember corresponding assignment for other tools
 			obj.Decl = decl
 			ident.Obj = obj
-
 			if ident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
 					fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
@@ -242,7 +241,9 @@ var unresolved = new(ast.Object)
 //
 func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// nothing to do if x is not an identifier or the blank identifier
-	fmt.Println("resolve", x)
+	if p.trace {
+		fmt.Println("resolve", x)
+	}
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
 		fmt.Printf("cant resolve this: % #v\n", x)
@@ -262,18 +263,14 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
-		fmt.Printf("trying %p\n", s)
+		if p.trace {
+			fmt.Printf("trying %p\n", s)
+		}
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
-			if ok {
-				var srh string
-				for _, rhs := range decl.Rhs {
-					srh += fmt.Sprintf("%s ", rhs)
-				}
-				fmt.Printf("resolved  %8s: scope(%p) %d: %s\n",
-					ident, s, len(decl.Rhs), srh)
-			} else {
+			if !ok {
 				fmt.Printf("unsupported decl % #v\n", decl)
+				return
 			}
 			ident.Obj = obj
 			return
@@ -756,7 +753,7 @@ func (p *parser) parseInterp() *ast.Interp {
 	pos := p.expect(token.INTERP)
 	itp := &ast.Interp{
 		Lbrace: pos,
-		X:      p.inferExprList(false),
+		X:      []ast.Expr{p.inferExprList(false)},
 		Rbrace: p.expect(token.RBRACE),
 	}
 	return itp
@@ -767,6 +764,7 @@ func (p *parser) parseInterp() *ast.Interp {
 func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
 	isResolved := true
 	switch v := x.(type) {
+	case *ast.BasicLit:
 	case *ast.CallExpr:
 		// hold on soldier, first lets resolve all arguments
 		for i := range v.Args {
@@ -807,9 +805,10 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	var merge bool
 	for _, x := range itp.X {
 		// copied ident won't be resolved, do so
-
+		var ok bool
 		// performing calc
-		x, _ = p.resolveCall(x)
+		x, ok = p.resolveCall(x)
+		assert(ok, "failed to resolve")
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -835,8 +834,9 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	}
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
-		Kind:  token.STRING,
-		Value: strings.Join(ss, " "),
+		Kind:     token.STRING,
+		Value:    strings.Join(ss, " "),
+		ValuePos: itp.Pos(),
 	}
 	return
 }
@@ -907,35 +907,54 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
-func (p *parser) parseSassList(lhs bool) (list []ast.Expr) {
+func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bool) {
 	if p.trace {
-		defer un(trace(p, "SassList"))
+		// defer un(trace(p, "SassList"))
 	}
+	var checkParen bool
 	if p.tok == token.LPAREN {
+		checkParen = true
 		p.next()
 	}
-
-	list = append(list, p.checkExpr(p.inferExpr(lhs)))
+	if p.tok == token.RULE {
+		p.error(p.pos, "sass can not contain a list")
+		p.next()
+	}
 	for p.tok != token.SEMICOLON &&
 		// possible closers
 		p.tok != token.LBRACE && p.tok != token.RPAREN &&
+		p.tok != token.RBRACE &&
 		// failure scenario
 		p.tok != token.EOF {
-		list = append(list, p.checkExpr(p.inferExpr(lhs)))
+		if canComma {
+			inner := p.listFromExprs(p.parseSassList(lhs, false))
+			list = append(list, inner)
+			if p.tok == token.COMMA {
+				hasComma = true
+				p.next()
+			}
+		} else if p.tok == token.COMMA {
+			return
+		} else {
+			x := p.inferExpr(lhs)
+			if interp, ok := x.(*ast.Interp); ok {
+				p.resolveInterp(interp)
+			}
+			list = append(list, p.checkExpr(x))
+		}
 	}
 
 	if p.tok == token.EOF {
 		p.error(p.pos, "could not find list end")
 	}
-	if p.tok == token.RPAREN {
+	if checkParen && p.tok == token.RPAREN {
 		p.next()
 	}
-
 	return
 
 }
 
-func (p *parser) inferLhsList() []ast.Expr {
+func (p *parser) inferLhsList() ast.Expr {
 	old := p.inRhs
 	p.inRhs = false
 	list := p.inferExprList(true)
@@ -955,9 +974,7 @@ func (p *parser) inferLhsList() []ast.Expr {
 		//   to resolve the identifier in that case
 	default:
 		// identifiers must be declared elsewhere
-		for _, x := range list {
-			p.resolve(x)
-		}
+		p.resolveExpr(p.topScope, list)
 	}
 	p.inRhs = old
 	return list
@@ -1019,13 +1036,17 @@ func (p *parser) parseType() ast.Expr {
 	return typ
 }
 
-func (p *parser) inferRhsList() []ast.Expr {
+func (p *parser) inferRhsList() ast.Expr {
 	old := p.inRhs
 	p.inRhs = true
 	list := p.inferExprList(false)
 	p.inRhs = old
 
 	return list
+}
+
+func astPrint(v interface{}) {
+	ast.Print(token.NewFileSet(), v)
 }
 
 // interpolation can happen inline to a string. In these cases,
@@ -1035,14 +1056,13 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	if p.trace {
 		defer un(trace(p, "MergeInterps"))
 	}
-	if len(in) == 0 {
+	if len(in) < 2 {
 		return in
 	}
 	out := make([]ast.Expr, 0, len(in))
-
 	for i := 0; i < len(in); i++ {
 		if in[i].Pos() == 0 {
-			log.Fatal("invalid position")
+			log.Fatalf("invalid position %d: % #v\n", i, in[i])
 		}
 		itp, isInterp := in[i].(*ast.Interp)
 		if !isInterp {
@@ -1051,7 +1071,12 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 			if ok && len(out) > 0 {
 				l := in[i-1]
 				if l.End() == lit.Pos() {
-					prev := out[len(out)-1].(*ast.Interp)
+					prev, ok := out[len(out)-1].(*ast.Interp)
+					if !ok {
+						ast.Print(token.NewFileSet(), in)
+						panic(fmt.Errorf("\nl:% #v\nr:% #v\n",
+							l, lit))
+					}
 					prev.X = append(prev.X, lit)
 					// changes to interp require resolution
 					p.resolveInterp(prev)
@@ -1104,36 +1129,47 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	for _, o := range out {
 		if o.Pos() == 0 {
 			log.Fatalf("invalid position % #v\n", o)
-		} else {
-			fmt.Printf("%d % #v\n", o.Pos(), o)
 		}
 	}
 	return out
 }
 
-func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
+func (p *parser) listOrExpr(xs []ast.Expr) ast.Expr {
+	if len(xs) > 1 {
+		return &ast.ListLit{
+			EndPos:   xs[len(xs)-1].End(),
+			Value:    p.mergeInterps(xs),
+			ValuePos: xs[0].Pos(),
+		}
+	}
+	return xs[0]
+}
+
+func (p *parser) inferExprList(lhs bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
 	}
-	lastExpr := p.inferExpr(lhs)
-	list = append(list, lastExpr)
+	// lists are weird in Sass
+	// list: 1 2 3;
+	// list of lists: 1 2, 3
 
-	// TODO: it also accepts spaces, b/c stupid
-	for p.tok != token.SEMICOLON &&
-		p.tok != token.COLON &&
-		p.tok != token.RPAREN &&
-		p.tok != token.RBRACE &&
-		p.tok != token.EOF {
+	return p.listFromExprs(p.parseSassList(lhs, true))
+}
 
-		// Accept commas for sacrifices to Cthulu
-		if p.tok == token.COMMA {
-			p.next()
-		}
-
-		expr := p.inferExpr(lhs)
-		list = append(list, expr)
+// listFromExprs takes a slice of expr to create a ListLit
+func (p *parser) listFromExprs(in []ast.Expr, hasComma bool) ast.Expr {
+	if len(in) == 0 {
+		return nil
 	}
-	return p.mergeInterps(list)
+	if len(in) == 1 {
+		return in[0]
+	}
+	return &ast.ListLit{
+		ValuePos: in[0].Pos(),
+		EndPos:   in[len(in)-1].End(),
+		Value:    p.mergeInterps(in),
+		Comma:    hasComma,
+	}
 }
 
 func (p *parser) parseString() *ast.StringExpr {
@@ -1181,33 +1217,12 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	expr = basic
 	switch p.tok {
-	case token.STRING:
-		basic.Kind = token.STRING
-	case token.QSSTRING, token.QSTRING:
-		return p.parseString()
 	case token.RULE:
 		basic.Kind = token.RULE
-	// case token.VAR:
-	// 	expr = &ast.Ident{
-	// 		NamePos: p.pos,
-	// 		Name:    p.lit,
-	// 	}
-	// 	// Inside mixins, this should not be marked as unresolved
-	// 	// Since pkgScope means nothings to us, we don't care about
-	// 	// resolving this again at the package scope.
-	// 	if !lhs {
-	// 		p.tryResolve(expr, false)
-	// 	}
-	case token.INTERP:
-		x := p.parseInterp()
-		p.resolveInterp(x)
-		return x
-	default:
-		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+		p.next()
+		return expr
 	}
-	// Always be steppin'
-	p.next()
-	return expr
+	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 }
 
 func (p *parser) parseSassType() ast.Expr {
@@ -1879,35 +1894,24 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
 	var list []ast.Expr
-	var ellipsis token.Pos
-	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-		list = append(list, p.parseRhsOrKV()) // builtins may expect a type: make(some type, ...)
-		if p.tok == token.ELLIPSIS {
-			ellipsis = p.pos
-			p.next()
-		}
-		if p.tok == token.INTERP {
-			x := p.parseInterp()
-			// This shouldn't happen inside mixins
-			p.resolveInterp(x)
-			list = append(list, x)
-			continue
-		}
-		if !p.atComma("argument list", token.RPAREN) {
-			break
-		}
-		p.next()
+	expr := p.inferExprList(false)
+	lit, ok := expr.(*ast.ListLit)
+	if ok {
+		list = lit.Value
+	} else {
+		list = []ast.Expr{expr}
 	}
+
 	p.exprLev--
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
 
 	call := &ast.CallExpr{
-		Fun:      fun,
-		Lparen:   lparen,
-		Args:     p.mergeInterps(list),
-		Ellipsis: ellipsis,
-		Rparen:   rparen,
+		Fun:    fun,
+		Lparen: lparen,
+		Args:   list,
+		// Ellipsis: ellipsis,
+		Rparen: rparen,
 	}
 	ident := fun.(*ast.Ident)
 	if p.mode&FuncOnly == 0 {
@@ -2020,6 +2024,8 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.Ident:
 	case *ast.BasicLit:
 	case *ast.FuncLit:
+	case *ast.Interp:
+	case *ast.StringExpr:
 	case *ast.CompositeLit:
 	case *ast.ParenExpr:
 		panic("unreachable")
@@ -2036,7 +2042,9 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.StarExpr:
 	case *ast.UnaryExpr:
 	case *ast.BinaryExpr:
+	case *ast.KeyValueExpr:
 	default:
+		panic(fmt.Errorf("fuq % #v\n", x))
 		// all other nodes are not proper expressions
 		p.errorExpected(x.Pos(), "expression")
 		x = &ast.BadExpr{From: x.Pos(), To: p.safePos(x.End())}
@@ -2188,7 +2196,7 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		un := &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
 		return un
 	case token.QSTRING, token.QSSTRING:
-		return p.inferExpr(lhs)
+		return p.parseString()
 	case token.ARROW:
 		// channel type or receive expression
 		arrow := p.pos
@@ -2339,13 +2347,13 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 		defer un(trace(p, "SimpleStmt"))
 	}
 	tok, pos := p.tok, p.pos
-	x := p.inferLhsList()
+	x := []ast.Expr{p.inferLhsList()}
 	var stmt ast.Stmt
 	isRange := false
 	switch tok {
 	case token.VAR:
 		p.expect(token.COLON)
-		y := p.inferRhsList()
+		y := []ast.Expr{p.inferRhsList()}
 		stmt = &ast.AssignStmt{Lhs: x, TokPos: pos, Rhs: y}
 	default:
 		p.error(p.pos, "SimpleStmt failed")
@@ -2490,7 +2498,7 @@ func (p *parser) parseEachDir() ast.Stmt {
 		p.next()
 	}
 
-	list := p.parseSassList(true)
+	list, _ := p.parseSassList(true, false)
 
 	// Run the first one with the first itr
 	p.openScope()
@@ -2804,7 +2812,7 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 
 func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, keyword.String()+"Spec"))
+		defer un(trace(p, "inferValue"+keyword.String()+"Spec"))
 	}
 
 	lit := p.lit
@@ -2851,7 +2859,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		p.next()
 		fallthrough
 	default:
-		values = p.inferExprList(lhs)
+		values = []ast.Expr{p.inferExprList(lhs)}
 	}
 
 	// p.expectSemi()
@@ -2868,10 +2876,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			switch vv := v.(type) {
 			case *ast.Ident:
 				values[i] = vv
-				// values[i] = &ast.Value{
-				// 	Name:    vv.Name,
-				// 	NamePos: vv.NamePos,
-				// }
 			case *ast.BasicLit:
 				values[i] = vv
 				// values[i] = &ast.Value{
@@ -2879,6 +2883,10 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 				// 	NamePos: vv.ValuePos,
 				// 	Kind:    vv.Kind,
 				// }
+			case *ast.ListLit:
+				values[i] = vv
+			default:
+				panic(fmt.Errorf("fail % #v\n", vv))
 			}
 			// This only looks at IDENTs from what I can tell
 			// No need to resolve these
@@ -2921,22 +2929,20 @@ func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota 
 		defer un(trace(p, keyword.String()+" RuleSpec"))
 	}
 
-	var values []ast.Expr
+	var value ast.Expr
 	pos := p.pos
 
 	switch keyword {
 	case token.VAR:
-		values = p.inferRhsList()
+		value = p.inferRhsList()
 	case
 		token.IDENT, token.INT,
 		// Stick these here for now, probably needs special Expr
 		token.UPX, token.UPT, token.UEM, token.UREM, token.UPCT:
-		values = []ast.Expr{
-			&ast.BasicLit{
-				ValuePos: pos,
-				Kind:     keyword,
-				Value:    p.lit,
-			},
+		value = &ast.BasicLit{
+			ValuePos: pos,
+			Kind:     keyword,
+			Value:    p.lit,
 		}
 		p.next()
 	default:
@@ -2947,7 +2953,7 @@ func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota 
 
 	spec := &ast.ValueSpec{
 		// Names:  []*ast.Ident{ident},
-		Values: values,
+		Values: []ast.Expr{value},
 	}
 
 	return spec
@@ -3040,7 +3046,6 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 
 	var xs []ast.Expr
 	for p.tok != token.LBRACE {
-		fmt.Println("looking at", p.lit)
 		x := p.parseCombSel(token.LowestPrec + 1)
 		// if xx, ok := x.(*ast.Interp); ok {
 		// lit := xx.Obj.Decl.(*ast.BasicLit)
@@ -3065,7 +3070,6 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		sel.Resolved = stmt.Resolved
 	}
 	sel.Resolve(Globalfset)
-	fmt.Printf("selSel:% #v\n", sel.Sel)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
@@ -3376,9 +3380,15 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 		fmt.Println("resolved...", v.Obj.Decl.(*ast.BasicLit))
 		out = append(out, v.Obj.Decl.(*ast.BasicLit))
 	case *ast.Ident:
-		assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
-		p.resolve(v)
+		if v.Obj == nil {
+			assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
+			p.resolve(v)
+		}
 		out = basicLitFromIdent(v)
+	case *ast.ListLit:
+		for _, x := range v.Value {
+			out = append(out, p.resolveExpr(scope, x)...)
+		}
 	default:
 		panic(fmt.Errorf("unsupported expr % #v", v))
 	}
@@ -3437,6 +3447,10 @@ func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 				continue
 			case *ast.BasicLit:
 				lit = rtyp
+			case *ast.ListLit:
+				var err error
+				lit, err = calc.Resolve(rtyp)
+				assert(err == nil, "calc resolve failed")
 			default:
 				log.Fatalf("illegal Rhs expr % #v\n", rtyp)
 			}

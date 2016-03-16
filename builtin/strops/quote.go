@@ -11,7 +11,7 @@ import (
 
 func init() {
 	builtin.Register("unquote($string)", unquote)
-	builtin.Register("length($value)", length)
+	builtin.Reg("length($value)", length)
 }
 
 func unquote(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
@@ -26,12 +26,18 @@ func unquote(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 	return lit, nil
 }
 
-func length(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	in := *args[0]
+func length(call *ast.CallExpr, args ...ast.Expr) (ast.Expr, error) {
+
 	lit := &ast.BasicLit{
 		Kind:     token.INT,
-		Value:    strconv.Itoa(len(in.Value)),
-		ValuePos: in.ValuePos,
+		Value:    "1",
+		ValuePos: args[0].Pos(),
 	}
+
+	switch v := args[0].(type) {
+	case *ast.ListLit:
+		lit.Value = strconv.Itoa(len(v.Value))
+	}
+
 	return lit, nil
 }

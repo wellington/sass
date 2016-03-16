@@ -31,6 +31,20 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		}
 		x.Kind = v.Kind
 		x.Value = strings.Join(list, "")
+	case *ast.ListLit:
+		// During expr simplification, list are just string
+		delim := " "
+		if v.Comma {
+			delim = ", "
+		}
+		ss := make([]string, len(v.Value))
+		for i := range v.Value {
+			ss[i] = v.Value[i].(*ast.BasicLit).Value
+		}
+		return &ast.BasicLit{
+			Value:    strings.Join(ss, delim),
+			ValuePos: v.Pos(),
+		}, nil
 	case *ast.UnaryExpr:
 		x = v.X.(*ast.BasicLit)
 	case *ast.BinaryExpr:
@@ -45,7 +59,10 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		kind := token.INT
 		var val []string
 		for _, x := range rhs {
-			lit := x.(*ast.BasicLit)
+			lit, err := resolve(x)
+			if err != nil {
+				return nil, err
+			}
 			// TODO: insufficient!
 			if lit.Kind != kind {
 				kind = lit.Kind
