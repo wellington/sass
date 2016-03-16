@@ -162,6 +162,20 @@ func exprToLit(x ast.Expr) (lit *ast.BasicLit, ok bool) {
 		}
 		return exprToLit(x)
 		// callargs[argpos] = lit
+	case *ast.ListLit:
+		// During expr simplification, list are just string
+		delim := " "
+		if v.Comma {
+			delim = ", "
+		}
+		ss := make([]string, len(v.Value))
+		for i := range v.Value {
+			ss[i] = v.Value[i].(*ast.BasicLit).Value
+		}
+		return &ast.BasicLit{
+			Value:    strings.Join(ss, delim),
+			ValuePos: v.Pos(),
+		}, true
 	case *ast.Interp:
 		if v.Obj == nil {
 			ast.Print(token.NewFileSet(), v)
@@ -252,7 +266,6 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		}
 		return fn.ch(expr, lits...)
 	}
-	x, err := fn.handle(expr, callargs...)
-	return x, err
-
+	ast.Print(token.NewFileSet(), callargs)
+	return fn.handle(expr, callargs...)
 }

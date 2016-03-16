@@ -805,9 +805,10 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	var merge bool
 	for _, x := range itp.X {
 		// copied ident won't be resolved, do so
-
+		var ok bool
 		// performing calc
-		x, _ = p.resolveCall(x)
+		x, ok = p.resolveCall(x)
+		assert(ok, "failed to resolve")
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -905,7 +906,7 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
-func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr) {
+func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bool) {
 	if p.trace {
 		defer un(trace(p, "SassList"))
 	}
@@ -921,16 +922,18 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr) {
 	for p.tok != token.SEMICOLON &&
 		// possible closers
 		p.tok != token.LBRACE && p.tok != token.RPAREN &&
+		p.tok != token.RBRACE &&
 		// failure scenario
 		p.tok != token.EOF {
 		if canComma {
 			inner := p.listFromExprs(p.parseSassList(lhs, false))
 			list = append(list, inner)
 			if p.tok == token.COMMA {
+				hasComma = true
 				p.next()
 			}
 		} else if p.tok == token.COMMA {
-			return list
+			return
 		} else {
 			list = append(list, p.checkExpr(p.inferExpr(lhs)))
 		}
@@ -1061,7 +1064,8 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 				if l.End() == lit.Pos() {
 					prev, ok := out[len(out)-1].(*ast.Interp)
 					if !ok {
-						log.Fatalf("l:% #v\nr:% #v\n",
+						ast.Print(token.NewFileSet(), in)
+						log.Fatalf("\nl:% #v\nr:% #v\n",
 							l, out[len(out)-1])
 					}
 					prev.X = append(prev.X, lit)
@@ -1144,7 +1148,7 @@ func (p *parser) inferExprList(lhs bool) ast.Expr {
 }
 
 // listFromExprs takes a slice of expr to create a ListLit
-func (p *parser) listFromExprs(in []ast.Expr) ast.Expr {
+func (p *parser) listFromExprs(in []ast.Expr, hasComma bool) ast.Expr {
 	if len(in) == 0 {
 		return nil
 	}
@@ -1156,6 +1160,7 @@ func (p *parser) listFromExprs(in []ast.Expr) ast.Expr {
 		ValuePos: in[0].Pos(),
 		EndPos:   in[len(in)-1].End(),
 		Value:    p.mergeInterps(in),
+		Comma:    hasComma,
 	}
 }
 
@@ -2509,7 +2514,7 @@ func (p *parser) parseEachDir() ast.Stmt {
 		p.next()
 	}
 
-	list := p.parseSassList(true, false)
+	list, _ := p.parseSassList(true, false)
 
 	// Run the first one with the first itr
 	p.openScope()
@@ -3391,9 +3396,12 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 		fmt.Println("resolved...", v.Obj.Decl.(*ast.BasicLit))
 		out = append(out, v.Obj.Decl.(*ast.BasicLit))
 	case *ast.Ident:
-		assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
-		p.resolve(v)
+		if v.Obj == nil {
+			assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
+			p.resolve(v)
+		}
 		out = basicLitFromIdent(v)
+
 	default:
 		panic(fmt.Errorf("unsupported expr % #v", v))
 	}
@@ -3452,6 +3460,10 @@ func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 				continue
 			case *ast.BasicLit:
 				lit = rtyp
+			case *ast.ListLit:
+				var err error
+				lit, err = calc.Resolve(rtyp)
+				assert(err == nil, "calc resolve failed")
 			default:
 				log.Fatalf("illegal Rhs expr % #v\n", rtyp)
 			}
