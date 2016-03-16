@@ -9,7 +9,6 @@ package ast
 import (
 	"bytes"
 	"fmt"
-	"strings"
 
 	"github.com/wellington/sass/token"
 )
@@ -57,44 +56,38 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 	for ; top.Outer != nil; top = top.Outer {
 		// fmt.Printf("up scope(%p) ", top)
 	}
-	// fmt.Printf("top scope(%p)\n", top)
+	// Need to remove this AssignStmt shit
 
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
-		last := len(assign.Rhs) - 1
 		var isGlobal bool
-		if lit, isLit := assign.Rhs[last].(*BasicLit); isLit {
-			if lit.Value == "!global" {
-				isGlobal = true
-				assign.Rhs = assign.Rhs[:last]
+
+		if list, isList := assign.Rhs[0].(*ListLit); isList {
+			l := len(list.Value)
+			if lit, ok := list.Value[l-1].(*BasicLit); ok {
+				if lit.Value == "!global" {
+					list.Value = list.Value[:l-1]
+					assign.Rhs[0] = list // probably unnecessary
+					isGlobal = true
+				}
 			}
 		}
-		for i := range assign.Rhs {
-			blit, ok := assign.Rhs[i].(*BasicLit)
-			if ok && isGlobal {
-				decl2 := StmtCopy(assign)
-				assign2 := decl2.(*AssignStmt)
-				// Copy these b/c they might be introduced by a mixin
-				litcopy := *blit
-				litcopy.Value = strings.TrimSuffix(blit.Value, " !global")
-				assign2.Rhs[i] = &litcopy
 
-				// assign2.Rhs[i] = NewIdent(strings.TrimSuffix(blit.Value, " !global"))
-				obj2 := *obj
-				obj2.Decl = decl2
-				// top.Insert(obj)
-				top.Objects[obj2.Name] = &obj2
-				fmt.Printf("inserting global %s scope(%p): % #v\n",
-					obj2.Name, top, obj2)
-				// Buck stops at 1
-				return
-			}
+		if isGlobal {
+			decl2 := StmtCopy(assign)
+			obj2 := *obj
+			obj2.Decl = decl2
+			// top.Insert(obj)
+			top.Objects[obj2.Name] = &obj2
+			fmt.Printf("inserting global %s scope(%p): % #v\n",
+				obj2.Name, top, obj2)
+			// Buck stops at 1
+			return
 		}
 	}
 
 	// At some point, we shouldn't need to do this but not today
 	s.Objects[obj.Name] = obj
-	// fmt.Printf("inserting %s scope(%p): % #v\n", obj.Name, s, obj)
 	return
 }
 

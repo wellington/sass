@@ -250,12 +250,6 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 		return
 	}
 
-	// These are also mixins, idiot
-	// Likely func calls
-	// if ident.Name[:1] != "$" {
-	// 	return
-	// }
-
 	assert(ident.Obj == nil, "identifier already declared or resolved")
 	if ident.Name == "_" {
 		return
@@ -267,11 +261,6 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 			fmt.Printf("trying %p\n", s)
 		}
 		if obj := s.Lookup(ident.Name); obj != nil {
-			decl, ok := obj.Decl.(*ast.AssignStmt)
-			if !ok {
-				fmt.Printf("unsupported decl % #v\n", decl)
-				return
-			}
 			ident.Obj = obj
 			return
 		}
@@ -2870,30 +2859,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	var spec ast.Spec
 	switch keyword {
 	case token.VAR:
-		// So, to prevent printing of Var expr, change its
-		// type away from Ident
-		// for i, v := range values {
-		// 	switch vv := v.(type) {
-		// 	case *ast.Ident:
-		// 		values[i] = vv
-		// 	case *ast.BasicLit:
-		// 		values[i] = vv
-		// 		// values[i] = &ast.Value{
-		// 		// 	Name:    vv.Value,
-		// 		// 	NamePos: vv.ValuePos,
-		// 		// 	Kind:    vv.Kind,
-		// 		// }
-		// 	case *ast.ListLit:
-		// 		values[i] = vv
-		// 	default:
-		// 		// panic(fmt.Errorf("fail % #v\n", vv))
-		// 		values[i] = vv
-		// 	}
-		// 	// This only looks at IDENTs from what I can tell
-		// 	// No need to resolve these
-		// 	// p.resolve(values[i])
-		// }
-
 		// Assignment happening
 		spec = &ast.ValueSpec{
 			// Doc:   doc,
