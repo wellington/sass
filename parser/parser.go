@@ -916,7 +916,10 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr) {
 		checkParen = true
 		p.next()
 	}
-
+	if p.tok == token.RULE {
+		p.error(p.pos, "sass can not contain a list")
+		p.next()
+	}
 	for p.tok != token.SEMICOLON &&
 		// possible closers
 		p.tok != token.LBRACE && p.tok != token.RPAREN &&
@@ -925,10 +928,9 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr) {
 		if canComma {
 			inner := p.listFromExprs(p.parseSassList(lhs, false))
 			list = append(list, inner)
-			if !p.atComma("comma sass list", token.RPAREN) {
-				return list
+			if p.tok == token.COMMA {
+				p.next()
 			}
-			p.next()
 		} else if p.tok == token.COMMA {
 			return list
 		} else {
@@ -942,7 +944,6 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr) {
 	if checkParen && p.tok == token.RPAREN {
 		p.next()
 	}
-	fmt.Printf("HI % #v\n", list[0])
 	return
 
 }
@@ -1045,7 +1046,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	if p.trace {
 		defer un(trace(p, "MergeInterps"))
 	}
-	if len(in) == 0 {
+	if len(in) < 2 {
 		return in
 	}
 	out := make([]ast.Expr, 0, len(in))
@@ -1060,7 +1061,11 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 			if ok && len(out) > 0 {
 				l := in[i-1]
 				if l.End() == lit.Pos() {
-					prev := out[len(out)-1].(*ast.Interp)
+					prev, ok := out[len(out)-1].(*ast.Interp)
+					if !ok {
+						log.Fatalf("l:% #v\nr:% #v\n",
+							l, out[len(out)-1])
+					}
 					prev.X = append(prev.X, lit)
 					// changes to interp require resolution
 					p.resolveInterp(prev)
@@ -1205,6 +1210,7 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	switch p.tok {
 	case token.RULE:
 		basic.Kind = token.RULE
+		p.next()
 		return expr
 	}
 	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
