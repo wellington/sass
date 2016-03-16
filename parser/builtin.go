@@ -68,7 +68,9 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 					Key: v,
 				})
 			default:
-				log.Fatalf("failed to parse arg % #v\n", v)
+				ast.Print(token.NewFileSet(), v)
+				panic(fmt.Errorf("%s failed to parse arg % #v\n",
+					d.c.name, v))
 			}
 		}
 		return nil
@@ -221,10 +223,15 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 			callargs[pos] = v.Value.(*ast.BasicLit)
 		case *ast.ListLit:
 			callargs[argpos] = v
+		case *ast.Ident:
+			ass := v.Obj.Decl.(*ast.AssignStmt)
+			callargs[argpos] = ass.Rhs[0]
 		default:
 			lit, ok := exprToLit(v)
 			if ok {
 				callargs[argpos] = lit
+			} else {
+				log.Fatalf("boom: % #v\n", v)
 			}
 		}
 	}

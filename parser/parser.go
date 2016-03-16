@@ -192,7 +192,7 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 				prevDecl = fmt.Sprintf("\n\tprevious declaration at %s", p.file.Position(pos))
 			}
 			p.error(ident.Pos(), fmt.Sprintf("%s redeclared in this block%s", ident.Name, prevDecl))
-		} else {
+		} else if p.trace {
 			fmt.Printf("declared ~> %8s(%p): % #v\n",
 				ident, scope, obj.Decl)
 		}
@@ -242,7 +242,9 @@ var unresolved = new(ast.Object)
 //
 func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// nothing to do if x is not an identifier or the blank identifier
-	fmt.Println("resolve", x)
+	if p.trace {
+		fmt.Println("resolve", x)
+	}
 	ident, _ := x.(*ast.Ident)
 	if ident == nil {
 		fmt.Printf("cant resolve this: % #v\n", x)
@@ -262,18 +264,14 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
-		fmt.Printf("trying %p\n", s)
+		if p.trace {
+			fmt.Printf("trying %p\n", s)
+		}
 		if obj := s.Lookup(ident.Name); obj != nil {
 			decl, ok := obj.Decl.(*ast.AssignStmt)
-			if ok {
-				var srh string
-				for _, rhs := range decl.Rhs {
-					srh += fmt.Sprintf("%s ", rhs)
-				}
-				fmt.Printf("resolved  %8s: scope(%p) %d: %s\n",
-					ident, s, len(decl.Rhs), srh)
-			} else {
+			if !ok {
 				fmt.Printf("unsupported decl % #v\n", decl)
+				return
 			}
 			ident.Obj = obj
 			return
@@ -1118,8 +1116,6 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	for _, o := range out {
 		if o.Pos() == 0 {
 			log.Fatalf("invalid position % #v\n", o)
-		} else {
-			fmt.Printf("%d % #v\n", o.Pos(), o)
 		}
 	}
 	return out
@@ -1890,7 +1886,6 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	if ok {
 		list = lit.Value
 	} else {
-		fmt.Printf("not lit % #v\n", lit)
 		list = []ast.Expr{expr}
 	}
 
@@ -3080,7 +3075,6 @@ func (p *parser) parseSelStmt(backrefOk bool) *ast.SelStmt {
 		sel.Resolved = stmt.Resolved
 	}
 	sel.Resolve(Globalfset)
-	fmt.Printf("selSel:% #v\n", sel.Sel)
 	p.openSelector(sel)
 	sel.Body = p.parseBody(scope)
 	p.closeSelector()
