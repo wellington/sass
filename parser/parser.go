@@ -907,30 +907,42 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
-func (p *parser) parseSassList(lhs bool) (list []ast.Expr) {
+func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr) {
 	if p.trace {
 		defer un(trace(p, "SassList"))
 	}
+	var checkParen bool
 	if p.tok == token.LPAREN {
+		checkParen = true
 		p.next()
 	}
 
-	list = append(list, p.checkExpr(p.inferExpr(lhs)))
 	for p.tok != token.SEMICOLON &&
 		// possible closers
 		p.tok != token.LBRACE && p.tok != token.RPAREN &&
 		// failure scenario
 		p.tok != token.EOF {
-		list = append(list, p.checkExpr(p.inferExpr(lhs)))
+		if canComma {
+			inner := p.listFromExprs(p.parseSassList(lhs, false))
+			list = append(list, inner)
+			if !p.atComma("comma sass list", token.RPAREN) {
+				return list
+			}
+			p.next()
+		} else if p.tok == token.COMMA {
+			return list
+		} else {
+			list = append(list, p.checkExpr(p.inferExpr(lhs)))
+		}
 	}
 
 	if p.tok == token.EOF {
 		p.error(p.pos, "could not find list end")
 	}
-	if p.tok == token.RPAREN {
+	if checkParen && p.tok == token.RPAREN {
 		p.next()
 	}
-
+	fmt.Printf("HI % #v\n", list[0])
 	return
 
 }
@@ -1037,7 +1049,6 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 		return in
 	}
 	out := make([]ast.Expr, 0, len(in))
-
 	for i := 0; i < len(in); i++ {
 		if in[i].Pos() == 0 {
 			log.Fatalf("invalid position %d: % #v\n", i, in[i])
@@ -1124,43 +1135,20 @@ func (p *parser) inferExprList(lhs bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
 	}
-	var list []ast.Expr
 	// lists are weird in Sass
 	// list: 1 2 3;
 	// list of lists: 1 2, 3
 
-	expr := p.inferExpr(lhs)
-	var inner []ast.Expr
-	inner = append(inner, expr)
-	// TODO: it also accepts spaces, b/c ...
-	for p.tok != token.SEMICOLON &&
-		p.tok != token.COLON &&
-		p.tok != token.RPAREN &&
-		p.tok != token.RBRACE &&
-		p.tok != token.EOF {
-
-		// Commas start a new list
-		if p.tok == token.COMMA {
-			p.next()
-			list = append(list, p.listOrExpr(inner))
-			inner = inner[:0]
-		}
-
-		expr := p.inferExpr(lhs)
-		inner = append(inner, expr)
-	}
-	list = append(list, p.listFromExprs(inner))
-	if len(list) == 1 {
-		return expr
-	}
-	out := p.listFromExprs(list)
-	return out
+	return p.listFromExprs(p.parseSassList(lhs, true))
 }
 
 // listFromExprs takes a slice of expr to create a ListLit
-func (p *parser) listFromExprs(in []ast.Expr) *ast.ListLit {
+func (p *parser) listFromExprs(in []ast.Expr) ast.Expr {
 	if len(in) == 0 {
 		return nil
+	}
+	if len(in) == 1 {
+		return in[0]
 	}
 
 	return &ast.ListLit{
@@ -1891,35 +1879,45 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
 	var list []ast.Expr
-	var ellipsis token.Pos
-	for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-		list = append(list, p.parseRhsOrKV()) // builtins may expect a type: make(some type, ...)
-		if p.tok == token.ELLIPSIS {
-			ellipsis = p.pos
-			p.next()
-		}
-		if p.tok == token.INTERP {
-			x := p.parseInterp()
-			// This shouldn't happen inside mixins
-			p.resolveInterp(x)
-			list = append(list, x)
-			continue
-		}
-		if !p.atComma("argument list", token.RPAREN) {
-			break
-		}
-		p.next()
+	expr := p.inferExprList(false)
+	lit, ok := expr.(*ast.ListLit)
+	if ok {
+		list = lit.Value
+	} else {
+		fmt.Printf("not lit % #v\n", lit)
+		list = []ast.Expr{expr}
 	}
+
+	// var list []ast.Expr
+	// var ellipsis token.Pos
+	// for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
+	// 	list = append(list, p.parseRhsOrKV()) // builtins may expect a type: make(some type, ...)
+	// 	if p.tok == token.ELLIPSIS {
+	// 		ellipsis = p.pos
+	// 		p.next()
+	// 	}
+	// 	if p.tok == token.INTERP {
+	// 		x := p.parseInterp()
+	// 		// This shouldn't happen inside mixins
+	// 		p.resolveInterp(x)
+	// 		list = append(list, x)
+	// 		continue
+	// 	}
+	// 	if !p.atComma("argument list", token.RPAREN) {
+	// 		break
+	// 	}
+	// 	p.next()
+	// }
 	p.exprLev--
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
 
 	call := &ast.CallExpr{
-		Fun:      fun,
-		Lparen:   lparen,
-		Args:     p.mergeInterps(list),
-		Ellipsis: ellipsis,
-		Rparen:   rparen,
+		Fun:    fun,
+		Lparen: lparen,
+		Args:   list,
+		// Ellipsis: ellipsis,
+		Rparen: rparen,
 	}
 	ident := fun.(*ast.Ident)
 	if p.mode&FuncOnly == 0 {
@@ -2048,6 +2046,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.StarExpr:
 	case *ast.UnaryExpr:
 	case *ast.BinaryExpr:
+	case *ast.KeyValueExpr:
 	default:
 		// all other nodes are not proper expressions
 		p.errorExpected(x.Pos(), "expression")
@@ -2502,7 +2501,7 @@ func (p *parser) parseEachDir() ast.Stmt {
 		p.next()
 	}
 
-	list := p.parseSassList(true)
+	list := p.parseSassList(true, false)
 
 	// Run the first one with the first itr
 	p.openScope()
