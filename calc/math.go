@@ -79,7 +79,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 	return x, err
 }
 
-// binary takes a BinaryExpr and simplifies it to a
+// binary takes a BinaryExpr and simplifies it to a basiclit
 func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	left, err := resolve(in.X)
 	if err != nil {
@@ -95,7 +95,7 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	}
 	switch in.Op {
 	case token.ADD:
-		if left.Kind == token.INT && left.Kind == left.Kind {
+		if left.Kind == token.INT && right.Kind == token.INT {
 			l, _ := strconv.Atoi(left.Value)
 			r, _ := strconv.Atoi(right.Value)
 			out.Kind = token.INT
@@ -103,8 +103,37 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 		} else {
 			out.Value = left.Value + right.Value
 		}
+	case token.SUB, token.MUL, token.QUO:
+		return combineLits(in.Op, left, right)
 	default:
-		err = fmt.Errorf("unsupported: %s", in.Op)
+		fmt.Printf("l: % #v\nr: % #v\n", left, right)
+		err = fmt.Errorf("unsupported %s", in.Op)
 	}
 	return out, err
+}
+
+func combineLits(op token.Token, left, right *ast.BasicLit) (*ast.BasicLit, error) {
+	return ast.Op(op, left, right)
+
+}
+
+// matchTypes looks for a compatiable token for all passed lit
+// The default is string, but if INT or FLOAT suffices those are
+// used
+func matchTypes(lits ...*ast.BasicLit) token.Token {
+	if len(lits) == 0 {
+		return token.ILLEGAL
+	}
+
+	tok := lits[0].Kind
+	// colors are special
+	if tok == token.COLOR {
+		return tok
+	}
+	for i := range lits[1:] {
+		if lits[i].Kind != tok {
+			return token.STRING
+		}
+	}
+	return tok
 }

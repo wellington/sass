@@ -461,10 +461,13 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 			list[last].Value = list[last].Value + `"`
 			lits = append(lits, list...)
 		case *ast.ListLit:
-			lits = make([]*ast.BasicLit, len(v.Value))
-			for i := range v.Value {
-				lits[i] = v.Value[i].(*ast.BasicLit)
+			out, err := simplifyExprs(ctx, v.Value)
+			if err != nil {
+				log.Fatal(err)
 			}
+			lits = append(lits, &ast.BasicLit{
+				Value: out,
+			})
 		default:
 			log.Fatalf("default rhs %s % #v\n", rhs, rhs)
 		}

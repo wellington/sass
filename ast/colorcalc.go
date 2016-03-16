@@ -168,23 +168,23 @@ func LookupColor(s string) string {
 	return s
 }
 
-func (x *BasicLit) Op(tok token.Token, y *BasicLit) *BasicLit {
+func colorOp(tok token.Token, x, y *BasicLit) (*BasicLit, error) {
 	if x.Kind == token.COLOR {
 		if y.Kind == token.INT {
 			z, err := colorOpInt(tok, x, y)
 			if err != nil {
 				log.Fatal(err)
 			}
-			return z
+			return z, nil
 		} else if y.Kind == token.COLOR {
 			z, err := colorOpColor(tok, x, y)
 			if err != nil {
 				log.Fatal(err)
 			}
-			return z
+			return z, nil
 		}
 	}
-	return nil
+	return nil, fmt.Errorf("unsupported type: %s", y.Kind)
 }
 
 func ColorFromHexString(s string) color.RGBA {

@@ -2872,26 +2872,27 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	case token.VAR:
 		// So, to prevent printing of Var expr, change its
 		// type away from Ident
-		for i, v := range values {
-			switch vv := v.(type) {
-			case *ast.Ident:
-				values[i] = vv
-			case *ast.BasicLit:
-				values[i] = vv
-				// values[i] = &ast.Value{
-				// 	Name:    vv.Value,
-				// 	NamePos: vv.ValuePos,
-				// 	Kind:    vv.Kind,
-				// }
-			case *ast.ListLit:
-				values[i] = vv
-			default:
-				panic(fmt.Errorf("fail % #v\n", vv))
-			}
-			// This only looks at IDENTs from what I can tell
-			// No need to resolve these
-			// p.resolve(values[i])
-		}
+		// for i, v := range values {
+		// 	switch vv := v.(type) {
+		// 	case *ast.Ident:
+		// 		values[i] = vv
+		// 	case *ast.BasicLit:
+		// 		values[i] = vv
+		// 		// values[i] = &ast.Value{
+		// 		// 	Name:    vv.Value,
+		// 		// 	NamePos: vv.ValuePos,
+		// 		// 	Kind:    vv.Kind,
+		// 		// }
+		// 	case *ast.ListLit:
+		// 		values[i] = vv
+		// 	default:
+		// 		// panic(fmt.Errorf("fail % #v\n", vv))
+		// 		values[i] = vv
+		// 	}
+		// 	// This only looks at IDENTs from what I can tell
+		// 	// No need to resolve these
+		// 	// p.resolve(values[i])
+		// }
 
 		// Assignment happening
 		spec = &ast.ValueSpec{
