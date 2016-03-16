@@ -43,7 +43,7 @@ See [functions](functions.md)
 - Variables: $ :question:
 - Data Types :question:
 - [x] Strings
-- [ ] Lists :question:
+- [x] Lists (space and comma delimited)
 - [ ] Maps
 - [x] Colors
 - Operations
