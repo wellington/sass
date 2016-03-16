@@ -765,6 +765,7 @@ func (p *parser) parseInterp() *ast.Interp {
 func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
 	isResolved := true
 	switch v := x.(type) {
+	case *ast.BasicLit:
 	case *ast.CallExpr:
 		// hold on soldier, first lets resolve all arguments
 		for i := range v.Args {
@@ -834,8 +835,9 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	}
 	// interpolation always outputs a string
 	itp.Obj.Decl = &ast.BasicLit{
-		Kind:  token.STRING,
-		Value: strings.Join(ss, " "),
+		Kind:     token.STRING,
+		Value:    strings.Join(ss, " "),
+		ValuePos: itp.Pos(),
 	}
 	return
 }
@@ -908,7 +910,7 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 // by parens
 func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bool) {
 	if p.trace {
-		defer un(trace(p, "SassList"))
+		// defer un(trace(p, "SassList"))
 	}
 	var checkParen bool
 	if p.tok == token.LPAREN {
@@ -935,7 +937,11 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bo
 		} else if p.tok == token.COMMA {
 			return
 		} else {
-			list = append(list, p.checkExpr(p.inferExpr(lhs)))
+			x := p.inferExpr(lhs)
+			if interp, ok := x.(*ast.Interp); ok {
+				p.resolveInterp(interp)
+			}
+			list = append(list, p.checkExpr(x))
 		}
 	}
 
@@ -1040,6 +1046,10 @@ func (p *parser) inferRhsList() ast.Expr {
 	return list
 }
 
+func astPrint(v interface{}) {
+	ast.Print(token.NewFileSet(), v)
+}
+
 // interpolation can happen inline to a string. In these cases,
 // the value should be merged with the previous or subsequent
 // value.
@@ -1065,8 +1075,8 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 					prev, ok := out[len(out)-1].(*ast.Interp)
 					if !ok {
 						ast.Print(token.NewFileSet(), in)
-						log.Fatalf("\nl:% #v\nr:% #v\n",
-							l, out[len(out)-1])
+						panic(fmt.Errorf("\nl:% #v\nr:% #v\n",
+							l, lit))
 					}
 					prev.X = append(prev.X, lit)
 					// changes to interp require resolution
@@ -1155,7 +1165,6 @@ func (p *parser) listFromExprs(in []ast.Expr, hasComma bool) ast.Expr {
 	if len(in) == 1 {
 		return in[0]
 	}
-
 	return &ast.ListLit{
 		ValuePos: in[0].Pos(),
 		EndPos:   in[len(in)-1].End(),
@@ -1894,26 +1903,6 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		list = []ast.Expr{expr}
 	}
 
-	// var list []ast.Expr
-	// var ellipsis token.Pos
-	// for p.tok != token.RPAREN && p.tok != token.EOF && !ellipsis.IsValid() {
-	// 	list = append(list, p.parseRhsOrKV()) // builtins may expect a type: make(some type, ...)
-	// 	if p.tok == token.ELLIPSIS {
-	// 		ellipsis = p.pos
-	// 		p.next()
-	// 	}
-	// 	if p.tok == token.INTERP {
-	// 		x := p.parseInterp()
-	// 		// This shouldn't happen inside mixins
-	// 		p.resolveInterp(x)
-	// 		list = append(list, x)
-	// 		continue
-	// 	}
-	// 	if !p.atComma("argument list", token.RPAREN) {
-	// 		break
-	// 	}
-	// 	p.next()
-	// }
 	p.exprLev--
 
 	rparen := p.expectClosing(token.RPAREN, "argument list")
@@ -2042,6 +2031,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.Ident:
 	case *ast.BasicLit:
 	case *ast.FuncLit:
+	case *ast.Interp:
 	case *ast.StringExpr:
 	case *ast.CompositeLit:
 	case *ast.ParenExpr:
@@ -2061,6 +2051,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.BinaryExpr:
 	case *ast.KeyValueExpr:
 	default:
+		panic(fmt.Errorf("fuq % #v\n", x))
 		// all other nodes are not proper expressions
 		p.errorExpected(x.Pos(), "expression")
 		x = &ast.BadExpr{From: x.Pos(), To: p.safePos(x.End())}
@@ -2892,10 +2883,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			switch vv := v.(type) {
 			case *ast.Ident:
 				values[i] = vv
-				// values[i] = &ast.Value{
-				// 	Name:    vv.Name,
-				// 	NamePos: vv.NamePos,
-				// }
 			case *ast.BasicLit:
 				values[i] = vv
 				// values[i] = &ast.Value{
@@ -2903,6 +2890,8 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 				// 	NamePos: vv.ValuePos,
 				// 	Kind:    vv.Kind,
 				// }
+			default:
+				panic(fmt.Errorf("fail % #v\n", vv))
 			}
 			// This only looks at IDENTs from what I can tell
 			// No need to resolve these

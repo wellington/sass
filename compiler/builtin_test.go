@@ -3,15 +3,13 @@ package compiler
 import (
 	"testing"
 
-	"github.com/wellington/sass/parser"
-
 	"github.com/wellington/sass/token"
 )
 
 func runParse(t *testing.T, in string, e string) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
+	// ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 
 	out, err := ctx.run("", in)

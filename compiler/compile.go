@@ -500,6 +500,18 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 		default:
 			out = v.Value
 		}
+	case *ast.ListLit:
+		vals := make([]string, len(v.Value))
+		delim := " "
+		if v.Comma {
+			delim = ", "
+		}
+		for i, x := range v.Value {
+			o, err := resolveExpr(ctx, x)
+			_ = err // fuq this error
+			vals[i] = o
+		}
+		return strings.Join(vals, delim), nil
 	default:
 		panic(fmt.Sprintf("unhandled expr: % #v\n", v))
 	}
