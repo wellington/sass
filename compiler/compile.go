@@ -239,6 +239,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = assignStmt
 	case *ast.EachStmt:
 		key = eachStmt
+	case *ast.ListLit:
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)

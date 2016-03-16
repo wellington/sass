@@ -756,7 +756,7 @@ func (p *parser) parseInterp() *ast.Interp {
 	pos := p.expect(token.INTERP)
 	itp := &ast.Interp{
 		Lbrace: pos,
-		X:      p.inferExprList(false),
+		X:      []ast.Expr{p.inferExprList(false)},
 		Rbrace: p.expect(token.RBRACE),
 	}
 	return itp
@@ -935,7 +935,7 @@ func (p *parser) parseSassList(lhs bool) (list []ast.Expr) {
 
 }
 
-func (p *parser) inferLhsList() []ast.Expr {
+func (p *parser) inferLhsList() ast.Expr {
 	old := p.inRhs
 	p.inRhs = false
 	list := p.inferExprList(true)
@@ -955,9 +955,7 @@ func (p *parser) inferLhsList() []ast.Expr {
 		//   to resolve the identifier in that case
 	default:
 		// identifiers must be declared elsewhere
-		for _, x := range list {
-			p.resolve(x)
-		}
+		p.resolveExpr(p.topScope, list)
 	}
 	p.inRhs = old
 	return list
@@ -1019,7 +1017,7 @@ func (p *parser) parseType() ast.Expr {
 	return typ
 }
 
-func (p *parser) inferRhsList() []ast.Expr {
+func (p *parser) inferRhsList() ast.Expr {
 	old := p.inRhs
 	p.inRhs = true
 	list := p.inferExprList(false)
@@ -1042,7 +1040,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 
 	for i := 0; i < len(in); i++ {
 		if in[i].Pos() == 0 {
-			log.Fatal("invalid position")
+			log.Fatalf("invalid position %d: % #v\n", i, in[i])
 		}
 		itp, isInterp := in[i].(*ast.Interp)
 		if !isInterp {
@@ -1111,29 +1109,65 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 	return out
 }
 
-func (p *parser) inferExprList(lhs bool) (list []ast.Expr) {
+func (p *parser) listOrExpr(xs []ast.Expr) ast.Expr {
+	if len(xs) > 1 {
+		return &ast.ListLit{
+			EndPos:   xs[len(xs)-1].End(),
+			Value:    p.mergeInterps(xs),
+			ValuePos: xs[0].Pos(),
+		}
+	}
+	return xs[0]
+}
+
+func (p *parser) inferExprList(lhs bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "InferExprList"))
 	}
-	lastExpr := p.inferExpr(lhs)
-	list = append(list, lastExpr)
+	var list []ast.Expr
+	// lists are weird in Sass
+	// list: 1 2 3;
+	// list of lists: 1 2, 3
 
-	// TODO: it also accepts spaces, b/c stupid
+	expr := p.inferExpr(lhs)
+	var inner []ast.Expr
+	inner = append(inner, expr)
+	// TODO: it also accepts spaces, b/c ...
 	for p.tok != token.SEMICOLON &&
 		p.tok != token.COLON &&
 		p.tok != token.RPAREN &&
 		p.tok != token.RBRACE &&
 		p.tok != token.EOF {
 
-		// Accept commas for sacrifices to Cthulu
+		// Commas start a new list
 		if p.tok == token.COMMA {
 			p.next()
+			list = append(list, p.listOrExpr(inner))
+			inner = inner[:0]
 		}
 
 		expr := p.inferExpr(lhs)
-		list = append(list, expr)
+		inner = append(inner, expr)
 	}
-	return p.mergeInterps(list)
+	list = append(list, p.listFromExprs(inner))
+	if len(list) == 1 {
+		return expr
+	}
+	out := p.listFromExprs(list)
+	return out
+}
+
+// listFromExprs takes a slice of expr to create a ListLit
+func (p *parser) listFromExprs(in []ast.Expr) *ast.ListLit {
+	if len(in) == 0 {
+		return nil
+	}
+
+	return &ast.ListLit{
+		ValuePos: in[0].Pos(),
+		EndPos:   in[len(in)-1].End(),
+		Value:    p.mergeInterps(in),
+	}
 }
 
 func (p *parser) parseString() *ast.StringExpr {
@@ -1181,33 +1215,11 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 	basic := &ast.BasicLit{ValuePos: p.pos, Value: p.lit}
 	expr = basic
 	switch p.tok {
-	case token.STRING:
-		basic.Kind = token.STRING
-	case token.QSSTRING, token.QSTRING:
-		return p.parseString()
 	case token.RULE:
 		basic.Kind = token.RULE
-	// case token.VAR:
-	// 	expr = &ast.Ident{
-	// 		NamePos: p.pos,
-	// 		Name:    p.lit,
-	// 	}
-	// 	// Inside mixins, this should not be marked as unresolved
-	// 	// Since pkgScope means nothings to us, we don't care about
-	// 	// resolving this again at the package scope.
-	// 	if !lhs {
-	// 		p.tryResolve(expr, false)
-	// 	}
-	case token.INTERP:
-		x := p.parseInterp()
-		p.resolveInterp(x)
-		return x
-	default:
-		return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+		return expr
 	}
-	// Always be steppin'
-	p.next()
-	return expr
+	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
 }
 
 func (p *parser) parseSassType() ast.Expr {
@@ -2188,7 +2200,7 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		un := &ast.UnaryExpr{OpPos: pos, Op: op, X: p.checkExpr(x)}
 		return un
 	case token.QSTRING, token.QSSTRING:
-		return p.inferExpr(lhs)
+		return p.parseString()
 	case token.ARROW:
 		// channel type or receive expression
 		arrow := p.pos
@@ -2339,13 +2351,13 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 		defer un(trace(p, "SimpleStmt"))
 	}
 	tok, pos := p.tok, p.pos
-	x := p.inferLhsList()
+	x := []ast.Expr{p.inferLhsList()}
 	var stmt ast.Stmt
 	isRange := false
 	switch tok {
 	case token.VAR:
 		p.expect(token.COLON)
-		y := p.inferRhsList()
+		y := []ast.Expr{p.inferRhsList()}
 		stmt = &ast.AssignStmt{Lhs: x, TokPos: pos, Rhs: y}
 	default:
 		p.error(p.pos, "SimpleStmt failed")
@@ -2804,7 +2816,7 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 
 func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
-		defer un(trace(p, keyword.String()+"Spec"))
+		defer un(trace(p, "inferValue"+keyword.String()+"Spec"))
 	}
 
 	lit := p.lit
@@ -2851,7 +2863,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		p.next()
 		fallthrough
 	default:
-		values = p.inferExprList(lhs)
+		values = []ast.Expr{p.inferExprList(lhs)}
 	}
 
 	// p.expectSemi()
@@ -2921,22 +2933,20 @@ func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota 
 		defer un(trace(p, keyword.String()+" RuleSpec"))
 	}
 
-	var values []ast.Expr
+	var value ast.Expr
 	pos := p.pos
 
 	switch keyword {
 	case token.VAR:
-		values = p.inferRhsList()
+		value = p.inferRhsList()
 	case
 		token.IDENT, token.INT,
 		// Stick these here for now, probably needs special Expr
 		token.UPX, token.UPT, token.UEM, token.UREM, token.UPCT:
-		values = []ast.Expr{
-			&ast.BasicLit{
-				ValuePos: pos,
-				Kind:     keyword,
-				Value:    p.lit,
-			},
+		value = &ast.BasicLit{
+			ValuePos: pos,
+			Kind:     keyword,
+			Value:    p.lit,
 		}
 		p.next()
 	default:
@@ -2947,7 +2957,7 @@ func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota 
 
 	spec := &ast.ValueSpec{
 		// Names:  []*ast.Ident{ident},
-		Values: values,
+		Values: []ast.Expr{value},
 	}
 
 	return spec

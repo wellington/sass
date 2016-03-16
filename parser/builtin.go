@@ -219,6 +219,8 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		case *ast.KeyValueExpr:
 			pos := fn.Pos(v.Key.(*ast.Ident))
 			callargs[pos] = v.Value.(*ast.BasicLit)
+		case *ast.ListLit:
+			callargs[argpos] = v
 		default:
 			lit, ok := exprToLit(v)
 			if ok {
