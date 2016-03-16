@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/wellington/sass/ast"
+	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
@@ -379,54 +380,10 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 }
 
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
-	x := bin.X
-	y := bin.Y
 
-	var err error
-	// Convert CallExpr to BasicLit
-	if cx, ok := x.(*ast.CallExpr); ok {
-		fmt.Printf("cx (%p) % #v\n", cx.Fun, cx.Fun.(*ast.Ident))
-		x = cx.Fun.(*ast.Ident).Obj.Decl.(ast.Expr)
-	}
-	if cy, ok := y.(*ast.CallExpr); ok {
-		fmt.Printf("cy (%p) % #v\n", cy.Fun, cy.Fun)
-		y = cy.Fun.(*ast.Ident).Obj.Decl.(ast.Expr)
-	}
+	lit, err := calc.Resolve(bin)
 
-	if err != nil {
-		return "", err
-	}
-
-	bx := x.(*ast.BasicLit)
-	by := y.(*ast.BasicLit)
-
-	if bx == nil || by == nil {
-		return "", fmt.Errorf("operand is nil % #v: % #v", bx, by)
-	}
-
-	// Attempt color math
-	if bx.Kind == token.COLOR {
-		z := bx.Op(bin.Op, by)
-		if z == nil {
-			// Op failed, just do string math
-			z = &ast.BasicLit{
-				Kind:  token.STRING,
-				Value: bx.Value + by.Value,
-			}
-			// panic(fmt.Sprintf("invalid return op: %q x: % #v y: % #v",
-			// 	bin.Op, bx, by,
-			// ))
-		}
-		return z.Value, nil
-	}
-
-	// We're looking at INT and non-INT, treat as strings
-	if bx.Kind == token.INT && by.Kind != token.INT {
-		// Treat everything as strings
-		return bx.Value + bin.Op.String() + by.Value, nil
-	}
-
-	return "", nil
+	return lit.Value, err
 }
 
 func resolveIdent(ctx *Context, ident *ast.Ident) (out string) {
