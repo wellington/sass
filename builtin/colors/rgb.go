@@ -14,7 +14,7 @@ import (
 func init() {
 	builtin.Register("rgb($red:0, $green:0, $blue:0)", rgb)
 	builtin.Register("rgba($red:0, $green:0, $blue:0, $alpha:0)", rgba)
-	builtin.Register("mix($color1:0, $color2:0, $weight:0.5)", mix)
+	builtin.Register("mix($color1, $color2, $weight:0.5)", mix)
 	builtin.Register("invert($color)", invert)
 	builtin.Register("red($color)", red)
 	builtin.Register("blue($color)", blue)
@@ -61,7 +61,11 @@ func parseColors(args []*ast.BasicLit) (color.RGBA, error) {
 			if i != 0 {
 				return ret, fmt.Errorf("hex is only allowed as the first argumetn found: % #v", v)
 			}
-			ret = ast.ColorFromHexString(v.Value)
+			var err error
+			ret, err = ast.ColorFromHexString(v.Value)
+			if err != nil {
+				return ret, err
+			}
 			// This is only allowed as the first argument
 			i = i + 2
 		default:
@@ -149,9 +153,6 @@ func rgba(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 // difference of alphas and factors this into the weight calculations
 // For details see: http://sass-lang.com/documentation/Sass/Script/Functions.html#mix-instance_method
 func mix(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	// fmt.Printf("mix:\narg0: % #v\narg1: % #v\narg2: % #v\n",
-	// 	args[0], args[1], args[2])
-	// parse that weight
 	wt, err := strconv.ParseFloat(args[2].Value, 8)
 	// Parse percentage ie. 50%
 	if err != nil {
@@ -162,8 +163,17 @@ func mix(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
 		}
 		wt = i / 100
 	}
-	c1 := ast.ColorFromHexString(args[0].Value)
-	c2 := ast.ColorFromHexString(args[1].Value)
+
+	c1, err := ast.ColorFromHexString(args[0].Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read hex string %s: %s",
+			args[0].Value, err)
+	}
+	c2, err := ast.ColorFromHexString(args[1].Value)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read hex string %s: %s",
+			args[1].Value, err)
+	}
 
 	var r, g, b, a float64
 
@@ -207,7 +217,11 @@ func round(v float64, decimals int) float64 {
 }
 
 func invert(call *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error) {
-	c := ast.ColorFromHexString(args[0].Value)
+	val := args[0].Value
+	c, err := ast.ColorFromHexString(val)
+	if err != nil {
+		return nil, fmt.Errorf("invert failed to parse argument %s; %s", val, err)
+	}
 
 	c.R = 255 - c.R
 	c.G = 255 - c.G
