@@ -213,8 +213,11 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 			ident.Obj = obj
 			if ident.Name != "_" {
 				if alt := p.topScope.Insert(obj); alt != nil {
-					fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
-						ident, decl)
+					if p.trace {
+						fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
+
+							ident, decl)
+					}
 					ident.Obj = alt // redeclaration
 				} else {
 					n++ // new declaration
