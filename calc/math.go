@@ -91,7 +91,6 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("binary % #v\n% #v\n", left, right)
 	out := &ast.BasicLit{
 		ValuePos: left.Pos(),
 		Kind:     token.STRING,
