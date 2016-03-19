@@ -10,9 +10,6 @@ import (
 )
 
 func TestSpec_files(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skip robust testing to better indicate errors")
-	}
 
 	inputs, err := filepath.Glob("../sass-spec/spec/basic/*/input.scss")
 	if err != nil {
@@ -22,20 +19,22 @@ func TestSpec_files(t *testing.T) {
 	mode := DeclarationErrors
 	mode = 0 //Trace | ParseComments
 	var name string
-	defer func() { fmt.Println("exit parsing", name) }()
 	for _, name = range inputs {
-
+		if strings.Contains(name, "25_") && testing.Short() {
+			// This is the last test we currently parse properly
+			return
+		}
 		if !strings.Contains(name, "23_") {
-			continue
+			// continue
 		}
 		if strings.Contains(name, "06_") {
 			continue
 		}
-		// These are fucked things in Sass like lists
-		if strings.Contains(name, "15_") {
+		if strings.Contains(name, "14_") {
 			continue
 		}
-		if strings.Contains(name, "16_") {
+		// These are fucked things in Sass like lists
+		if strings.Contains(name, "15_") {
 			continue
 		}
 		// namespaces are wtf
