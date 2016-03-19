@@ -280,7 +280,7 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// them so that they can be resolved later
 	if collectUnresolved && !p.inMixin && p.mode&FuncOnly == 0 {
 		fmt.Printf("failed to resolve % #v\n", ident)
-
+		// panic("boom")
 		ident.Obj = unresolved
 		p.unresolved = append(p.unresolved, ident)
 	}
@@ -1758,7 +1758,8 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	switch p.tok {
 	case token.IDENT:
 		x := p.parseIdent()
-		if !lhs {
+		// token.LPAREN indicates call expr
+		if !lhs && p.tok != token.LPAREN {
 			p.resolve(x)
 		}
 		return x
