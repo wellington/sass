@@ -333,29 +333,8 @@ func (p *parser) setToken(pos token.Pos, tok token.Token, lit string) {
 	p.pos, p.tok, p.lit = pos, tok, lit
 }
 
-// iptLvl tracks interpolation level. If itpLvl > 0 every '}' encountered
-// is an interpolation end
-var itpLvl int
-
-// Applies rules for merging on interpolation boundaries
-func concatTri(left, right triplet, dist int, issel bool) (lit string, is bool) {
-	is = issel || dist == 0
-
-	if is {
-		sep := ""
-		if dist > 0 {
-			sep = " "
-		}
-		lit = left.lit + sep + right.lit
-	}
-
-	return
-}
-
-// expand will unwrap interpolations and perform the necessary
-// string concat forwards or backwards. You should never
-// call Scan() directly unless you want a world of interpolation
-// pain.
+// nextExpand was used for interpolation things, but is irrelevant
+// and should be merged with expend()
 func (p *parser) nextExpand() {
 	// The very first token is always invalid file, so lookahead
 	// expansion isn't important for the first call.
@@ -391,35 +370,6 @@ func (p *parser) nextExpand() {
 		p.setLook(npos, ntok, nlit)
 		return
 	}
-	// never runs
-
-	if ntok == token.INTERP {
-		dist := npos - pos // did the interpolation have a space before
-		npos, ntok, nlit = p.scanner.Scan()
-		if ntok == token.VAR {
-			ident := &ast.Ident{Name: nlit}
-			p.resolve(ident)
-			nlit = ident.Obj.Decl.(*ast.AssignStmt).Rhs[0].(*ast.BasicLit).Value
-			fmt.Println("found", ntok, nlit)
-		}
-		newlit, merged := concatTri(
-			triplet{pos, tok, lit},
-			triplet{npos, ntok, nlit},
-			int(dist),
-			p.inSel,
-		)
-		fmt.Println("newlit", newlit, "merged?", merged)
-	}
-
-	// lit followed by list interp (with space)
-	// "div" #{foo, bar}
-
-	// string followed by interp (no space)
-	// "div"#{.class}
-
-	// The next token is stored in lookahead
-
-	return
 }
 
 // Advance to the next token.
@@ -972,34 +922,6 @@ func (p *parser) inferLhsList() ast.Expr {
 	return list
 }
 
-func (p *parser) parseLhsList() []ast.Expr {
-	old := p.inRhs
-	p.inRhs = false
-	list := p.parseExprList(true)
-	switch p.tok {
-	case token.DEFINE:
-		// lhs of a short variable declaration
-		// but doesn't enter scope until later:
-		// caller must call p.shortVarDecl(p.makeIdentList(list))
-		// at appropriate time.
-	case token.COLON:
-		// lhs of a label declaration or a communication clause of a select
-		// statement (parseLhsList is not called when parsing the case clause
-		// of a switch statement):
-		// - labels are declared by the caller of parseLhsList
-		// - for communication clauses, if there is a stand-alone identifier
-		//   followed by a colon, we have a syntax error; there is no need
-		//   to resolve the identifier in that case
-	default:
-		// identifiers must be declared elsewhere
-		for _, x := range list {
-			p.resolve(x)
-		}
-	}
-	p.inRhs = old
-	return list
-}
-
 func (p *parser) parseRhsList() []ast.Expr {
 	old := p.inRhs
 	p.inRhs = true
@@ -1124,17 +1046,6 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 		}
 	}
 	return out
-}
-
-func (p *parser) listOrExpr(xs []ast.Expr) ast.Expr {
-	if len(xs) > 1 {
-		return &ast.ListLit{
-			EndPos:   xs[len(xs)-1].End(),
-			Value:    p.mergeInterps(xs),
-			ValuePos: xs[0].Pos(),
-		}
-	}
-	return xs[0]
 }
 
 func (p *parser) inferExprList(lhs bool) ast.Expr {
@@ -1395,41 +1306,6 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 	}
 
 	return p.tryIdentOrType()
-}
-
-// checkInterp verifies there's spaces between interpolations and
-// literals. If not, it merges the tokens
-func (p *parser) checkInterp(in []ast.Expr) (out []ast.Expr) {
-
-	var merge bool
-	var endpos token.Pos
-	for _, expr := range in {
-		switch v := expr.(type) {
-		case *ast.Interp:
-			if endpos > 0 && expr.Pos() == endpos {
-				merge = true
-			}
-		case *ast.BasicLit:
-
-			fmt.Println("lit ", v.Value, "   start", expr.Pos(),
-				"end", expr.End())
-
-			if !merge {
-				out = append(out, expr)
-			} else {
-				fmt.Println(out, len(out))
-				last := out[len(out)-1]
-				fmt.Println("wut")
-				last.(*ast.BasicLit).Value += v.Value
-				merge = false
-			}
-		default:
-			out = append(out, expr)
-		}
-		endpos = expr.End()
-	}
-	fmt.Println("final interp", out)
-	return
 }
 
 // If the result is an identifier, it is not resolved.
@@ -2893,63 +2769,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 
 }
 
-func (p *parser) parseRuleSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
-
-	if p.trace {
-		defer un(trace(p, keyword.String()+" RuleSpec"))
-	}
-
-	var value ast.Expr
-	pos := p.pos
-
-	switch keyword {
-	case token.VAR:
-		value = p.inferRhsList()
-	case
-		token.IDENT, token.INT,
-		// Stick these here for now, probably needs special Expr
-		token.UPX, token.UPT, token.UEM, token.UREM, token.UPCT:
-		value = &ast.BasicLit{
-			ValuePos: pos,
-			Kind:     keyword,
-			Value:    p.lit,
-		}
-		p.next()
-	default:
-		p.errorExpected(pos, "unsupported rule spec")
-		// Be steppin'
-		p.next()
-	}
-
-	spec := &ast.ValueSpec{
-		// Names:  []*ast.Ident{ident},
-		Values: []ast.Expr{value},
-	}
-
-	return spec
-}
-
-func (p *parser) parseTypeSpec(doc *ast.CommentGroup, _ token.Token, _ int) ast.Spec {
-	if p.trace {
-		defer un(trace(p, "TypeSpec"))
-	}
-
-	ident := p.parseIdent()
-
-	// Go spec: The scope of a type identifier declared inside a function begins
-	// at the identifier in the TypeSpec and ends at the end of the innermost
-	// containing block.
-	// (Global identifiers are resolved in a separate phase after parsing.)
-	spec := &ast.TypeSpec{ /*Doc: doc,*/ Name: ident}
-	p.declare(spec, nil, p.topScope, ast.Typ, ident)
-
-	spec.Type = p.parseType()
-	p.expectSemi() // call before accessing p.linecomment
-	spec.Comment = p.lineComment
-
-	return spec
-}
-
 func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFunction) *ast.GenDecl {
 	if p.trace {
 		// defer un(trace(p, "GenDecl("+keyword.String()+")"))
@@ -3397,8 +3216,9 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 	}
 }
 
+// TODO: delete this, calc.Resolve can do it
 // basicLitFromIdent recursively resolves an Ident until a
-// basic lit is uncovered
+// basic lit is uncovered.
 func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 	assert(ident.Obj != nil, "ident has not been resolved")
 	decl := ident.Obj.Decl
