@@ -11,28 +11,38 @@ import (
 func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 	fmt.Printf("kind: %s op: %s x: % #v y: % #v\n", x.Kind, op, x, y)
 	kind := x.Kind
+	var fn func(token.Token, *BasicLit, *BasicLit) (*BasicLit, error)
 	switch {
 	case kind == token.COLOR:
-		return colorOp(op, x, y)
+		fn = colorOp
+	case kind == token.UPX:
+		fn = unitOp
 	case kind == token.INT:
 		switch y.Kind {
 		case token.STRING:
-			return stringOp(op, x, y)
+			fn = stringOp
 		case token.FLOAT:
-			return floatOp(op, x, y)
+			fn = floatOp
+		default:
+			fn = intOp
 		}
-		return intOp(op, x, y)
 	case kind == token.FLOAT:
 		switch y.Kind {
 		case token.STRING:
-			return stringOp(op, x, y)
+			fn = stringOp
+		default:
+			fn = floatOp
 		}
-		return floatOp(op, x, y)
 	case kind == token.STRING || x.Kind != y.Kind:
-		return stringOp(op, x, y)
+		fn = stringOp
 	default:
 		return nil, fmt.Errorf("unsupported Op %s", x.Kind)
 	}
+	return fn(op, x, y)
+}
+
+func unitOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+	return nil, nil
 }
 
 func floatOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {

@@ -15,7 +15,9 @@ $c: inspect(1/2 + 1/2);
 $d: inspect(2*2);
 $d: inspect(1*1/2);
 $e: inspect(1/2*1/2);
-$e: inspect(2*2/2*2);
+$f: inspect(2*2/2*2);
+
+//$o: inspect(3px + 3px + 3px);
 `
 	f, err := ParseFile(token.NewFileSet(), "", src, 0|Trace)
 	if err != nil {
