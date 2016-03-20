@@ -33,8 +33,20 @@ const (
 	literal_end
 
 	cssnums_beg
-	UPX  // 16px
-	UPT  // 16pt
+	UIN // 1in
+	UCM // 2.54cm
+	UMM // 25.4mm
+
+	UPC // 1pc
+
+	UPX // 16px
+	UPT // 16pt
+
+	DEG  // 1deg
+	GRAD // 1grad
+	RAD  // 1rad
+	TURN // 1turn
+
 	UEM  // 1em
 	UREM // 1rem
 	UPCT // 10%
@@ -159,11 +171,21 @@ var Tokens = [...]string{
 	TEXT:     "text",
 	SELECTOR: "selector",
 
-	UPX:  "unitpx",
-	UPT:  "unitpt",
-	UEM:  "unitem",
-	UREM: "unitrem",
-	UPCT: "unitpct",
+	UIN: "in",
+	UCM: "cm",
+	UMM: "mm",
+	UPC: "pc",
+	UPX: "px",
+	UPT: "pt",
+
+	DEG:  "deg",
+	GRAD: "grad",
+	RAD:  "rad",
+	TURN: "turn",
+
+	UEM:  "em",
+	UREM: "rem",
+	UPCT: "pct",
 
 	CMDVAR:  "command-variable",
 	VALUE:   "value",

@@ -42,6 +42,10 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 }
 
 func unitOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+	// So we have some non-standard units, convert to INT/FLOAT
+	// and send to another handler. Return always matches the unit
+	// of x
+	// var unitx, unity token.Token
 	return nil, nil
 }
 
