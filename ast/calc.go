@@ -23,7 +23,7 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 
 func intOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 	out := &BasicLit{
-		Kind: op,
+		Kind: token.INT,
 	}
 	l, err := strconv.Atoi(x.Value)
 	if err != nil {
@@ -51,7 +51,14 @@ func intOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 }
 
 func stringOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+	if op == token.ADD {
+		return &BasicLit{
+			Kind:  token.STRING,
+			Value: x.Value + y.Value,
+		}, nil
+	}
 	return &BasicLit{
+		Kind:  token.STRING,
 		Value: x.Value + op.String() + y.Value,
 	}, nil
 }

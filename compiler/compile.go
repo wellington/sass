@@ -240,6 +240,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.EachStmt:
 		key = eachStmt
 	case *ast.ListLit:
+	case *ast.ImportSpec:
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
@@ -381,7 +382,6 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 
 	lit, err := calc.Resolve(bin)
-	ast.Print(token.NewFileSet(), bin)
 	if err != nil {
 		return "", err
 	}

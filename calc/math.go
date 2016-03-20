@@ -29,7 +29,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 			}
 			list = append(list, lit.Value)
 		}
-		x.Kind = v.Kind
+		x.Kind = token.QSTRING
 		x.Value = strings.Join(list, "")
 	case *ast.ListLit:
 		// During expr simplification, list are just string
@@ -74,6 +74,11 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		x.Kind = kind
 	case *ast.CallExpr:
 		return resolve(v.Resolved)
+	case *ast.Interp:
+		if v.Obj == nil {
+			panic("unresolved interpolation")
+		}
+		return resolve(v.Obj.Decl.(ast.Expr))
 	default:
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 		panic(err)
@@ -91,7 +96,6 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("binary % #v\n% #v\n", left, right)
 	out := &ast.BasicLit{
 		ValuePos: left.Pos(),
 		Kind:     token.STRING,

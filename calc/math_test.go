@@ -19,7 +19,7 @@ func TestBinary_simple_int(t *testing.T) {
 	}
 
 	if lit.Kind != token.INT {
-		t.Fatal("unexpected kind")
+		t.Fatalf("unexpected kind: %s", lit.Kind)
 	}
 
 	if e := "3"; lit.Value != e {

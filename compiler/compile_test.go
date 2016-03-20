@@ -27,15 +27,11 @@ func findPaths() []file {
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
-		if !strings.Contains(input, "18_") {
+		if !strings.Contains(input, "14_") {
 			// continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
-			continue
-		}
-		// Imports do not work with Trace see #29
-		if strings.Contains(input, "14_") {
 			continue
 		}
 		// skip insane list math
@@ -80,10 +76,8 @@ func TestCompile_files(t *testing.T) {
 compiling: %s\n
 =================================
 `, f.input)
-		ctx := Context{
-		//mode: parser.Trace
-		}
-		// ctx.mode = 0
+		ctx := Context{}
+		// ctx.mode = parser.Trace
 		ctx.Init()
 		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)

@@ -2,55 +2,11 @@ package parser
 
 import (
 	"fmt"
-	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/token"
 )
-
-func TestParse_files(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skip robust testing to better indicate errors")
-	}
-
-	inputs, err := filepath.Glob("../sass-spec/spec/basic/*/input.scss")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	mode := DeclarationErrors
-	mode = 0 //Trace | ParseComments
-	var name string
-	defer func() { fmt.Println("exit parsing", name) }()
-	for _, name = range inputs {
-
-		if !strings.Contains(name, "23_") {
-			continue
-		}
-		if strings.Contains(name, "06_") {
-			continue
-		}
-		// These are fucked things in Sass like lists
-		if strings.Contains(name, "15_") {
-			continue
-		}
-		if strings.Contains(name, "16_") {
-			continue
-		}
-		// namespaces are wtf
-		if strings.Contains(name, "24_") {
-			continue
-		}
-		fmt.Println("Parsing", name)
-		_, err := ParseFile(token.NewFileSet(), name, nil, mode)
-		if err != nil {
-			t.Fatalf("ParseFile(%s): %v", name, err)
-		}
-		fmt.Println("Parsed", name)
-	}
-}
 
 func testString(t *testing.T, in string, mode Mode) (*ast.File, *token.FileSet) {
 	fset := token.NewFileSet()
@@ -60,6 +16,43 @@ func testString(t *testing.T, in string, mode Mode) (*ast.File, *token.FileSet) 
 	}
 	return f, fset
 
+}
+
+func TestObjects(t *testing.T) {
+	const src = `
+$color: red;
+$list: 1 2 $color;
+`
+	f, err := ParseFile(token.NewFileSet(), "", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	objects := map[string]ast.ObjKind{
+		"$color": ast.Var,
+		"$list":  ast.Var,
+	}
+
+	ast.Inspect(f, func(n ast.Node) bool {
+		if ident, ok := n.(*ast.Ident); ok {
+
+			obj := ident.Obj
+			if obj == nil {
+				if objects[ident.Name] != ast.Bad {
+					t.Errorf("no object for %s", ident.Name)
+				}
+				return true
+			}
+			if obj.Name != ident.Name {
+				t.Errorf("names don't match: obj.Name = %s, ident.Name = %s", obj.Name, ident.Name)
+			}
+			kind := objects[ident.Name]
+			if obj.Kind != kind {
+				t.Errorf("%s: obj.Kind = %s; want %s", ident.Name, obj.Kind, kind)
+			}
+		}
+		return true
+	})
 }
 
 func TestSelMath(t *testing.T) {
@@ -131,5 +124,22 @@ func TestBackRef(t *testing.T) {
 
 	if e := "div"; e != nested.Resolved.Value {
 		t.Errorf("got: %s wanted: %s", nested.Resolved.Value, e)
+	}
+}
+
+var imports = map[string]bool{
+	`"../sass-spec/spec/basic/01_simple_css/input.scss"`: true,
+}
+
+func TestImports(t *testing.T) {
+	for path, isValid := range imports {
+		src := fmt.Sprintf("@import %s;", path)
+		_, err := ParseFile(token.NewFileSet(), "", src, 0) // Trace
+		switch {
+		case err != nil && isValid:
+			t.Errorf("ParseFile(%s): got %v; expected no error", src, err)
+		case err == nil && !isValid:
+			t.Errorf("ParseFile(%s): got no error; expected one", src)
+		}
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/builtin"
+	"github.com/wellington/sass/calc"
 	"github.com/wellington/sass/token"
 
 	// Include defined builtins
@@ -100,7 +101,6 @@ func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
 		ch:     ch,
 		handle: h,
 	}}
-	// ast.Print(fset, pf.Decls[0])
 	ast.Walk(d, pf.Decls[0])
 	if d.err != nil {
 		log.Fatal("failed to parse func description", d.err)
@@ -109,87 +109,6 @@ func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
 		log.Println("already registered", d.c.name)
 	}
 	builtins[d.c.name] = d.c
-}
-
-func exprToLit(x ast.Expr) (lit *ast.BasicLit, ok bool) {
-	switch v := x.(type) {
-	case *ast.BadExpr:
-		panic("")
-	case *ast.BasicLit:
-		return v, true
-	case *ast.Ident:
-		if v.Obj == nil {
-			panic(fmt.Errorf("ident unresolved: % #v\n",
-				v))
-		}
-		assign := v.Obj.Decl.(*ast.AssignStmt)
-		if len(assign.Rhs) > 0 {
-			return
-		}
-		return exprToLit(assign.Rhs[0])
-		// Resolving an assignment should also update the ctx.
-		switch v := assign.Rhs[0].(type) {
-		case *ast.BasicLit:
-			return v, true
-			// incoming[i] = v
-			// callargs[argpos] = v
-		case *ast.CallExpr:
-			// incoming[i] = v
-			// callargs[argpos] = v.Resolved
-			return exprToLit(v.Resolved)
-		}
-	case *ast.StringExpr:
-		if len(v.List) > 1 {
-			log.Fatalf("% #v\n", v.List)
-		}
-		val, ok := v.List[0].(*ast.BasicLit)
-		if !ok {
-			// try again on interp
-			val = v.List[0].(*ast.Interp).Obj.Decl.(*ast.BasicLit)
-		}
-		return &ast.BasicLit{
-			Kind:  token.QSTRING,
-			Value: val.Value,
-		}, true
-	case *ast.BinaryExpr:
-		log.Fatalf("% #v\n", v)
-	case *ast.CallExpr:
-		// Nested function call
-		x, err := evaluateCall(v)
-		if err != nil {
-			log.Printf("I need parser context: %s\n", err)
-			return
-		}
-		return exprToLit(x)
-		// callargs[argpos] = lit
-	case *ast.ListLit:
-		// During expr simplification, list are just string
-		delim := " "
-		if v.Comma {
-			delim = ", "
-		}
-		ss := make([]string, len(v.Value))
-		for i := range v.Value {
-			ss[i] = v.Value[i].(*ast.BasicLit).Value
-		}
-		return &ast.BasicLit{
-			Value:    strings.Join(ss, delim),
-			ValuePos: v.Pos(),
-		}, true
-	case *ast.Interp:
-		if v.Obj == nil {
-			ast.Print(token.NewFileSet(), v)
-			log.Fatalf("nil")
-		}
-		l, ok := v.Obj.Decl.(*ast.BasicLit)
-		if ok {
-			return l, true
-		}
-		// callargs[argpos] = v.Obj.Decl.(*ast.BasicLit)
-	default:
-		log.Fatalf("eval call unsupported % #v\n", v)
-	}
-	return
 }
 
 // This might not be enough
@@ -231,7 +150,6 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		if argpos < i {
 			argpos = i
 		}
-		fmt.Printf("%d % #v\n", i, arg)
 		switch v := arg.(type) {
 		case *ast.KeyValueExpr:
 			pos := fn.Pos(v.Key.(*ast.Ident))
@@ -241,31 +159,31 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		case *ast.Ident:
 			if v.Obj != nil {
 				ass := v.Obj.Decl.(*ast.AssignStmt)
-				fmt.Printf("ass % #v\n", ass)
 				callargs[argpos] = ass.Rhs[0]
 			} else {
 				callargs[argpos] = v
 			}
 
 		default:
-			lit, ok := exprToLit(v)
-			if ok {
+			lit, err := calc.Resolve(v)
+			if err == nil {
 				callargs[argpos] = lit
 			} else {
-				log.Fatalf("boom: % #v\n", v)
+				return nil, err
 			}
 		}
 	}
 	if fn.ch != nil {
 		lits := make([]*ast.BasicLit, len(callargs))
+		var err error
 		for i, x := range callargs {
-			lits[i], ok = exprToLit(x)
-			if !ok {
-				log.Fatalf("litize % #v\n", x)
+			lits[i], err = calc.Resolve(x)
+			// lits[i], ok = exprToLit(x)
+			if err != nil {
+				return nil, fmt.Errorf("failed to parse arg(%d) in %s: %s", i, fn.name, err)
 			}
 		}
 		return fn.ch(expr, lits...)
 	}
-	ast.Print(token.NewFileSet(), callargs)
 	return fn.handle(expr, callargs...)
 }

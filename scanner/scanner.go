@@ -545,6 +545,8 @@ L:
 	case -1:
 		// other compilers identify first non-rule text as
 		// a selector
+		// like an error, not sure
+		s.error(s.offset, "encountered EOF prematurely")
 		fallthrough
 	case '{':
 		if s.inParams {

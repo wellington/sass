@@ -197,28 +197,30 @@ func colorOp(tok token.Token, x, y *BasicLit) (*BasicLit, error) {
 	return nil, fmt.Errorf("unsupported type: %s", y.Kind)
 }
 
-func ColorFromHexString(s string) color.RGBA {
-	return colorFromHexString(s)
+func ColorFromHexString(s string) (color.RGBA, error) {
+	return ColorFromHex([]byte(s))
 }
 
-func colorFromHexString(s string) color.RGBA {
-	return colorFromHex([]byte(s))
+func ColorFromHex(b []byte) (color.RGBA, error) {
+	return colorFromHex(b), nil
 }
 
 func colorFromRGBA(in string) color.RGBA {
 	var r, g, b uint8
 	var a float32
-
+	if len(in) < 4 {
+		panic("invalid input")
+	}
 	n, err := fmt.Sscanf(in, "rgba(%d, %d, %d, %f)", &r, &g, &b, &a)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(fmt.Errorf("failed to scan rgba(): %s", err))
 	}
 	if n < 4 {
 		fmt.Println(in)
 		fmt.Println(r, g, b, a)
 		log.Fatal("failed to parse all rgba parameters")
 	}
-	fmt.Println("alpha", a)
+
 	return color.RGBA{
 		R: r,
 		G: g,
@@ -228,7 +230,6 @@ func colorFromRGBA(in string) color.RGBA {
 }
 
 func colorFromHex(in []byte) color.RGBA {
-
 	pound, w := utf8.DecodeRune(in)
 	if pound == '#' {
 		in = in[w:]
@@ -283,8 +284,14 @@ func BasicLitFromColor(c color.Color) *BasicLit {
 }
 
 func colorOpColor(tok token.Token, x *BasicLit, y *BasicLit) (*BasicLit, error) {
-	colX := colorFromHexString(x.Value)
-	colY := colorFromHexString(y.Value)
+	colX, err := ColorFromHexString(x.Value)
+	if err != nil {
+		return nil, err
+	}
+	colY, err := ColorFromHexString(y.Value)
+	if err != nil {
+		return nil, err
+	}
 
 	var z color.RGBA
 	z.R = overflowMath(tok, colX.R, colY.R)
@@ -322,7 +329,10 @@ func overflowMath(tok token.Token, a, b uint8) uint8 {
 }
 
 func colorOpInt(tok token.Token, c *BasicLit, i *BasicLit) (*BasicLit, error) {
-	col := colorFromHexString(c.Value)
+	col, err := ColorFromHexString(c.Value)
+	if err != nil {
+		return nil, err
+	}
 	j, err := strconv.Atoi(i.Value)
 	if err != nil {
 		return nil, err
