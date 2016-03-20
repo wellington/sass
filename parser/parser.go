@@ -115,13 +115,19 @@ func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mod
 // add opens a new file and starts scanning it. It preserves the previous
 // scanner and position in the importStack stack
 func (p *parser) add(filename string, src interface{}) error {
-	p.queue = &queue{filename: filename, src: src}
+	// imports are relative to the parent
+	path := filepath.Join(filepath.Dir(p.file.Name()), filename)
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return err
+	}
+	p.queue = &queue{filename: abs, src: src}
 	return nil
 }
 
 func (p *parser) pop() error {
 	if p.queue == nil {
-		return nil
+		return fmt.Errorf("pop() called with nil queue")
 	}
 	stk := stack{
 		file:    p.file,
@@ -149,6 +155,7 @@ func (p *parser) pop() error {
 		panic("queue hasn't been flushed")
 	}
 	p.init(Globalfset, filename, text, p.mode)
+
 	return nil
 }
 
@@ -341,58 +348,6 @@ func un(p *parser) {
 	p.printTrace(")")
 }
 
-func (p *parser) setLook(pos token.Pos, tok token.Token, lit string) {
-	l := &p.lookahead
-	l.pos, l.tok, l.lit = pos, tok, lit
-}
-
-func (p *parser) getLook() (token.Pos, token.Token, string) {
-	return p.lookahead.pos, p.lookahead.tok, p.lookahead.lit
-}
-
-func (p *parser) setToken(pos token.Pos, tok token.Token, lit string) {
-	p.pos, p.tok, p.lit = pos, tok, lit
-}
-
-// nextExpand was used for interpolation things, but is irrelevant
-// and should be merged with expend()
-func (p *parser) nextExpand() {
-	// The very first token is always invalid file, so lookahead
-	// expansion isn't important for the first call.
-	if p.lookahead.pos == 0 {
-		p.setToken(p.scanner.Scan())
-		p.setLook(p.scanner.Scan())
-		return
-	}
-
-	// fetch from lookahead (current token)
-	pos, tok, lit := p.getLook()
-
-	// only expansion for selectors right now
-	if tok == token.SELECTOR {
-		p.inSel = true
-		p.prescan = true
-	} else if tok == token.LBRACE {
-		p.inSel = false
-		p.prescan = false
-	}
-
-	// pull next token
-	npos, ntok, nlit := p.scanner.Scan()
-	review := p.prescan
-	if review {
-		// interpolation boundaries are the only concern for review
-		if ntok != token.INTERP && ntok != token.RBRACE {
-			review = false
-		}
-	}
-	if true || !review {
-		p.setToken(pos, tok, lit)
-		p.setLook(npos, ntok, nlit)
-		return
-	}
-}
-
 // Advance to the next token.
 func (p *parser) next0() {
 	// time.Sleep(100 * time.Millisecond)
@@ -412,11 +367,20 @@ func (p *parser) next0() {
 		}
 	}
 
-	p.nextExpand()
-	// end of declaration, check queue and swap scanner
-	if p.tok == token.SEMICOLON {
-		p.pop()
+	// Sass imports are inline to the parent file. Importing
+	// causes the Parser to be reset and can cause invalid positions
+	// to be reported. To alleviate this, imports are handled
+	// with queueing logic to prevent any un(trace()) calls from
+	// from the parent file being executed after the sub-file parser
+	// is running.
+	if p.queue != nil {
+		err := p.pop()
+		if err != nil {
+			p.error(p.pos, fmt.Sprintf("error reading queue: %s", err))
+		}
 	}
+	p.pos, p.tok, p.lit = p.scanner.Scan()
+	// end of declaration, check queue and swap scanner
 
 	// If we have encountered EOF, check the importStack before returning
 	// EOF
@@ -1197,28 +1161,6 @@ func (p *parser) parseTypeName() ast.Expr {
 	return ident
 }
 
-func (p *parser) parseArrayType() ast.Expr {
-	if p.trace {
-		defer un(trace(p, "ArrayType"))
-	}
-
-	lbrack := p.expect(token.LBRACK)
-	p.exprLev++
-	var len ast.Expr
-	// always permit ellipsis for more fault-tolerant parsing
-	if p.tok == token.ELLIPSIS {
-		len = &ast.Ellipsis{Ellipsis: p.pos}
-		p.next()
-	} else if p.tok != token.RBRACK {
-		len = p.parseRhs()
-	}
-	p.exprLev--
-	p.expect(token.RBRACK)
-	elt := p.parseType()
-
-	return &ast.ArrayType{Lbrack: lbrack, Len: len, Elt: elt}
-}
-
 func (p *parser) makeIdentList(list []ast.Expr) []*ast.Ident {
 	idents := make([]*ast.Ident, len(list))
 	for i, x := range list {
@@ -1401,25 +1343,6 @@ func (p *parser) parseParameters(scope *ast.Scope, ellipsisOk bool) *ast.FieldLi
 	return &ast.FieldList{Opening: lparen, List: params, Closing: rparen}
 }
 
-func (p *parser) parseResult(scope *ast.Scope) *ast.FieldList {
-	if p.trace {
-		defer un(trace(p, "Result"))
-	}
-
-	if p.tok == token.LPAREN {
-		return p.parseParameters(scope, false)
-	}
-
-	typ := p.tryType()
-	if typ != nil {
-		list := make([]*ast.Field, 1)
-		list[0] = &ast.Field{Type: typ}
-		return &ast.FieldList{List: list}
-	}
-
-	return nil
-}
-
 func (p *parser) parseSignature(scope *ast.Scope) (params, results *ast.FieldList) {
 	if p.trace {
 		defer un(trace(p, "Signature"))
@@ -1431,46 +1354,6 @@ func (p *parser) parseSignature(scope *ast.Scope) (params, results *ast.FieldLis
 	return p.parseParameters(scope, true), nil
 }
 
-func (p *parser) parseFuncType() (*ast.FuncType, *ast.Scope) {
-	if p.trace {
-		defer un(trace(p, "FuncType"))
-	}
-
-	pos := p.expect(token.FUNC)
-	scope := ast.NewScope(p.topScope) // function scope
-	params, results := p.parseSignature(scope)
-
-	return &ast.FuncType{Func: pos, Params: params, Results: results}, scope
-}
-
-func (p *parser) parseMethodSpec(scope *ast.Scope) *ast.Field {
-	if p.trace {
-		defer un(trace(p, "MethodSpec"))
-	}
-
-	// doc := p.leadComment
-	var idents []*ast.Ident
-	var typ ast.Expr
-	x := p.parseTypeName()
-	if ident, isIdent := x.(*ast.Ident); isIdent && p.tok == token.LPAREN {
-		// method
-		idents = []*ast.Ident{ident}
-		scope := ast.NewScope(nil) // method scope
-		params, results := p.parseSignature(scope)
-		typ = &ast.FuncType{Func: token.NoPos, Params: params, Results: results}
-	} else {
-		// embedded interface
-		typ = x
-		p.resolve(typ)
-	}
-	p.expectSemi() // call before accessing p.linecomment
-
-	spec := &ast.Field{ /*Doc: doc,*/ Names: idents, Type: typ, Comment: p.lineComment}
-	p.declare(spec, nil, scope, ast.Fun, idents...)
-
-	return spec
-}
-
 // If the result is an identifier, it is not resolved.
 func (p *parser) tryIdentOrType() ast.Expr {
 	if p.trace {
@@ -1479,13 +1362,8 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	switch p.tok {
 	case token.IDENT:
 		return p.parseTypeName()
-	case token.LBRACK:
-		return p.parseArrayType()
 	case token.MUL:
 		return p.parsePointerType()
-	case token.FUNC:
-		typ, _ := p.parseFuncType()
-		return typ
 	case token.VAR:
 		return p.parseSassType()
 	case token.LPAREN:
@@ -1628,27 +1506,6 @@ func (p *parser) parseMediaStmt() *ast.MediaStmt {
 	}
 }
 
-// ----------------------------------------------------------------------------
-// Expressions
-
-func (p *parser) parseFuncTypeOrLit() ast.Expr {
-	if p.trace {
-		defer un(trace(p, "FuncTypeOrLit"))
-	}
-
-	typ, scope := p.parseFuncType()
-	if p.tok != token.LBRACE {
-		// function type only
-		return typ
-	}
-
-	p.exprLev++
-	body := p.parseBody(scope)
-	p.exprLev--
-
-	return &ast.FuncLit{Type: typ, Body: body}
-}
-
 // parseOperand may return an expression or a raw type (incl. array
 // types of the form [...]T. Callers must verify the result.
 // If lhs is set and the result is an identifier, it is not resolved.
@@ -1699,8 +1556,6 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		rparen := p.expect(token.RPAREN)
 		return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
 
-	case token.FUNC:
-		return p.parseFuncTypeOrLit()
 	case token.VAR:
 		// VAR is only hit while parsing function params, so
 		// this should only be allowed in that case.
@@ -2093,52 +1948,6 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		return un
 	case token.QSTRING, token.QSSTRING:
 		return p.parseString()
-	case token.ARROW:
-		// channel type or receive expression
-		arrow := p.pos
-		p.next()
-
-		// If the next token is token.CHAN we still don't know if it
-		// is a channel type or a receive operation - we only know
-		// once we have found the end of the unary expression. There
-		// are two cases:
-		//
-		//   <- type  => (<-type) must be channel type
-		//   <- expr  => <-(expr) is a receive from an expression
-		//
-		// In the first case, the arrow must be re-associated with
-		// the channel type parsed already:
-		//
-		//   <- (chan type)    =>  (<-chan type)
-		//   <- (chan<- type)  =>  (<-chan (<-type))
-
-		x := p.parseUnaryExpr(false)
-
-		// determine which case we have
-		if typ, ok := x.(*ast.ChanType); ok {
-			// (<-type)
-
-			// re-associate position info and <-
-			dir := ast.SEND
-			for ok && dir == ast.SEND {
-				if typ.Dir == ast.RECV {
-					// error: (<-type) is (<-(<-chan T))
-					p.errorExpected(typ.Arrow, "'chan'")
-				}
-				arrow, typ.Begin, typ.Arrow = typ.Arrow, arrow, arrow
-				dir, typ.Dir = typ.Dir, ast.RECV
-				typ, ok = typ.Value.(*ast.ChanType)
-			}
-			if dir == ast.SEND {
-				p.errorExpected(arrow, "channel type")
-			}
-
-			return x
-		}
-
-		// <-(expr)
-		return &ast.UnaryExpr{OpPos: arrow, Op: token.ARROW, X: p.checkExpr(x)}
-
 	case token.MUL:
 		// pointer type or unary "*" expression
 		pos := p.pos

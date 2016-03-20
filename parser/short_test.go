@@ -25,6 +25,7 @@ var valids = []string{
 	"a+b,c{ d e, f~g, > i {}}",
 	"a { & {}}",
 	"div { /*comment*/ }",
+	"g { @media print and (foo: 1 2 3) {}}",
 	// Easy way to test resolveCall
 	"div { a: #{rgb(4,5,6)+1}; }",
 	"$a: 1 2; inspect($a);",

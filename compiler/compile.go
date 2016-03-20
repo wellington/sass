@@ -240,6 +240,7 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	case *ast.EachStmt:
 		key = eachStmt
 	case *ast.ListLit:
+	case *ast.ImportSpec:
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
