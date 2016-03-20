@@ -26,7 +26,7 @@ HSL Functions
 Opacity Functions
 - [ ] alpha($color)
 - [ ] opacity($color)
-- [ ] rgba($color, $alpha)
+- [x] rgba($color, $alpha)
 - [ ] opacify($color, $amount) / fade-in($color, $amount)
 - [ ] transparentize($color, $amount) / fade-out($color, $amount)
 

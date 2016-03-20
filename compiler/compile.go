@@ -382,7 +382,6 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
 
 	lit, err := calc.Resolve(bin)
-	ast.Print(token.NewFileSet(), bin)
 	if err != nil {
 		return "", err
 	}

@@ -692,10 +692,8 @@ func (p *parser) parseInterp() *ast.Interp {
 	return itp
 }
 
-// Walks through UnaryExpr, CallExpr, and BinaryExpr resolving
-// any CallExprs
-func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
-	isResolved := true
+// Walks through Expressions resolving any CallExpr found
+func (p *parser) resolveCall(x ast.Expr) (ast.Expr, error) {
 	switch v := x.(type) {
 	case *ast.BasicLit:
 	case *ast.CallExpr:
@@ -703,28 +701,29 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, bool) {
 		for i := range v.Args {
 			p.resolveExpr(p.topScope, v.Args[i])
 		}
-		lit, err := evaluateCall(v)
-		if err != nil {
-			p.error(x.Pos(), err.Error())
-		}
-		x = lit
+		return evaluateCall(v)
 	case *ast.BinaryExpr:
-		l, _ := p.resolveCall(v.X)
-		r, _ := p.resolveCall(v.Y)
+		l, err := p.resolveCall(v.X)
+		if err != nil {
+			return nil, err
+		}
+		r, err := p.resolveCall(v.Y)
+		if err != nil {
+			return nil, err
+		}
 		v.X, v.Y = l, r
 		x = v
-	case *ast.UnaryExpr:
-		l, _ := p.resolveCall(v.X)
-		v.X = l
-		x = v
+		// Never called
+	// case *ast.UnaryExpr:
+	// 	l, _ := p.resolveCall(v.X)
+	// 	v.X = l
+	// 	x = v
 	case *ast.Ident:
 		if v.Obj == nil {
 			p.resolve(x)
 		}
-	default:
-		isResolved = false
 	}
-	return x, isResolved
+	return x, nil
 }
 
 // simplify and resolve expressions inside interpolation.
@@ -738,10 +737,12 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 	var merge bool
 	for _, x := range itp.X {
 		// copied ident won't be resolved, do so
-		var ok bool
+		var err error
 		// performing calc
-		x, ok = p.resolveCall(x)
-		assert(ok, "failed to resolve")
+		x, err = p.resolveCall(x)
+		if err != nil {
+			p.error(x.Pos(), "failed to resolve call: "+err.Error())
+		}
 		res, err := calc.Resolve(x)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
@@ -978,7 +979,6 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 				if l.End() == lit.Pos() {
 					prev, ok := out[len(out)-1].(*ast.Interp)
 					if !ok {
-						ast.Print(token.NewFileSet(), in)
 						panic(fmt.Errorf("\nl:% #v\nr:% #v\n",
 							l, lit))
 					}
@@ -1193,18 +1193,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "tryVarType"))
 	}
-	if isParam && p.tok == token.ELLIPSIS {
-		pos := p.pos
-		p.next()
-		typ := p.tryIdentOrType() // don't use parseType so we can provide better error message
-		if typ != nil {
-			p.resolve(typ)
-		} else {
-			p.error(pos, "'...' parameter is missing type")
-			typ = &ast.BadExpr{From: pos, To: p.pos}
-		}
-		return &ast.Ellipsis{Ellipsis: pos, Elt: typ}
-	} else if isParam {
+	if isParam {
 		typ := p.tryIdentOrType()
 		if p.tok == token.COLON {
 			// Default arg found!
@@ -1308,7 +1297,7 @@ func (p *parser) tryIdentOrType() ast.Expr {
 	}
 	switch p.tok {
 	case token.IDENT:
-		return p.parseTypeName()
+		// return p.parseTypeName()
 	case token.MUL:
 		return p.parsePointerType()
 	case token.VAR:
@@ -1521,20 +1510,6 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 	p.errorExpected(pos, "operand")
 	syncStmt(p)
 	return &ast.BadExpr{From: pos, To: p.pos}
-}
-
-func (p *parser) parseTypeAssertion(x ast.Expr) ast.Expr {
-	if p.trace {
-		defer un(trace(p, "TypeAssertion"))
-	}
-
-	lparen := p.expect(token.LPAREN)
-	var typ ast.Expr
-	typ = p.parseType()
-
-	rparen := p.expect(token.RPAREN)
-
-	return &ast.TypeAssertExpr{X: x, Type: typ, Lparen: lparen, Rparen: rparen}
 }
 
 func (p *parser) parseIndexOrSlice(x ast.Expr) ast.Expr {
@@ -1826,43 +1801,11 @@ func (p *parser) parsePrimaryExpr(lhs bool) ast.Expr {
 L:
 	for {
 		switch p.tok {
-		case token.PERIOD:
-			p.next()
-			if lhs {
-				p.resolve(x)
-			}
-			switch p.tok {
-			// Is this necessary?
-			// case token.IDENT:
-			// 	x = p.parseSelector(p.checkExprOrType(x))
-			case token.LPAREN:
-				x = p.parseTypeAssertion(p.checkExpr(x))
-			default:
-				pos := p.pos
-				p.errorExpected(pos, "selector or type assertion")
-				p.next() // make progress
-				sel := &ast.Ident{NamePos: pos, Name: "_"}
-				x = &ast.SelectorExpr{X: x, Sel: sel}
-			}
-		case token.LBRACK:
-			if lhs {
-				p.resolve(x)
-			}
-			x = p.parseIndexOrSlice(p.checkExpr(x))
 		case token.LPAREN:
 			if lhs {
 				p.resolve(x)
 			}
 			x = p.parseCallOrConversion(p.checkExprOrType(x))
-		case token.LBRACE:
-			if isLiteralType(x) && (p.exprLev >= 0 || !isTypeName(x)) {
-				if lhs {
-					p.resolve(x)
-				}
-				x = p.parseLiteralValue(x)
-			} else {
-				break L
-			}
 		default:
 			break L
 		}

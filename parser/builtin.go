@@ -150,7 +150,6 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		if argpos < i {
 			argpos = i
 		}
-		fmt.Printf("%d % #v\n", i, arg)
 		switch v := arg.(type) {
 		case *ast.KeyValueExpr:
 			pos := fn.Pos(v.Key.(*ast.Ident))
@@ -160,7 +159,6 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		case *ast.Ident:
 			if v.Obj != nil {
 				ass := v.Obj.Decl.(*ast.AssignStmt)
-				fmt.Printf("ass % #v\n", ass)
 				callargs[argpos] = ass.Rhs[0]
 			} else {
 				callargs[argpos] = v
@@ -187,6 +185,5 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		}
 		return fn.ch(expr, lits...)
 	}
-	ast.Print(token.NewFileSet(), callargs)
 	return fn.handle(expr, callargs...)
 }

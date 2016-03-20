@@ -208,7 +208,6 @@ func ColorFromHex(b []byte) (color.RGBA, error) {
 func colorFromRGBA(in string) color.RGBA {
 	var r, g, b uint8
 	var a float32
-	fmt.Println("in", in)
 	if len(in) < 4 {
 		panic("invalid input")
 	}
@@ -221,7 +220,7 @@ func colorFromRGBA(in string) color.RGBA {
 		fmt.Println(r, g, b, a)
 		log.Fatal("failed to parse all rgba parameters")
 	}
-	fmt.Println("alpha", a)
+
 	return color.RGBA{
 		R: r,
 		G: g,
@@ -231,7 +230,6 @@ func colorFromRGBA(in string) color.RGBA {
 }
 
 func colorFromHex(in []byte) color.RGBA {
-	fmt.Println("string", string(in))
 	pound, w := utf8.DecodeRune(in)
 	if pound == '#' {
 		in = in[w:]
