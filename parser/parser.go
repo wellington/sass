@@ -1177,59 +1177,6 @@ func (p *parser) makeIdentList(list []ast.Expr) []*ast.Ident {
 	return idents
 }
 
-func (p *parser) parseFieldDecl(scope *ast.Scope) *ast.Field {
-	if p.trace {
-		defer un(trace(p, "FieldDecl"))
-	}
-
-	// doc := p.leadComment
-
-	// 1st FieldDecl
-	// A type name used as an anonymous field looks like a field identifier.
-	var list []ast.Expr
-	for {
-		list = append(list, p.parseVarType(false))
-		if p.tok != token.COMMA {
-			break
-		}
-		p.next()
-	}
-
-	typ := p.tryVarType(false)
-
-	// analyze case
-	var idents []*ast.Ident
-	if typ != nil {
-		// IdentifierList Type
-		idents = p.makeIdentList(list)
-	} else {
-		// ["*"] TypeName (AnonymousField)
-		typ = list[0] // we always have at least one element
-		if n := len(list); n > 1 {
-			p.errorExpected(p.pos, "type")
-			typ = &ast.BadExpr{From: p.pos, To: p.pos}
-		} else if !isTypeName(deref(typ)) {
-			p.errorExpected(typ.Pos(), "anonymous field")
-			typ = &ast.BadExpr{From: typ.Pos(), To: p.safePos(typ.End())}
-		}
-	}
-
-	// Tag
-	var tag *ast.BasicLit
-	if p.tok == token.STRING {
-		tag = &ast.BasicLit{ValuePos: p.pos, Kind: p.tok, Value: p.lit}
-		p.next()
-	}
-
-	p.expectSemi() // call before accessing p.linecomment
-
-	field := &ast.Field{ /*Doc: doc,*/ Names: idents, Type: typ, Tag: tag, Comment: p.lineComment}
-	p.declare(field, nil, scope, ast.Var, idents...)
-	p.resolve(typ)
-
-	return field
-}
-
 func (p *parser) parsePointerType() *ast.StarExpr {
 	if p.trace {
 		defer un(trace(p, "PointerType"))
@@ -1832,14 +1779,6 @@ func isLiteralType(x ast.Expr) bool {
 		return false // all other nodes are not legal composite literal types
 	}
 	return true
-}
-
-// If x is of the form *T, deref returns T, otherwise it returns x.
-func deref(x ast.Expr) ast.Expr {
-	if p, isPtr := x.(*ast.StarExpr); isPtr {
-		x = p.X
-	}
-	return x
 }
 
 // If x is of the form (T), unparen returns unparen(T), otherwise it returns x.
