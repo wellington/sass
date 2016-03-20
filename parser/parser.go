@@ -2833,7 +2833,6 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 	ret := make([]ast.Stmt, 0, len(stmts))
 	// fmt.Println("visit Resolve Stmt")
 	for i := range stmts {
-		fmt.Printf("resolving % #v\n", stmts[i])
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
 			p.resolveDecl(scope, decl)
@@ -2864,7 +2863,6 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 }
 
 func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicLit) {
-	fmt.Printf("resolveExpr: % #v\n", expr)
 	switch v := expr.(type) {
 	case *ast.BasicLit:
 		out = append(out, v)
@@ -2903,7 +2901,6 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 		for _, spec := range v.Specs {
 			switch sv := spec.(type) {
 			case *ast.RuleSpec:
-				fmt.Printf("rulespec % #v\n", sv)
 				var lits []*ast.BasicLit
 				for i := range sv.Values {
 					val := sv.Values[i]

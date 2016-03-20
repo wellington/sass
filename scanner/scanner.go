@@ -17,7 +17,7 @@ import (
 	"github.com/wellington/sass/token"
 )
 
-var trace bool
+var trace bool //= true
 
 func printf(format string, v ...interface{}) {
 	if trace {
@@ -522,7 +522,6 @@ L:
 				}
 			}
 		}
-		printf("colon\n")
 		s.rewind(offs)
 		tok = token.STRING
 		lit = s.scanText(offs, 0, false, isValue)
@@ -575,7 +574,6 @@ L:
 		// Maybe there's an interp, go ahead and try
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
-			fmt.Println("interp!")
 			queue = append(queue, prefetch{pos, tok, lit})
 			for tok != token.EOF && tok != token.RBRACE {
 				// body of interpolation
@@ -596,10 +594,12 @@ L:
 	}
 
 	if len(queue) == 0 {
-		//log.Fatal("nothing found")
+		return
 	}
-	for _, pre := range queue[1:] {
-		s.pushPre(pre)
+	if len(queue) > 1 {
+		for _, pre := range queue[1:] {
+			s.pushPre(pre)
+		}
 	}
 
 	pos, tok, lit = queue[0].pos, queue[0].tok, queue[0].lit

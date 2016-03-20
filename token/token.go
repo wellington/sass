@@ -237,11 +237,11 @@ var Tokens = [...]string{
 	FIN:  "FINISHED",
 }
 
-func (i Token) String() string {
-	if i < 0 {
+func (tok Token) String() string {
+	if tok < 0 {
 		return ""
 	}
-	return Tokens[i]
+	return Tokens[tok]
 }
 
 var directives map[string]Token
@@ -289,8 +289,8 @@ func (op Token) SelPrecedence() int {
 // operator op. If op is not a binary operator, the result
 // is LowestPrecedence.
 //
-func (op Token) Precedence() int {
-	switch op {
+func (tok Token) Precedence() int {
+	switch tok {
 	case LOR:
 		return 1
 	case LAND:
