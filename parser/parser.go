@@ -36,6 +36,11 @@ type triplet struct {
 	lit string
 }
 
+type queue struct {
+	filename string
+	src      interface{}
+}
+
 // The parser structure holds the parser's internal state.
 type parser struct {
 	file    *token.File
@@ -45,6 +50,7 @@ type parser struct {
 	// Parser state is pushed onto importStack while imports
 	// are being scanned and parsed.
 	imps      []stack
+	queue     *queue // queued file for import, starts a new scanner
 	lookahead triplet
 	inSel     bool // controler selector logic
 	prescan   bool // control interpolation joining
@@ -109,6 +115,14 @@ func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mod
 // add opens a new file and starts scanning it. It preserves the previous
 // scanner and position in the importStack stack
 func (p *parser) add(filename string, src interface{}) error {
+	p.queue = &queue{filename: filename, src: src}
+	return nil
+}
+
+func (p *parser) pop() error {
+	if p.queue == nil {
+		return nil
+	}
 	stk := stack{
 		file:    p.file,
 		scanner: p.scanner,
@@ -118,15 +132,22 @@ func (p *parser) add(filename string, src interface{}) error {
 		syncPos: p.syncPos,
 		syncCnt: p.syncCnt,
 	}
-	fmt.Println("parser adding", filename)
 	p.imps = append(p.imps, stk)
-	filename = filepath.Join(filepath.Dir(p.file.Name()), filename)
+
+	filename, src := p.queue.filename, p.queue.src
+	p.queue = nil
 	text, err := readSource(filename, src)
 	if err != nil {
-		log.Fatal("failed to read", filename, err)
+		abs, ferr := filepath.Abs(filename)
+		if ferr != nil {
+			log.Println("abs fail", err)
+		}
+		err = fmt.Errorf("failed to read %s: %s", err, abs)
 		return err
 	}
-
+	if p.queue != nil {
+		panic("queue hasn't been flushed")
+	}
 	p.init(Globalfset, filename, text, p.mode)
 	return nil
 }
@@ -374,6 +395,7 @@ func (p *parser) nextExpand() {
 
 // Advance to the next token.
 func (p *parser) next0() {
+	// time.Sleep(100 * time.Millisecond)
 	// Because of one-token look-ahead, print the previous token
 	// when tracing as it provides a more readable output. The
 	// very first token (!p.pos.IsValid()) is not initialized
@@ -391,6 +413,10 @@ func (p *parser) next0() {
 	}
 
 	p.nextExpand()
+	// end of declaration, check queue and swap scanner
+	if p.tok == token.SEMICOLON {
+		p.pop()
+	}
 
 	// If we have encountered EOF, check the importStack before returning
 	// EOF
@@ -581,18 +607,19 @@ func (p *parser) expectClosing(tok token.Token, context string) token.Pos {
 
 func (p *parser) expectSemi() {
 	// semicolon is optional before a closing ')' or '}'
-	if p.tok != token.RPAREN && p.tok != token.RBRACE {
-		switch p.tok {
-		case token.COMMA:
-			// permit a ',' instead of a ';' but complain
-			p.errorExpected(p.pos, "';'")
-			fallthrough
-		case token.SEMICOLON:
-			p.next()
-		default:
-			p.errorExpected(p.pos, "';'")
-			syncStmt(p)
-		}
+	if p.tok == token.RPAREN || p.tok == token.RBRACE {
+		return
+	}
+	switch p.tok {
+	case token.COMMA:
+		// permit a ',' instead of a ';' but complain
+		p.errorExpected(p.pos, "';'")
+		fallthrough
+	case token.SEMICOLON:
+		p.next()
+	default:
+		p.errorExpected(p.pos, "';'")
+		syncStmt(p)
 	}
 }
 
@@ -2627,24 +2654,13 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	case token.IDENT:
 		ident = p.parseIdent()
 	}
+
 	p.expect(token.IMPORT)
-	pos, tok := p.pos, p.tok
-	var path string
-
-	if p.tok == token.STRING || p.tok == token.QSTRING {
-		path = p.lit
-		if !isValidImport(path) {
-			p.error(pos, "invalid import path: "+path)
-		}
-		p.next()
-	} else {
-		p.expect(token.STRING) // use expect() error handling
+	x := p.parseOperand(false)
+	pathlit, ok := x.(*ast.BasicLit)
+	if !ok {
+		p.errorExpected(x.Pos(), "expected import to be string or quoted string")
 	}
-
-	pathlit := unwrapQuotes(&ast.BasicLit{
-		ValuePos: pos,
-		Kind:     tok,
-		Value:    path})
 
 	// collect imports
 	spec := &ast.ImportSpec{
@@ -2657,7 +2673,7 @@ func (p *parser) parseImportSpec(doc *ast.CommentGroup, _ token.Token, _ int) as
 	p.imports = append(p.imports, spec)
 	err := p.processImport(spec.Path.Value)
 	if err != nil {
-		log.Fatalf("failed to import", spec.Name)
+		log.Fatalf("failed to import: %s", spec.Name)
 	}
 	return spec
 }
@@ -2771,7 +2787,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 
 func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFunction) *ast.GenDecl {
 	if p.trace {
-		// defer un(trace(p, "GenDecl("+keyword.String()+")"))
+		defer un(trace(p, "GenDecl("+keyword.String()+")"))
 	}
 	pos := p.pos
 	assert(pos != 0, "0 position found")
@@ -2790,8 +2806,8 @@ func (p *parser) parseGenDecl(lit string, keyword token.Token, f parseSpecFuncti
 	} else {
 		list = append(list, f(nil, keyword, 0))
 	}
-
 	p.expectSemi()
+
 	return &ast.GenDecl{
 		// Doc:    doc,
 		TokPos: pos,

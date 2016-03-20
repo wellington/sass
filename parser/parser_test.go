@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/wellington/sass/ast"
@@ -123,5 +124,22 @@ func TestBackRef(t *testing.T) {
 
 	if e := "div"; e != nested.Resolved.Value {
 		t.Errorf("got: %s wanted: %s", nested.Resolved.Value, e)
+	}
+}
+
+var imports = map[string]bool{
+	`"../sass-spec/spec/basic/01_simple_css/input.scss"`: true,
+}
+
+func TestImports(t *testing.T) {
+	for path, isValid := range imports {
+		src := fmt.Sprintf("@import %s;", path)
+		_, err := ParseFile(token.NewFileSet(), "", src, 0) // Trace
+		switch {
+		case err != nil && isValid:
+			t.Errorf("ParseFile(%s): got %v; expected no error", src, err)
+		case err == nil && !isValid:
+			t.Errorf("ParseFile(%s): got no error; expected one", src)
+		}
 	}
 }
