@@ -41,6 +41,32 @@ const (
 	TURN
 )
 
+func (u Unit) String() string {
+	switch u {
+	case IN:
+		return "IN"
+	case CM:
+		return "CM"
+	case MM:
+		return "MM"
+	case PC:
+		return "PC"
+	case PX:
+		return "PX"
+	case PT:
+		return "PT"
+	case DEG:
+		return "DEG"
+	case GRAD:
+		return "GRAD"
+	case RAD:
+		return "RAD"
+	case TURN:
+		return "TURN"
+	}
+	return "invalid"
+}
+
 var mlook = map[token.Token]Unit{
 	token.UIN:  IN,
 	token.UCM:  CM,
@@ -230,13 +256,14 @@ func (z *Num) Lit() (*ast.BasicLit, error) {
 	}, nil
 }
 
-// Convert n to the the same Unit of target
-func (z *Num) Convert(target *Num) *Num {
-	u := target.Unit
-	return &Num{
-		f:    z.f * unitconv[z.Unit][u],
+// Convert src to z, applying proper conversion to src
+func (z *Num) Convert(src *Num) *Num {
+	u := z.Unit
+	*z = Num{
+		f:    src.f * unitconv[z.Unit][u],
 		Unit: u,
 	}
+	return z
 }
 
 // Add returns the sum of x and y
@@ -247,36 +274,26 @@ func (z *Num) Add(x, y *Num) *Num {
 	return z
 }
 
-// // Subtract minuses the two numbers in the first numbers units
-// func (sn SassNumber) Sub(sn2 SassNumber) SassNumber {
-// 	sn1Value, sn2Value := getConvertedUnits(sn, sn2)
-// 	return SassNumber{Value: sn1Value - sn2Value, Unit: sn.Unit}
-// }
+// Sub returns the subtraction of x and y
+func (z *Num) Sub(x, y *Num) *Num {
+	// n controls output unit
+	a, b := x.Convert(z), y.Convert(z)
+	z.f = a.f - b.f
+	return z
+}
 
-// // Multiply takes the multiplication of the two numbers
-// // in the first numbers units
-// func (sn SassNumber) Mul(sn2 SassNumber) SassNumber {
-// 	sn1Value, sn2Value := getConvertedUnits(sn, sn2)
-// 	return SassNumber{Value: sn1Value * sn2Value, Unit: sn.Unit}
-// }
+// Mul returns the multiplication of x and y
+func (z *Num) Mul(x, y *Num) *Num {
+	// n controls output unit
+	a, b := x.Convert(z), y.Convert(z)
+	z.f = a.f * b.f
+	return z
+}
 
-// // Divide takes the quotient of the two numbers in the first unit
-// func (sn SassNumber) Quo(sn2 SassNumber) SassNumber {
-// 	sn1Value, sn2Value := getConvertedUnits(sn, sn2)
-// 	return SassNumber{Value: sn1Value / sn2Value, Unit: sn.Unit}
-// }
-
-// func getConvertedUnits(sn1 SassNumber, sn2 SassNumber) (float64, float64) {
-// 	var sn2Value float64
-// 	if sn2.Unit != sn1.Unit {
-// 		sn2Value = convertUnits(sn2, sn1)
-// 	} else {
-// 		sn2Value = sn2.Value
-// 	}
-
-// 	return sn1.Value, sn2Value
-// }
-
-// func convertUnits(from SassNumber, to SassNumber) float64 {
-// 	return sassUnitConversions[from.Unit][to.Unit] * from.Value
-// }
+// Quo returns the division of x and y
+func (z *Num) Quo(x, y *Num) *Num {
+	// n controls output unit
+	a, b := x.Convert(z), y.Convert(z)
+	z.f = a.f / b.f
+	return z
+}
