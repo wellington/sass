@@ -1,6 +1,7 @@
 package unit
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+// Unit represents the CSS unit being described
 type Unit int
 
 // Why does this exist?
@@ -229,6 +231,31 @@ var unitconv = [...][11]float64{
 	},
 }
 
+func init() {
+	ast.RegisterKind(Combine, token.UPX)
+}
+
+// Combine lit with specified kind rules
+func Combine(op token.Token, x, y *ast.BasicLit) (*ast.BasicLit, error) {
+	// So we have some non-standard units, convert to INT/FLOAT
+	// and send to another handler. Return always matches the unit
+	// of x
+	// var unitx, unity token.Token
+
+	m, err := NewNum(x)
+	if err != nil {
+		return nil, err
+	}
+	n, err := NewNum(y)
+	if err != nil {
+		return nil, err
+	}
+
+	m.Op(op, m, n)
+	fmt.Printf("<<< % #v\n", m)
+	return m.Lit()
+}
+
 // Num represents a float with units. This isn't useful for
 // unitless operations, since "calc" already does this.
 type Num struct {
@@ -237,7 +264,7 @@ type Num struct {
 	Unit
 }
 
-// NumNum initializes a Num from a BasicLit. Kind will hold the unit
+// NewNum initializes a Num from a BasicLit. Kind will hold the unit
 // the number portion is always treated as a float.
 func NewNum(lit *ast.BasicLit) (*Num, error) {
 	val := lit.Value
@@ -248,8 +275,8 @@ func NewNum(lit *ast.BasicLit) (*Num, error) {
 	return &Num{f: f, Unit: unitLookup(kind)}, err
 }
 
-func (n *Num) String() string {
-	return strconv.FormatFloat(n.f, 'G', -1, 64) + tokLookup(n.Unit).String()
+func (z *Num) String() string {
+	return strconv.FormatFloat(z.f, 'G', -1, 64) + tokLookup(z.Unit).String()
 }
 
 // Lit attempts to convert Num back into a Lit.
@@ -264,17 +291,35 @@ func (z *Num) Lit() (*ast.BasicLit, error) {
 // Convert src to z, applying proper conversion to src
 func (z *Num) Convert(src *Num) *Num {
 	u := z.Unit
-	*z = Num{
+	return &Num{
 		f:    src.f * unitconv[z.Unit][u],
 		Unit: u,
 	}
-	return z
+}
+
+// Op returns the sum of x and y using the specified Op
+func (z *Num) Op(op token.Token, x, y *Num) *Num {
+	switch op {
+	case token.ADD:
+		return z.Add(x, y)
+	case token.MUL:
+		return z.Mul(x, y)
+	case token.QUO:
+		return z.Quo(x, y)
+	case token.SUB:
+		return z.Sub(x, y)
+	default:
+		panic(fmt.Errorf("unsupported unit op: %s", op))
+	}
 }
 
 // Add returns the sum of x and y
 func (z *Num) Add(x, y *Num) *Num {
 	// n controls output unit
-	a, b := x.Convert(z), y.Convert(z)
+	fmt.Println("adding", x, y)
+	a, b := z.Convert(x), z.Convert(y)
+	fmt.Println("conver", a, b)
+	fmt.Println(z)
 	z.f = a.f + b.f
 	return z
 }

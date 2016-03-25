@@ -8,6 +8,19 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+type kind struct {
+	unit    token.Token
+	combine func(op token.Token, x, y *BasicLit) (*BasicLit, error)
+}
+
+var kinds []kind
+
+func RegisterKind(fn func(op token.Token, x, y *BasicLit) (*BasicLit, error), units ...token.Token) {
+	for _, unit := range units {
+		kinds = append(kinds, kind{unit: unit, combine: fn})
+	}
+}
+
 func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 	fmt.Printf("kind: %s op: %s x: % #v y: % #v\n", x.Kind, op, x, y)
 	kind := x.Kind
@@ -15,8 +28,6 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 	switch {
 	case kind == token.COLOR:
 		fn = colorOp
-	case kind == token.UPX:
-		fn = unitOp
 	case kind == token.INT:
 		switch y.Kind {
 		case token.STRING:
@@ -36,17 +47,18 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 	case kind == token.STRING || x.Kind != y.Kind:
 		fn = stringOp
 	default:
+		for _, k := range kinds {
+			if k.unit == kind {
+				fn = k.combine
+			}
+		}
+	}
+	if fn == nil {
 		return nil, fmt.Errorf("unsupported Op %s", x.Kind)
 	}
-	return fn(op, x, y)
-}
-
-func unitOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
-	// So we have some non-standard units, convert to INT/FLOAT
-	// and send to another handler. Return always matches the unit
-	// of x
-	// var unitx, unity token.Token
-	return nil, nil
+	lit, err := fn(op, x, y)
+	fmt.Printf("wut % #v\n", lit)
+	return lit, err
 }
 
 func floatOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {

@@ -41,10 +41,10 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		for i := range v.Value {
 			ss[i] = v.Value[i].(*ast.BasicLit).Value
 		}
-		return &ast.BasicLit{
+		x = &ast.BasicLit{
 			Value:    strings.Join(ss, delim),
 			ValuePos: v.Pos(),
-		}, nil
+		}
 	case *ast.UnaryExpr:
 		x = v.X.(*ast.BasicLit)
 	case *ast.BinaryExpr:
@@ -73,12 +73,12 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		x.Value = strings.Join(val, ", ")
 		x.Kind = kind
 	case *ast.CallExpr:
-		return resolve(v.Resolved)
+		x, err = resolve(v.Resolved)
 	case *ast.Interp:
 		if v.Obj == nil {
 			panic("unresolved interpolation")
 		}
-		return resolve(v.Obj.Decl.(ast.Expr))
+		x, err = resolve(v.Obj.Decl.(ast.Expr))
 	default:
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 		panic(err)
