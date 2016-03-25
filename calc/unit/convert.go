@@ -229,12 +229,16 @@ var unitconv = [...][11]float64{
 	},
 }
 
+// Num represents a float with units. This isn't useful for
+// unitless operations, since "calc" already does this.
 type Num struct {
 	pos token.Pos
 	f   float64
 	Unit
 }
 
+// NumNum initializes a Num from a BasicLit. Kind will hold the unit
+// the number portion is always treated as a float.
 func NewNum(lit *ast.BasicLit) (*Num, error) {
 	val := lit.Value
 	// TODO: scanner should remove unit
@@ -248,6 +252,7 @@ func (n *Num) String() string {
 	return strconv.FormatFloat(n.f, 'G', -1, 64) + tokLookup(n.Unit).String()
 }
 
+// Lit attempts to convert Num back into a Lit.
 func (z *Num) Lit() (*ast.BasicLit, error) {
 	return &ast.BasicLit{
 		Kind:     tokLookup(z.Unit),
