@@ -271,7 +271,6 @@ func Combine(op token.Token, x, y *ast.BasicLit) (*ast.BasicLit, error) {
 	}
 
 	m.Op(op, m, n)
-	fmt.Printf("<<< % #v\n", m)
 	return m.Lit()
 }
 
@@ -343,13 +342,21 @@ func (z *Num) Op(op token.Token, x, y *Num) *Num {
 
 // Add returns the sum of x and y
 func (z *Num) Add(x, y *Num) *Num {
+	if z.Unit == NOUNIT {
+		// Look around for a unit!
+		// Only one of these can be true
+		if x.Unit != NOUNIT {
+			z.Unit = x.Unit
+		} else if y.Unit != NOUNIT {
+			z.Unit = y.Unit
+		}
+
+	}
 	// n controls output unit
-	fmt.Printf("adding % #v + % #v\n", x, y)
-	fmt.Println(x, y, z)
+	fmt.Printf("adding %s:% #v + %s:% #v ", x.Unit, x, y.Unit, y)
+	fmt.Println(z.Unit, z)
 	z.Convert(y)
 	a, b := z.Convert(x), z.Convert(y)
-	fmt.Println("conver", a, b)
-	fmt.Println(z)
 	z.f = a.f + b.f
 	return z
 }
