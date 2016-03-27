@@ -2,7 +2,6 @@ package calc
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/wellington/sass/ast"
@@ -101,15 +100,6 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 		Kind:     token.STRING,
 	}
 	switch in.Op {
-	case token.ARROW:
-		if left.Kind == token.INT && right.Kind == token.INT {
-			l, _ := strconv.Atoi(left.Value)
-			r, _ := strconv.Atoi(right.Value)
-			out.Kind = token.INT
-			out.Value = strconv.Itoa(l + r)
-		} else {
-			out.Value = left.Value + right.Value
-		}
 	case token.ADD, token.SUB, token.MUL, token.QUO:
 		return combineLits(in.Op, left, right)
 	default:

@@ -30,12 +30,12 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 		fn = colorOp
 	case kind == token.INT:
 		switch y.Kind {
+		case token.INT:
+			fn = intOp
 		case token.STRING:
 			fn = stringOp
 		case token.FLOAT:
 			fn = floatOp
-		default:
-			fn = intOp
 		}
 	case kind == token.FLOAT:
 		switch y.Kind {
@@ -45,16 +45,19 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 			fn = floatOp
 		}
 	case kind == token.STRING || x.Kind != y.Kind:
+		fmt.Println("string op?")
 		fn = stringOp
-	default:
+	}
+
+	if fn == nil {
 		for _, k := range kinds {
 			if k.unit == kind {
 				fn = k.combine
 			}
 		}
-	}
-	if fn == nil {
-		return nil, fmt.Errorf("unsupported Op %s", x.Kind)
+		if fn == nil {
+			return nil, fmt.Errorf("unsupported Op %s", x.Kind)
+		}
 	}
 	lit, err := fn(op, x, y)
 	fmt.Printf("wut % #v\n", lit)

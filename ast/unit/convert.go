@@ -41,6 +41,9 @@ const (
 	GRAD
 	RAD
 	TURN
+	// NOUNIT represents float or int that perform ops but are not
+	// tied to a unit
+	NOUNIT
 )
 
 func (u Unit) String() string {
@@ -65,21 +68,25 @@ func (u Unit) String() string {
 		return "RAD"
 	case TURN:
 		return "TURN"
+	case NOUNIT:
+		return "NOUNIT"
 	}
 	return "invalid"
 }
 
 var mlook = map[token.Token]Unit{
-	token.UIN:  IN,
-	token.UCM:  CM,
-	token.UMM:  MM,
-	token.UPC:  PC,
-	token.UPX:  PX,
-	token.UPT:  PT,
-	token.DEG:  DEG,
-	token.GRAD: GRAD,
-	token.RAD:  RAD,
-	token.TURN: TURN,
+	token.FLOAT: NOUNIT,
+	token.INT:   NOUNIT,
+	token.UIN:   IN,
+	token.UCM:   CM,
+	token.UMM:   MM,
+	token.UPC:   PC,
+	token.UPX:   PX,
+	token.UPT:   PT,
+	token.DEG:   DEG,
+	token.GRAD:  GRAD,
+	token.RAD:   RAD,
+	token.TURN:  TURN,
 }
 
 func unitLookup(tok token.Token) Unit {
@@ -229,10 +236,22 @@ var unitconv = [...][11]float64{
 		RAD:  2.0 * math.Pi,
 		TURN: 1,
 	},
+	NOUNIT: {
+		IN:   1,
+		CM:   1,
+		PC:   1,
+		MM:   1,
+		PT:   1,
+		PX:   1,
+		DEG:  1,
+		GRAD: 1,
+		RAD:  1,
+		TURN: 1,
+	},
 }
 
 func init() {
-	ast.RegisterKind(Combine, token.UPX)
+	ast.RegisterKind(Combine, token.UPX, token.INT)
 }
 
 // Combine lit with specified kind rules
@@ -291,10 +310,19 @@ func (z *Num) Lit() (*ast.BasicLit, error) {
 // Convert src to z, applying proper conversion to src
 func (z *Num) Convert(src *Num) *Num {
 	u := z.Unit
-	return &Num{
-		f:    src.f * unitconv[z.Unit][u],
-		Unit: u,
+	var cv float64
+	n := &Num{}
+	if u == NOUNIT {
+		// nounit inherits unit of src
+		u = src.Unit
+		cv = 1
+	} else {
+		cv = unitconv[z.Unit][u]
 	}
+
+	n.f = src.f * cv
+	n.Unit = u
+	return n
 }
 
 // Op returns the sum of x and y using the specified Op
@@ -316,7 +344,9 @@ func (z *Num) Op(op token.Token, x, y *Num) *Num {
 // Add returns the sum of x and y
 func (z *Num) Add(x, y *Num) *Num {
 	// n controls output unit
-	fmt.Println("adding", x, y)
+	fmt.Printf("adding % #v + % #v\n", x, y)
+	fmt.Println(x, y, z)
+	z.Convert(y)
 	a, b := z.Convert(x), z.Convert(y)
 	fmt.Println("conver", a, b)
 	fmt.Println(z)

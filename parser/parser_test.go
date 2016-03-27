@@ -55,6 +55,49 @@ $list: 1 2 $color;
 	})
 }
 
+func TestUnitMath(t *testing.T) {
+	const src = `
+$a: 3px + 3px;
+div {
+  width: $a;
+}
+`
+	f, err := ParseFile(token.NewFileSet(), "", src, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	objects := map[string]ast.ObjKind{
+		"$color": ast.Var,
+		"$list":  ast.Var,
+	}
+	ast.Print(token.NewFileSet(), f)
+	ast.Inspect(f, func(n ast.Node) bool {
+		if spec, ok := n.(*ast.RuleSpec); ok {
+			ast.Print(token.NewFileSet(), spec)
+		}
+		return true
+		if ident, ok := n.(*ast.Ident); ok {
+			return true
+			obj := ident.Obj
+			if obj == nil {
+				if objects[ident.Name] != ast.Bad {
+					t.Errorf("no object for %s", ident.Name)
+				}
+				return true
+			}
+			if obj.Name != ident.Name {
+				t.Errorf("names don't match: obj.Name = %s, ident.Name = %s", obj.Name, ident.Name)
+			}
+			kind := objects[ident.Name]
+			if obj.Kind != kind {
+				t.Errorf("%s: obj.Kind = %s; want %s", ident.Name, obj.Kind, kind)
+			}
+		}
+		return true
+	})
+}
+
 func TestSelMath(t *testing.T) {
 	// Selectors act like boolean math
 	in := `
