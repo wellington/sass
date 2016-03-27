@@ -294,7 +294,11 @@ func NewNum(lit *ast.BasicLit) (*Num, error) {
 }
 
 func (z *Num) String() string {
-	return strconv.FormatFloat(z.f, 'G', -1, 64) + tokLookup(z.Unit).String()
+	s := strconv.FormatFloat(z.f, 'G', -1, 64)
+	if z.Unit == NOUNIT {
+		return s
+	}
+	return s + tokLookup(z.Unit).String()
 }
 
 // Lit attempts to convert Num back into a Lit.
