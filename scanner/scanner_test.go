@@ -469,6 +469,16 @@ func TestScan_func(t *testing.T) {
 	})
 }
 
+func TestScan_unit(t *testing.T) {
+	testScan(t, []elt{
+		{token.UPX, "5px"},
+		{token.UEM, "5.1em"},
+		{token.UCM, "5.1cm"},
+		{token.UPCT, "3%"},
+		{token.SEMICOLON, ";"},
+	})
+}
+
 func testScan(t *testing.T, tokens []elt) {
 
 	testScanMap(t, source(tokens), tokens)

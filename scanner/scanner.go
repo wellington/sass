@@ -224,7 +224,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 
 	// Check the queue, which may contain tokens that were fetched
@@ -1078,6 +1078,48 @@ func (s *Scanner) scanIdent(offs int) (pos token.Pos, tok token.Token, lit strin
 
 func (s *Scanner) scanUnit() (token.Token, string) {
 	offs := s.offset
+	for isLetter(s.ch) || s.ch == '%' {
+		s.next()
+	}
+
+	lit := string(s.src[offs:s.offset])
+	tok := token.ILLEGAL
+	switch lit {
+	case "in":
+		tok = token.UIN
+	case "cm":
+		tok = token.UCM
+	case "mm":
+		tok = token.UMM
+
+	case "pc":
+		tok = token.UPC
+
+	case "px":
+		tok = token.UPX
+	case "pt":
+		tok = token.UPT
+
+	case "deg":
+		tok = token.DEG
+	case "grad":
+		tok = token.GRAD
+	case "rad":
+		tok = token.RAD
+	case "turn":
+		tok = token.TURN
+
+	case "em":
+		tok = token.UEM
+	case "rem":
+		tok = token.UREM
+	case "%":
+		tok = token.UPCT
+	default:
+		lit = ""
+	}
+
+	return tok, lit
 	switch s.ch {
 	case 'p':
 		// pt px
@@ -1089,6 +1131,9 @@ func (s *Scanner) scanUnit() (token.Token, string) {
 			s.next()
 			return token.UPT, string(s.src[offs:s.offset])
 		}
+	case 'e':
+		//
+		s.next()
 	case '%':
 		s.next()
 		return token.UPCT, "%"
@@ -1105,7 +1150,6 @@ func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
 		offs--
 		tok = token.FLOAT
 		s.scanMantissa(10)
-		goto exponent
 	}
 	if s.ch == '0' {
 		// int or float
@@ -1147,21 +1191,6 @@ fraction:
 		tok = token.FLOAT
 		s.next()
 		s.scanMantissa(10)
-	}
-
-exponent:
-	if s.ch == 'e' || s.ch == 'E' {
-		tok = token.FLOAT
-		s.next()
-		if s.ch == '-' || s.ch == '+' {
-			s.next()
-		}
-		s.scanMantissa(10)
-	}
-
-	if s.ch == 'i' {
-		tok = token.ILLEGAL
-		s.next()
 	}
 
 exit:
