@@ -843,7 +843,7 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 // by parens
 func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bool) {
 	if p.trace {
-		// defer un(trace(p, "SassList"))
+		defer un(trace(p, "SassList"))
 	}
 	var checkParen bool
 	if p.tok == token.LPAREN {
@@ -867,6 +867,9 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bo
 				hasComma = true
 				p.next()
 			}
+		} else if p.tok == token.LPAREN {
+			// fuck, new list
+			list = append(list, p.listFromExprs(p.parseSassList(lhs, true)))
 		} else if p.tok == token.COMMA {
 			return
 		} else {
@@ -1563,6 +1566,11 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	if p.trace {
 		defer un(trace(p, "CallOrConversion"))
 	}
+	// See functions LPAREN have to be next to the previous expression
+	// There's other rules too, but no need to apply those just yet
+	if fun.End() != p.pos {
+		p.error(fun.End(), "Functions are followed immediately by (")
+	}
 	pos := p.pos
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
@@ -1586,7 +1594,10 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		// Ellipsis: ellipsis,
 		Rparen: rparen,
 	}
-	ident := fun.(*ast.Ident)
+	ident, ok := fun.(*ast.Ident)
+	if !ok {
+		log.Fatalf("% #v\n", fun)
+	}
 	if p.mode&FuncOnly == 0 {
 		lit, err := evaluateCall(call)
 		call.Resolved = lit
@@ -1804,6 +1815,9 @@ L:
 		case token.LPAREN:
 			if lhs {
 				p.resolve(x)
+			}
+			if x.End() != p.pos {
+				return x
 			}
 			x = p.parseCallOrConversion(p.checkExprOrType(x))
 		default:
@@ -2374,11 +2388,9 @@ func (p *parser) processImport(path string) error {
 }
 
 func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
-	log.Fatal("boom!")
 	if p.trace {
 		defer un(trace(p, keyword.String()+"InferSelSpec"))
 	}
-	fmt.Println("inferSel", p.lineComment)
 	decl := p.parseRuleSelDecl()
 
 	return &ast.SelSpec{
@@ -2405,30 +2417,17 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		// Obj:     obj,
 	}
 
-	// var obj *ast.Object
-	switch p.tok {
-	case token.RULE:
-		// obj = ast.NewObj(ast.Rul, name)
-	case token.VAR:
-		// obj = ast.NewObj(ast.Var, name)
-	default:
-
-	}
-
 	// Type has to be derived from the values being set
 	// typ := p.tryType()
 	// var typ ast.Expr
 	var values []ast.Expr
 
 	lhs := true
-
 	p.next()
 	pos, tok := p.pos, p.tok
 	switch p.tok {
 	case token.LPAREN:
-		ident := ast.NewIdent(lit)
-		ident.NamePos = p.pos
-		ret := p.parseCallOrConversion(p.checkExprOrType(ident))
+		ret := p.parseCallOrConversion(p.checkExprOrType(name))
 		values = append(values, ret)
 	case token.COLON:
 		lhs = false
