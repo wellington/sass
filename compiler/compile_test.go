@@ -77,7 +77,7 @@ compiling: %s\n
 =================================
 `, f.input)
 		ctx := Context{}
-		// ctx.mode = parser.Trace
+		ctx.mode = parser.Trace
 		ctx.Init()
 		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)

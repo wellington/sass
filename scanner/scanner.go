@@ -1120,25 +1120,6 @@ func (s *Scanner) scanUnit() (token.Token, string) {
 	}
 
 	return tok, lit
-	switch s.ch {
-	case 'p':
-		// pt px
-		s.next()
-		if s.ch == 'x' {
-			s.next()
-			return token.UPX, string(s.src[offs:s.offset])
-		} else if s.ch == 't' {
-			s.next()
-			return token.UPT, string(s.src[offs:s.offset])
-		}
-	case 'e':
-		//
-		s.next()
-	case '%':
-		s.next()
-		return token.UPCT, "%"
-	}
-	return token.ILLEGAL, ""
 }
 
 func (s *Scanner) scanNumber(seenDecimalPoint bool) (token.Token, string) {
