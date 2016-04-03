@@ -327,8 +327,10 @@ func (z *Num) Convert(src *Num) *Num {
 	}
 
 	dcv := decimal.NewFromFloat(cv)
-	z.dec = src.dec.Mul(dcv).Round(Precision)
-	return z
+	return &Num{
+		Unit: z.Unit,
+		dec:  src.dec.Mul(dcv).Round(Precision),
+	}
 }
 
 // Op returns the sum of x and y using the specified Op
@@ -360,12 +362,10 @@ func (z *Num) Add(x, y *Num) *Num {
 
 	}
 	// n controls output unit
-	fmt.Printf("adding %s:%s + %s:%s ", x.Unit, x.dec, y.Unit, y.dec)
+	// fmt.Printf("adding %s:%s + %s:%s ", x.Unit, x.dec, y.Unit, y.dec)
 	a, b := z.Convert(x), z.Convert(y)
-
 	z.dec = a.dec.Add(b.dec).Round(Precision)
-	fmt.Printf("res    %s:%s + %s:%s ", a.Unit, a.dec, b.Unit, b.dec)
-	fmt.Printf("= %s\n", z.dec)
+	fmt.Printf("res    %s + %s = %s\n", a, b, z)
 
 	return z
 }
