@@ -3,9 +3,9 @@ package unit
 import (
 	"fmt"
 	"math"
-	"strconv"
 	"strings"
 
+	"github.com/shopspring/decimal"
 	"github.com/wellington/sass/ast"
 	"github.com/wellington/sass/token"
 )
@@ -274,11 +274,14 @@ func Combine(op token.Token, x, y *ast.BasicLit, combine bool) (*ast.BasicLit, e
 	return m.Lit()
 }
 
+// Precision used when performing calculations
+var Precision int32 = 6
+
 // Num represents a float with units. This isn't useful for
 // unitless operations, since "calc" already does this.
 type Num struct {
 	pos token.Pos
-	f   float64
+	dec decimal.Decimal
 	Unit
 }
 
@@ -289,16 +292,17 @@ func NewNum(lit *ast.BasicLit) (*Num, error) {
 	// TODO: scanner should remove unit
 	kind := lit.Kind
 	val = strings.TrimSuffix(lit.Value, token.Tokens[kind])
-	f, err := strconv.ParseFloat(val, 64)
-	return &Num{f: f, Unit: unitLookup(kind)}, err
+	dec, err := decimal.NewFromString(val)
+	return &Num{dec: dec, Unit: unitLookup(kind)}, err
 }
 
 func (z *Num) String() string {
-	s := strconv.FormatFloat(z.f, 'G', -1, 64)
+	d := z.dec.Round(Precision).String()
+	// s := strconv.FormatFloat(z.f, 'G', -1, 64)
 	if z.Unit == NOUNIT {
-		return s
+		return d
 	}
-	return s + tokLookup(z.Unit).String()
+	return d + tokLookup(z.Unit).String()
 }
 
 // Lit attempts to convert Num back into a Lit.
@@ -314,18 +318,17 @@ func (z *Num) Lit() (*ast.BasicLit, error) {
 func (z *Num) Convert(src *Num) *Num {
 	u := z.Unit
 	var cv float64
-	n := &Num{}
 	if u == NOUNIT {
 		// nounit inherits unit of src
 		u = src.Unit
 		cv = 1
 	} else {
-		cv = unitconv[z.Unit][u]
+		cv = unitconv[src.Unit][z.Unit]
 	}
 
-	n.f = src.f * cv
-	n.Unit = u
-	return n
+	dcv := decimal.NewFromFloat(cv)
+	z.dec = src.dec.Mul(dcv).Round(Precision)
+	return z
 }
 
 // Op returns the sum of x and y using the specified Op
@@ -336,7 +339,7 @@ func (z *Num) Op(op token.Token, x, y *Num) *Num {
 	case token.MUL:
 		return z.Mul(x, y)
 	case token.QUO:
-		return z.Quo(x, y)
+		return z.Div(x, y)
 	case token.SUB:
 		return z.Sub(x, y)
 	default:
@@ -357,34 +360,36 @@ func (z *Num) Add(x, y *Num) *Num {
 
 	}
 	// n controls output unit
-	fmt.Printf("adding %s:% #v + %s:% #v ", x.Unit, x, y.Unit, y)
-	fmt.Println(z.Unit, z)
-	z.Convert(y)
+	fmt.Printf("adding %s:%s + %s:%s ", x.Unit, x.dec, y.Unit, y.dec)
 	a, b := z.Convert(x), z.Convert(y)
-	z.f = a.f + b.f
+
+	z.dec = a.dec.Add(b.dec).Round(Precision)
+	fmt.Printf("res    %s:%s + %s:%s ", a.Unit, a.dec, b.Unit, b.dec)
+	fmt.Printf("= %s\n", z.dec)
+
 	return z
 }
 
 // Sub returns the subtraction of x and y
 func (z *Num) Sub(x, y *Num) *Num {
 	// n controls output unit
-	a, b := x.Convert(z), y.Convert(z)
-	z.f = a.f - b.f
+	a, b := z.Convert(x), z.Convert(y)
+	z.dec = a.dec.Sub(b.dec).Round(Precision)
 	return z
 }
 
 // Mul returns the multiplication of x and y
 func (z *Num) Mul(x, y *Num) *Num {
 	// n controls output unit
-	a, b := x.Convert(z), y.Convert(z)
-	z.f = a.f * b.f
+	a, b := z.Convert(x), z.Convert(y)
+	z.dec = a.dec.Mul(b.dec).Round(Precision)
 	return z
 }
 
-// Quo returns the division of x and y
-func (z *Num) Quo(x, y *Num) *Num {
+// Div returns the rounded division of x and y
+func (z *Num) Div(x, y *Num) *Num {
 	// n controls output unit
-	a, b := x.Convert(z), y.Convert(z)
-	z.f = a.f / b.f
+	a, b := z.Convert(x), z.Convert(y)
+	z.dec = a.dec.Div(b.dec).Round(Precision)
 	return z
 }

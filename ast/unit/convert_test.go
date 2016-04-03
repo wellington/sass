@@ -1,13 +1,17 @@
 package unit
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/shopspring/decimal"
+)
 
 var samp = []*Num{
-	&Num{Unit: IN, f: 1},
-	&Num{Unit: CM, f: 2.54},
-	&Num{Unit: MM, f: 25.4},
-	&Num{Unit: PT, f: 72},
-	&Num{Unit: PX, f: 96},
+	&Num{Unit: IN, dec: decimal.NewFromFloat(1)},
+	&Num{Unit: CM, dec: decimal.NewFromFloat(2.54)},
+	&Num{Unit: MM, dec: decimal.NewFromFloat(25.4)},
+	&Num{Unit: PT, dec: decimal.NewFromFloat(72)},
+	&Num{Unit: PX, dec: decimal.NewFromFloat(96)},
 }
 
 func copy(n *Num) *Num {
@@ -23,8 +27,9 @@ func TestConvert(t *testing.T) {
 		if x.Unit != samp[0].Unit {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
-		if e := samp[i].f; e != x.f {
-			t.Errorf("got: %f wanted: %f", x.f, e)
+		if e := samp[0].dec; e.Cmp(x.dec) != 0 {
+			t.Errorf("got: %s wanted: %s", samp[0].dec, e)
+			// if e := samp[i].dec; e != x.dec {
 		}
 	}
 }
@@ -36,8 +41,8 @@ func TestAdd(t *testing.T) {
 		if x.Unit != samp[0].Unit {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
-		if e := 2.0; e != x.f {
-			t.Errorf("got: %f wanted: %f", x.f, e)
+		if e := decimal.NewFromFloat(2.0); e.Cmp(x.dec) != 0 {
+			t.Errorf("%s got: %s wanted: %s", samp[i].Unit, x.dec, e)
 		}
 	}
 }
@@ -49,8 +54,8 @@ func TestSub(t *testing.T) {
 		if x.Unit != samp[0].Unit {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
-		if e := 0.0; e != x.f {
-			t.Errorf("got: %f wanted: %f", x.f, e)
+		if e := decimal.NewFromFloat(0.0); e.Cmp(x.dec) != 0 {
+			t.Errorf("got: %f wanted: %f", x.dec, e)
 		}
 	}
 }
@@ -62,21 +67,21 @@ func TestMul(t *testing.T) {
 		if x.Unit != samp[0].Unit {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
-		if e := 1.0; e != x.f {
-			t.Errorf("got: %f wanted: %f", x.f, e)
+		if e := decimal.NewFromFloat(1.0); e.Cmp(x.dec) != 0 {
+			t.Errorf("got: %f wanted: %f", x.dec, e)
 		}
 	}
 }
 
-func TestQuo(t *testing.T) {
+func TestDiv(t *testing.T) {
 	for i := range samp {
 		x := copy(samp[0])
-		x.Quo(samp[0], samp[i])
+		x.Div(samp[0], samp[i])
 		if x.Unit != samp[0].Unit {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
-		if e := 1.0; e != x.f {
-			t.Errorf("got: %f wanted: %f", x.f, e)
+		if e := decimal.NewFromFloat(1.0); e.Cmp(x.dec) != 0 {
+			t.Errorf("got: %f wanted: %f", x.dec, e)
 		}
 	}
 }

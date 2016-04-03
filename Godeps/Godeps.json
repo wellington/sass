@@ -11,6 +11,10 @@
 			"Rev": "5c4df71dfe9ac89ef6287afc05e4c1b16ae65a1e"
 		},
 		{
+			"ImportPath": "github.com/shopspring/decimal",
+			"Rev": "74d668a796fa3734c552fb907d9b83146d0bebee"
+		},
+		{
 			"ImportPath": "github.com/hashicorp/hcl",
 			"Rev": "578dd9746824a54637686b51a41bad457a56bcef"
 		},
