@@ -883,8 +883,8 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, c
 	if p.tok == token.EOF {
 		p.error(p.pos, "EOF reached before list end")
 	}
-	if checkParen && p.tok == token.RPAREN {
-		p.next()
+	if checkParen {
+		p.expect(token.RPAREN)
 	}
 	return
 
@@ -1494,13 +1494,21 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		return x
 
 	case token.LPAREN:
-		lparen := p.pos
-		p.next()
-		p.exprLev++
-		x := p.parseRhsOrType() // types may be parenthesized: (some type)
-		p.exprLev--
-		rparen := p.expect(token.RPAREN)
-		return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
+		// lparen := p.pos
+		// Probably a sass list
+
+		ls, _, _ := p.parseSassList(lhs, true)
+		if len(ls) > 1 {
+			panic("multiple lists found")
+		}
+
+		return ls[0]
+		// p.next()
+		// p.exprLev++
+		// x := p.parseRhsOrType() // types may be parenthesized: (some type)
+		// p.exprLev--
+		// rparen := p.expect(token.RPAREN)
+		// return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
 
 	case token.VAR:
 		// VAR is only hit while parsing function params, so
@@ -1714,6 +1722,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.BadExpr:
 	case *ast.Ident:
 	case *ast.BasicLit:
+	case *ast.ListLit:
 	case *ast.FuncLit:
 	case *ast.Interp:
 	case *ast.StringExpr:
@@ -2456,6 +2465,10 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			}
 			values = append(values, bin)
 		} else {
+			l, _, _ := p.parseSassList(lhs, true)
+			if l == nil {
+				panic("dont know now")
+			}
 			panic(fmt.Errorf("non-unary discovered: % #v", y))
 		}
 	}

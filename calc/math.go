@@ -45,6 +45,7 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 			ss[i] = lit.Value
 		}
 		x = &ast.BasicLit{
+			Kind:     token.STRING,
 			Value:    strings.Join(ss, delim),
 			ValuePos: v.Pos(),
 		}

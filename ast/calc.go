@@ -14,6 +14,9 @@ import (
 // and input whitespace may be essential to compiler output.
 var ErrNoCombine = errors.New("no op to perform")
 
+// ErrIllegalOp indicate parsing errors on operands
+var ErrIllegalOp = errors.New("operand is illegal")
+
 type kind struct {
 	unit    token.Token
 	combine func(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error)
@@ -31,7 +34,12 @@ func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicL
 // combine forces operations on unitless numbers. By default,
 // unitless numbers are not combined.
 func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
-	fmt.Printf("kind: %s op: %s combine: %t x: % #v y: % #v\n", x.Kind, op, combine, x, y)
+	fmt.Printf("kind: %s op: %s y: %s combine: %t x: % #v y: % #v\n", x.Kind, op, y.Kind, combine, x, y)
+
+	if x.Kind == token.ILLEGAL || y.kind == token.ILLEGAL {
+		return nil, ErrIllegalOp
+	}
+
 	kind := x.Kind
 	var fn func(token.Token, *BasicLit, *BasicLit, bool) (*BasicLit, error)
 	switch {
@@ -78,7 +86,6 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 		}
 	}
 	lit, err := fn(op, x, y, combine)
-	fmt.Printf("wut % #v\n", lit)
 	return lit, err
 }
 
