@@ -1057,16 +1057,23 @@ func (p *parser) listFromExprs(in []ast.Expr, hasComma, inParen bool) ast.Expr {
 	if len(in) == 0 {
 		return nil
 	}
-	if len(in) == 1 && !inParen {
-		return in[0]
+	if len(in) > 1 {
+		return &ast.ListLit{
+			Paren:    inParen,
+			ValuePos: in[0].Pos(),
+			EndPos:   in[len(in)-1].End(),
+			Value:    p.mergeInterps(in),
+			Comma:    hasComma,
+		}
 	}
-	return &ast.ListLit{
-		Paren:    inParen,
-		ValuePos: in[0].Pos(),
-		EndPos:   in[len(in)-1].End(),
-		Value:    p.mergeInterps(in),
-		Comma:    hasComma,
+	l, ok := in[0].(*ast.ListLit)
+	if ok {
+		// non-paren list inside paren list
+		l.Paren = true
+		return l
 	}
+	// Unwrap list of 1
+	return in[0]
 }
 
 func (p *parser) parseString() *ast.StringExpr {
@@ -2421,7 +2428,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// typ := p.tryType()
 	// var typ ast.Expr
 	var values []ast.Expr
-
 	lhs := true
 	p.next()
 	pos, tok := p.pos, p.tok
@@ -2434,7 +2440,24 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		p.next()
 		fallthrough
 	default:
-		values = []ast.Expr{p.inferExprList(lhs)}
+		x := p.inferExprList(lhs)
+		if p.tok == token.SEMICOLON {
+			values = append(values, x)
+			break
+		}
+		// check for string math against a list...
+		y := p.parseUnaryExpr(false)
+		if un, ok := y.(*ast.UnaryExpr); ok {
+			bin := &ast.BinaryExpr{
+				X:     x,
+				Y:     un.X,
+				Op:    un.Op,
+				OpPos: un.OpPos,
+			}
+			values = append(values, bin)
+		} else {
+			panic(fmt.Errorf("non-unary discovered: % #v", y))
+		}
 	}
 
 	// p.expectSemi()
@@ -2448,8 +2471,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		// Assignment happening
 		spec = &ast.ValueSpec{
 			// Doc:   doc,
-			Names: []*ast.Ident{name},
-			// Type:    values[0],
+			Names:   []*ast.Ident{name},
 			Comment: p.lineComment,
 			Values:  values,
 		}

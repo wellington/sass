@@ -38,7 +38,11 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 		}
 		ss := make([]string, len(v.Value))
 		for i := range v.Value {
-			ss[i] = v.Value[i].(*ast.BasicLit).Value
+			lit, err := resolve(v.Value[i], doOp)
+			if err != nil {
+				return nil, err
+			}
+			ss[i] = lit.Value
 		}
 		x = &ast.BasicLit{
 			Value:    strings.Join(ss, delim),
