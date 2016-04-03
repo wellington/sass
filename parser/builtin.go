@@ -165,7 +165,7 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 			}
 
 		default:
-			lit, err := calc.Resolve(v)
+			lit, err := calc.Resolve(v, true)
 			if err == nil {
 				callargs[argpos] = lit
 			} else {
@@ -177,7 +177,7 @@ func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
 		lits := make([]*ast.BasicLit, len(callargs))
 		var err error
 		for i, x := range callargs {
-			lits[i], err = calc.Resolve(x)
+			lits[i], err = calc.Resolve(x, true)
 			// lits[i], ok = exprToLit(x)
 			if err != nil {
 				return nil, fmt.Errorf("failed to parse arg(%d) in %s: %s", i, fn.name, err)

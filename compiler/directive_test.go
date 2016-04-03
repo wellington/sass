@@ -3,14 +3,12 @@ package compiler
 import (
 	"testing"
 
-	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
 
 func TestDirective_each_paran(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   @each $i in (1 2 3 4 5) {

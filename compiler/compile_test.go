@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
 
@@ -77,7 +76,7 @@ compiling: %s\n
 =================================
 `, f.input)
 		ctx := Context{}
-		ctx.mode = parser.Trace
+		// ctx.mode = parser.Trace
 		ctx.Init()
 		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
@@ -171,7 +170,6 @@ func TestSelector_deep_nesting(t *testing.T) {
 
 func TestSelector_selector_interp(t *testing.T) {
 	ctx := &Context{}
-	ctx.SetMode(parser.Trace)
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
 	input := `$x: oo, ba;

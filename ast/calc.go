@@ -31,7 +31,7 @@ func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicL
 // combine forces operations on unitless numbers. By default,
 // unitless numbers are not combined.
 func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
-	fmt.Printf("kind: %s op: %s x: % #v y: % #v\n", x.Kind, op, x, y)
+	fmt.Printf("kind: %s op: %s combine: %t x: % #v y: % #v\n", x.Kind, op, combine, x, y)
 	kind := x.Kind
 	var fn func(token.Token, *BasicLit, *BasicLit, bool) (*BasicLit, error)
 	switch {

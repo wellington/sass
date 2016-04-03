@@ -67,14 +67,15 @@ func (ctx *Context) SetMode(mode parser.Mode) error {
 }
 
 func (ctx *Context) run(path string, src interface{}) (string, error) {
-	// func ParseFile(fset *token.FileSet, filename string, src interface{}, mode Mode) (f *ast.File, err error) {
+
 	ctx.fset = token.NewFileSet()
-	// pf, err := parser.ParseFile(ctx.fset, path, src, parser.ParseComments)
+	// ctx.mode = parser.Trace
 	pf, err := parser.ParseFile(ctx.fset, path, src, ctx.mode)
 	if err != nil {
 		return "", err
 	}
 
+	// ast.Print(ctx.fset, pf)
 	ast.Walk(ctx, pf)
 	lr, _ := utf8.DecodeLastRune(ctx.buf.Bytes())
 	_ = lr
@@ -379,9 +380,9 @@ func visitValueSpec(ctx *Context, n ast.Node) {
 	return
 }
 
-func calculateExprs(ctx *Context, bin *ast.BinaryExpr) (string, error) {
+func calculateExprs(ctx *Context, bin *ast.BinaryExpr, doOp bool) (string, error) {
 
-	lit, err := calc.Resolve(bin)
+	lit, err := calc.Resolve(bin, doOp)
 	if err != nil {
 		return "", err
 	}
@@ -478,20 +479,20 @@ func resolveAssign(ctx *Context, astmt *ast.AssignStmt) (lits []*ast.BasicLit) {
 	return
 }
 
-func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
+func resolveExpr(ctx *Context, expr ast.Expr, doOp bool) (out string, err error) {
 	switch v := expr.(type) {
 	case *ast.Interp:
-		return resolveExpr(ctx, v.Obj.Decl.(ast.Expr))
+		return resolveExpr(ctx, v.Obj.Decl.(ast.Expr), doOp)
 	case *ast.Value:
 		panic("ast.Value")
 	case *ast.BinaryExpr:
-		out, err = calculateExprs(ctx, v)
+		out, err = calculateExprs(ctx, v, doOp)
 	case *ast.CallExpr:
 		fn, ok := v.Fun.(*ast.Ident)
 		if !ok {
 			return "", fmt.Errorf("unable to read func: % #v", v.Fun)
 		}
-		return resolveExpr(ctx, fn.Obj.Decl.(ast.Expr))
+		return resolveExpr(ctx, fn.Obj.Decl.(ast.Expr), doOp)
 	case *ast.StringExpr:
 		out, err = simplifyExprs(ctx, v.List)
 		return `"` + out + `"`, nil
@@ -518,7 +519,7 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 			delim = ", "
 		}
 		for i, x := range v.Value {
-			o, err := resolveExpr(ctx, x)
+			o, err := resolveExpr(ctx, x, v.Paren)
 			_ = err // fuq this error
 			vals[i] = o
 		}
@@ -532,7 +533,7 @@ func resolveExpr(ctx *Context, expr ast.Expr) (out string, err error) {
 func simplifyExprs(ctx *Context, exprs []ast.Expr) (string, error) {
 	sums := make([]string, 0, len(exprs))
 	for _, expr := range exprs {
-		s, err := resolveExpr(ctx, expr)
+		s, err := resolveExpr(ctx, expr, false)
 		if err != nil {
 			return "", err
 		}

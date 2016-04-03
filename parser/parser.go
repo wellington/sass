@@ -743,7 +743,7 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 		if err != nil {
 			p.error(x.Pos(), "failed to resolve call: "+err.Error())
 		}
-		res, err := calc.Resolve(x)
+		res, err := calc.Resolve(x, true)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
 			continue
@@ -2942,7 +2942,7 @@ func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 				lit = rtyp
 			case *ast.ListLit:
 				var err error
-				lit, err = calc.Resolve(rtyp)
+				lit, err = calc.Resolve(rtyp, rtyp.Paren)
 				assert(err == nil, "calc resolve failed")
 			default:
 				log.Fatalf("illegal Rhs expr % #v\n", rtyp)

@@ -9,11 +9,11 @@ import (
 )
 
 // Resolve simple math to create a basic lit
-func Resolve(in ast.Expr) (*ast.BasicLit, error) {
-	return resolve(in)
+func Resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
+	return resolve(in, doOp)
 }
 
-func resolve(in ast.Expr) (*ast.BasicLit, error) {
+func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 	x := &ast.BasicLit{
 		ValuePos: in.Pos(),
 	}
@@ -22,7 +22,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 	case *ast.StringExpr:
 		list := make([]string, 0, len(v.List))
 		for _, l := range v.List {
-			lit, err := resolve(l)
+			lit, err := resolve(l, doOp)
 			if err != nil {
 				return nil, err
 			}
@@ -47,7 +47,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 	case *ast.UnaryExpr:
 		x = v.X.(*ast.BasicLit)
 	case *ast.BinaryExpr:
-		x, err = binary(v)
+		x, err = binary(v, doOp)
 	case *ast.BasicLit:
 		x = v
 	case *ast.Ident:
@@ -58,7 +58,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		kind := token.INT
 		var val []string
 		for _, x := range rhs {
-			lit, err := resolve(x)
+			lit, err := resolve(x, doOp)
 			if err != nil {
 				return nil, err
 			}
@@ -72,12 +72,12 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		x.Value = strings.Join(val, ", ")
 		x.Kind = kind
 	case *ast.CallExpr:
-		x, err = resolve(v.Resolved)
+		x, err = resolve(v.Resolved, doOp)
 	case *ast.Interp:
 		if v.Obj == nil {
 			panic("unresolved interpolation")
 		}
-		x, err = resolve(v.Obj.Decl.(ast.Expr))
+		x, err = resolve(v.Obj.Decl.(ast.Expr), doOp)
 	default:
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 		panic(err)
@@ -86,12 +86,12 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 }
 
 // binary takes a BinaryExpr and simplifies it to a basiclit
-func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
-	left, err := resolve(in.X)
+func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
+	left, err := resolve(in.X, doOp)
 	if err != nil {
 		return nil, err
 	}
-	right, err := resolve(in.Y)
+	right, err := resolve(in.Y, doOp)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	}
 	switch in.Op {
 	case token.ADD, token.SUB, token.MUL, token.QUO:
-		return combineLits(in.Op, left, right, false)
+		return combineLits(in.Op, left, right, doOp)
 	default:
 		fmt.Printf("l: % #v\nr: % #v\n", left, right)
 		err = fmt.Errorf("unsupported %s", in.Op)
