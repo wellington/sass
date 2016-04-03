@@ -101,7 +101,7 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	}
 	switch in.Op {
 	case token.ADD, token.SUB, token.MUL, token.QUO:
-		return combineLits(in.Op, left, right)
+		return combineLits(in.Op, left, right, false)
 	default:
 		fmt.Printf("l: % #v\nr: % #v\n", left, right)
 		err = fmt.Errorf("unsupported %s", in.Op)
@@ -109,8 +109,8 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	return out, err
 }
 
-func combineLits(op token.Token, left, right *ast.BasicLit) (*ast.BasicLit, error) {
-	return ast.Op(op, left, right)
+func combineLits(op token.Token, left, right *ast.BasicLit, force bool) (*ast.BasicLit, error) {
+	return ast.Op(op, left, right, force)
 
 }
 

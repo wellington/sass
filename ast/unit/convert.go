@@ -255,7 +255,7 @@ func init() {
 }
 
 // Combine lit with specified kind rules
-func Combine(op token.Token, x, y *ast.BasicLit) (*ast.BasicLit, error) {
+func Combine(op token.Token, x, y *ast.BasicLit, combine bool) (*ast.BasicLit, error) {
 	// So we have some non-standard units, convert to INT/FLOAT
 	// and send to another handler. Return always matches the unit
 	// of x

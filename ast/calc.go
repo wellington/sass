@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -8,23 +9,31 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+// ErrNoCombine indicates that combination is not necessary
+// The result should be treated as a sasslist or other form
+// and input whitespace may be essential to compiler output.
+var ErrNoCombine = errors.New("no op to perform")
+
 type kind struct {
 	unit    token.Token
-	combine func(op token.Token, x, y *BasicLit) (*BasicLit, error)
+	combine func(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error)
 }
 
 var kinds []kind
 
-func RegisterKind(fn func(op token.Token, x, y *BasicLit) (*BasicLit, error), units ...token.Token) {
+func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error), units ...token.Token) {
 	for _, unit := range units {
 		kinds = append(kinds, kind{unit: unit, combine: fn})
 	}
 }
 
-func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+// Op processes x op y applying unit conversions as necessary.
+// combine forces operations on unitless numbers. By default,
+// unitless numbers are not combined.
+func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	fmt.Printf("kind: %s op: %s x: % #v y: % #v\n", x.Kind, op, x, y)
 	kind := x.Kind
-	var fn func(token.Token, *BasicLit, *BasicLit) (*BasicLit, error)
+	var fn func(token.Token, *BasicLit, *BasicLit, bool) (*BasicLit, error)
 	switch {
 	case kind == token.COLOR:
 		fn = colorOp
@@ -49,6 +58,15 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 		fn = stringOp
 	}
 
+	// math operations do not happen unless explicity enforced
+	// on * and /
+	if op == token.QUO || op == token.MUL {
+		if fn != nil && !combine {
+			fn = stringOp
+		}
+	}
+
+	// no functions matched, check registered functions
 	if fn == nil {
 		for _, k := range kinds {
 			if k.unit == kind {
@@ -59,12 +77,12 @@ func Op(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 			return nil, fmt.Errorf("unsupported Op %s", x.Kind)
 		}
 	}
-	lit, err := fn(op, x, y)
+	lit, err := fn(op, x, y, combine)
 	fmt.Printf("wut % #v\n", lit)
 	return lit, err
 }
 
-func floatOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+func floatOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	out := &BasicLit{
 		Kind: token.FLOAT,
 	}
@@ -99,7 +117,7 @@ func floatOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 
 }
 
-func intOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+func intOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	out := &BasicLit{
 		Kind: x.Kind,
 	}
@@ -122,7 +140,7 @@ func intOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 		// ints as floats then test for fitting inside INT
 		fl, fr := float64(l), float64(r)
 		if math.Remainder(fl, fr) != 0 {
-			return floatOp(op, x, y)
+			return floatOp(op, x, y, combine)
 		}
 		t = l / r
 	case token.MUL:
@@ -134,7 +152,7 @@ func intOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
 	return out, nil
 }
 
-func stringOp(op token.Token, x, y *BasicLit) (*BasicLit, error) {
+func stringOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	if op == token.ADD {
 		return &BasicLit{
 			Kind:  token.STRING,

@@ -841,11 +841,10 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
-func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bool) {
+func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, checkParen bool) {
 	if p.trace {
 		defer un(trace(p, "SassList"))
 	}
-	var checkParen bool
 	if p.tok == token.LPAREN {
 		checkParen = true
 		p.next()
@@ -873,7 +872,7 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bo
 		} else if p.tok == token.COMMA {
 			return
 		} else {
-			x := p.inferExpr(lhs)
+			x := p.inferExpr(lhs, checkParen)
 			if interp, ok := x.(*ast.Interp); ok {
 				p.resolveInterp(interp)
 			}
@@ -882,7 +881,7 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bo
 	}
 
 	if p.tok == token.EOF {
-		p.error(p.pos, "could not find list end")
+		p.error(p.pos, "EOF reached before list end")
 	}
 	if checkParen && p.tok == token.RPAREN {
 		p.next()
@@ -1054,14 +1053,15 @@ func (p *parser) inferExprList(lhs bool) ast.Expr {
 }
 
 // listFromExprs takes a slice of expr to create a ListLit
-func (p *parser) listFromExprs(in []ast.Expr, hasComma bool) ast.Expr {
+func (p *parser) listFromExprs(in []ast.Expr, hasComma, inParen bool) ast.Expr {
 	if len(in) == 0 {
 		return nil
 	}
-	if len(in) == 1 {
+	if len(in) == 1 && !inParen {
 		return in[0]
 	}
 	return &ast.ListLit{
+		Paren:    inParen,
 		ValuePos: in[0].Pos(),
 		EndPos:   in[len(in)-1].End(),
 		Value:    p.mergeInterps(in),
@@ -1082,7 +1082,7 @@ func (p *parser) parseString() *ast.StringExpr {
 	var list []ast.Expr
 	// Only strings and interpolations allowed here
 	for p.tok != token.EOF && p.tok != tok {
-		x := p.inferExpr(false)
+		x := p.inferExpr(false, false)
 		list = append(list, x)
 	}
 	rquote := p.expectClosing(tok, "string list")
@@ -1102,7 +1102,7 @@ func (p *parser) parseString() *ast.StringExpr {
 // nulls (e.g. null)
 // lists of values, separated by spaces or commas (e.g. 1.5em 1em 0 2em, Helvetica, Arial, sans-serif)
 // maps from one value to another (e.g. (key1: value1, key2: value2))
-func (p *parser) inferExpr(lhs bool) ast.Expr {
+func (p *parser) inferExpr(lhs bool, inParens bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "inferExpr"))
 	}
@@ -1119,7 +1119,7 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		p.next()
 		return expr
 	}
-	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+	return p.parseBinaryExpr(lhs, inParens, token.LowestPrec+1)
 }
 
 func (p *parser) parseSassType() ast.Expr {
@@ -1864,7 +1864,7 @@ func (p *parser) tokPrec() (token.Token, int) {
 }
 
 // If lhs is set and the result is an identifier, it is not resolved.
-func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
+func (p *parser) parseBinaryExpr(lhs bool, inParens bool, prec1 int) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "BinaryExpr"))
 	}
@@ -1881,7 +1881,7 @@ func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
 				p.resolve(x)
 				lhs = false
 			}
-			y := p.parseBinaryExpr(false, prec+1)
+			y := p.parseBinaryExpr(false, inParens, prec+1)
 			x = &ast.BinaryExpr{
 				X:     p.checkExpr(x),
 				OpPos: pos,
@@ -1902,7 +1902,7 @@ func (p *parser) parseExpr(lhs bool) ast.Expr {
 		defer un(trace(p, "Expression"))
 	}
 
-	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+	return p.parseBinaryExpr(lhs, false, token.LowestPrec+1)
 }
 
 func (p *parser) parseRhs() ast.Expr {
@@ -2099,7 +2099,7 @@ func (p *parser) parseEachDir() ast.Stmt {
 		p.next()
 	}
 
-	list, _ := p.parseSassList(true, false)
+	list, _, _ := p.parseSassList(true, false)
 
 	// Run the first one with the first itr
 	p.openScope()

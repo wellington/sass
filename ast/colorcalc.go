@@ -168,7 +168,7 @@ func LookupColor(s string) string {
 	return s
 }
 
-func colorOp(tok token.Token, x, y *BasicLit) (*BasicLit, error) {
+func colorOp(tok token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	if x.Kind != token.COLOR {
 		return nil, fmt.Errorf("unsupported kind %s", x.Kind)
 	}
