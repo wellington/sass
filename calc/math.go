@@ -36,9 +36,11 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 		if v.Comma {
 			delim = ", "
 		}
+		var k token.Token
 		ss := make([]string, len(v.Value))
 		for i := range v.Value {
 			lit, err := resolve(v.Value[i], doOp)
+			k = lit.Kind
 			if err != nil {
 				return nil, err
 			}
@@ -48,6 +50,9 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 			Kind:     token.STRING,
 			Value:    strings.Join(ss, delim),
 			ValuePos: v.Pos(),
+		}
+		if len(v.Value) == 1 {
+			x.Kind = k
 		}
 	case *ast.UnaryExpr:
 		x = v.X.(*ast.BasicLit)
@@ -92,6 +97,19 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 
 // binary takes a BinaryExpr and simplifies it to a basiclit
 func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
+	// fuq, look for paren wrapped lists
+	if lit, ok := in.X.(*ast.ListLit); ok {
+		if lit.Paren == true && len(lit.Value) == 1 {
+			doOp = true
+		}
+	}
+
+	if lit, ok := in.Y.(*ast.ListLit); ok {
+		if lit.Paren == true && len(lit.Value) == 1 {
+			doOp = true
+		}
+	}
+
 	left, err := resolve(in.X, doOp)
 	if err != nil {
 		return nil, err
@@ -103,6 +121,10 @@ func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
 	out := &ast.BasicLit{
 		ValuePos: left.Pos(),
 		Kind:     token.STRING,
+	}
+	if doOp {
+		// So actually, we could be a valid type
+		out.Kind = left.Kind
 	}
 	switch in.Op {
 	case token.ADD, token.SUB, token.MUL, token.QUO:

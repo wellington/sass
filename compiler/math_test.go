@@ -28,11 +28,13 @@ func TestMath_list(t *testing.T) {
 div {
   e: 1 + (5/10 4 7 8);
   f: (5/10 2 3) + 1;
+  g: (15 / 3) / 5;
 }
 `
 	e := `div {
   e: 15/10 4 7 8;
-  f: 5/10 2 31; }
+  f: 5/10 2 31;
+  g: 1; }
 `
 	runParse(t, in, e)
 }

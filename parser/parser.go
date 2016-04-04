@@ -1072,6 +1072,17 @@ func (p *parser) listFromExprs(in []ast.Expr, hasComma, inParen bool) ast.Expr {
 		l.Paren = true
 		return l
 	}
+	if inParen {
+		// Doesn't matter always return a list for proper
+		// math resolution
+		return &ast.ListLit{
+			Paren:    inParen,
+			ValuePos: in[0].Pos(),
+			EndPos:   in[0].End(),
+			Value:    in,
+			Comma:    hasComma,
+		}
+	}
 	// Unwrap list of 1
 	return in[0]
 }
@@ -1494,22 +1505,12 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		return x
 
 	case token.LPAREN:
-		// lparen := p.pos
-		// Probably a sass list
-
 		ls, _, _ := p.parseSassList(lhs, true)
 		if len(ls) > 1 {
 			panic("multiple lists found")
 		}
 
 		return ls[0]
-		// p.next()
-		// p.exprLev++
-		// x := p.parseRhsOrType() // types may be parenthesized: (some type)
-		// p.exprLev--
-		// rparen := p.expect(token.RPAREN)
-		// return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
-
 	case token.VAR:
 		// VAR is only hit while parsing function params, so
 		// this should only be allowed in that case.
@@ -1852,7 +1853,8 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 	}
 
 	switch p.tok {
-	case token.ADD, token.SUB, token.NOT, token.XOR, token.AND:
+	case token.ADD, token.SUB, token.NOT, token.XOR, token.AND,
+		token.MUL, token.QUO:
 		pos, op := p.pos, p.tok
 		p.next()
 		x := p.parseUnaryExpr(false)
@@ -1860,12 +1862,6 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		return un
 	case token.QSTRING, token.QSSTRING:
 		return p.parseString()
-	case token.MUL:
-		// pointer type or unary "*" expression
-		pos := p.pos
-		p.next()
-		x := p.parseUnaryExpr(false)
-		return &ast.StarExpr{Star: pos, X: p.checkExprOrType(x)}
 	}
 
 	return p.parsePrimaryExpr(lhs)

@@ -24,6 +24,9 @@ type kind struct {
 
 var kinds []kind
 
+// RegisterKind enables additional external Operations. These could
+// be color math or other non-literal math unsupported directly
+// in ast.
 func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error), units ...token.Token) {
 	for _, unit := range units {
 		kinds = append(kinds, kind{unit: unit, combine: fn})
@@ -35,9 +38,14 @@ func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicL
 // unitless numbers are not combined.
 func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	fmt.Printf("kind: %s op: %s y: %s combine: %t x: % #v y: % #v\n", x.Kind, op, y.Kind, combine, x, y)
-
-	if x.Kind == token.ILLEGAL || y.kind == token.ILLEGAL {
+	if x.Kind == token.ILLEGAL || y.Kind == token.ILLEGAL {
 		return nil, ErrIllegalOp
+	}
+
+	switch op {
+	case token.MUL:
+		// always combine these
+		combine = true
 	}
 
 	kind := x.Kind
