@@ -3,9 +3,6 @@ package compiler
 import "testing"
 
 func TestMath_simple(t *testing.T) {
-	//o: 3px + 3px + 3px;
-	//p: 4 + 1px;
-	//not: 3 / 3;
 	in := `
 div {
   o: 3px + 3px + 3px;
@@ -19,6 +16,24 @@ div {
   p: 5px;
   no: 15/3/5;
   yes: 1; }
+`
+	runParse(t, in, e)
+}
+
+func TestMath_fractions(t *testing.T) {
+	in := `
+div {
+  a: 1 + 2;
+  b: 3 + 3/4;
+  c: 1/2 + 1/2;
+  d: 1/2;
+}
+`
+	e := `div {
+  a: 3;
+  b: 3.75;
+  c: 1;
+  d: 1/2; }
 `
 	runParse(t, in, e)
 }
