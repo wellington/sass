@@ -120,6 +120,13 @@ func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
 		doOp = true
 	}
 
+	if _, ok := in.X.(*ast.Ident); ok {
+		doOp = true
+	}
+	if _, ok := in.Y.(*ast.Ident); ok {
+		doOp = true
+	}
+
 	left, err := resolve(in.X, doOp)
 	if err != nil {
 		return nil, err

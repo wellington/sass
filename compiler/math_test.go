@@ -53,3 +53,35 @@ div {
 `
 	runParse(t, in, e)
 }
+
+func TestMath_var(t *testing.T) {
+	in := `
+$three: 3;
+div {
+  k: 15 / $three;
+  l: 15 / 5 / $three;
+}
+`
+	e := `div {
+  k: 5;
+  l: 1; }
+`
+	runParse(t, in, e)
+}
+
+func TestMath_mixed_unit(t *testing.T) {
+	t.Skip("")
+	in := `
+div {
+  r: 16em * 4;
+  s: (5em / 2);
+  t: 5em/2;
+}
+`
+	e := `div {
+  r: 64em;
+  s: 2.5em;
+  t: 5em/2; }
+`
+	runParse(t, in, e)
+}
