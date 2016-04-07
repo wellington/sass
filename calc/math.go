@@ -97,17 +97,27 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 
 // binary takes a BinaryExpr and simplifies it to a basiclit
 func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
+	var hasList bool
 	// fuq, look for paren wrapped lists
 	if lit, ok := in.X.(*ast.ListLit); ok {
 		if lit.Paren == true && len(lit.Value) == 1 {
 			doOp = true
+		} else {
+			hasList = true
 		}
 	}
 
 	if lit, ok := in.Y.(*ast.ListLit); ok {
 		if lit.Paren == true && len(lit.Value) == 1 {
 			doOp = true
+		} else {
+			hasList = true
 		}
+	}
+
+	// Division may ignore math, but nothing else does
+	if in.Op != token.QUO && !hasList {
+		doOp = true
 	}
 
 	left, err := resolve(in.X, doOp)

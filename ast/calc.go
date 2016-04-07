@@ -37,13 +37,16 @@ func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicL
 // combine forces operations on unitless numbers. By default,
 // unitless numbers are not combined.
 func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
-	fmt.Printf("kind: %s op: %s y: %s combine: %t x: % #v y: % #v\n", x.Kind, op, y.Kind, combine, x, y)
+	defer func() {
+		fmt.Printf("kind: %s op: %s y: %s combine: %t x: % #v y: % #v\n",
+			x.Kind, op, y.Kind, combine, x, y)
+	}()
 	if x.Kind == token.ILLEGAL || y.Kind == token.ILLEGAL {
 		return nil, ErrIllegalOp
 	}
 
 	switch op {
-	case token.MUL:
+	case token.MUL, token.ADD:
 		// always combine these
 		combine = true
 	}
@@ -168,14 +171,16 @@ func intOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 }
 
 func stringOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
+	kind := token.STRING
 	if op == token.ADD {
 		return &BasicLit{
-			Kind:  token.STRING,
+			Kind:  kind,
 			Value: x.Value + y.Value,
 		}, nil
 	}
+
 	return &BasicLit{
-		Kind:  token.STRING,
+		Kind:  kind,
 		Value: x.Value + op.String() + y.Value,
 	}, nil
 }
