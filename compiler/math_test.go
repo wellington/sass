@@ -2,9 +2,10 @@ package compiler
 
 import "testing"
 
-func TestMath_simple(t *testing.T) {
+func TestMath_unit_convert(t *testing.T) {
 	in := `
 div {
+  w: 4px + w;
   o: 3px + 3px + 3px;
   p: 4 + 1px;
   no: 15 / 3 / 5;
@@ -12,6 +13,7 @@ div {
 }
 `
 	e := `div {
+  w: 4pxw;
   o: 9px;
   p: 5px;
   no: 15/3/5;
@@ -70,7 +72,7 @@ div {
 }
 
 func TestMath_mixed_unit(t *testing.T) {
-	t.Skip("")
+
 	in := `
 div {
   r: 16em * 4;

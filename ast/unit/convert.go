@@ -251,7 +251,11 @@ var unitconv = [...][11]float64{
 }
 
 func init() {
-	ast.RegisterKind(Combine, token.UPX, token.INT)
+	ast.RegisterKind(Combine,
+		token.UIN, token.UCM, token.UPC, token.UMM,
+		token.UPT, token.UPX, token.DEG, token.GRAD,
+		token.RAD, token.TURN,
+		token.INT, token.FLOAT, token.STRING)
 }
 
 // Combine lit with specified kind rules

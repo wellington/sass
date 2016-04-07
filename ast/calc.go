@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/wellington/sass/token"
 )
@@ -65,6 +66,14 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 		case token.FLOAT:
 			fn = floatOp
 		}
+		// Other Kinds that could act as Float
+	case kind == token.UEM:
+		switch y.Kind {
+		case token.STRING:
+			fn = stringOp
+		default:
+			fn = otherOp
+		}
 	case kind == token.FLOAT:
 		switch y.Kind {
 		case token.STRING:
@@ -72,8 +81,8 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 		default:
 			fn = floatOp
 		}
-	case kind == token.STRING || x.Kind != y.Kind:
-		fmt.Println("string op?")
+	case kind == token.STRING || y.Kind == token.STRING:
+		fmt.Println("string op?", x.Value, y.Value)
 		fn = stringOp
 	}
 
@@ -98,6 +107,39 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	}
 	lit, err := fn(op, x, y, combine)
 	return lit, err
+}
+
+func otherOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
+	var kind token.Token
+	switch x.Kind {
+	case token.ILLEGAL:
+	default:
+		kind = x.Kind
+	}
+
+	switch y.Kind {
+	case token.ILLEGAL:
+	default:
+		switch {
+		case kind == token.ILLEGAL:
+			kind = y.Kind
+		case y.Kind == token.INT || y.Kind == token.FLOAT:
+		case kind != y.Kind:
+			return nil, fmt.Errorf("illegal unit operation %s %s",
+				x.Kind, y.Kind)
+		}
+	}
+	xx := &BasicLit{
+		Value: strings.TrimSuffix(x.Value, x.Kind.String()),
+	}
+	yy := &BasicLit{
+		Value: strings.TrimSuffix(y.Value, y.Kind.String()),
+	}
+	f, err := floatOp(op, xx, yy, combine)
+	return &BasicLit{
+		Kind:  kind,
+		Value: f.Value + kind.String(),
+	}, err
 }
 
 func floatOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
