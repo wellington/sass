@@ -3,6 +3,7 @@ package ast
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math"
 	"strconv"
 	"strings"
@@ -55,8 +56,6 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	kind := x.Kind
 	var fn func(token.Token, *BasicLit, *BasicLit, bool) (*BasicLit, error)
 	switch {
-	case kind == token.COLOR:
-		fn = colorOp
 	case kind == token.INT:
 		switch y.Kind {
 		case token.INT:
@@ -67,13 +66,6 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 			fn = floatOp
 		}
 		// Other Kinds that could act as Float
-	case kind == token.UEM:
-		switch y.Kind {
-		case token.STRING:
-			fn = stringOp
-		default:
-			fn = otherOp
-		}
 	case kind == token.FLOAT:
 		switch y.Kind {
 		case token.STRING:
@@ -81,7 +73,7 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 		default:
 			fn = floatOp
 		}
-	case kind == token.STRING || y.Kind == token.STRING:
+	case kind == token.STRING:
 		fmt.Println("string op?", x.Value, y.Value)
 		fn = stringOp
 	}
@@ -94,47 +86,86 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 		}
 	}
 
-	// no functions matched, check registered functions
+	if fn == nil && (y.Kind == token.STRING || x.Kind == token.STRING) {
+		fn = stringOp
+	}
+
 	if fn == nil {
+
+		units := []token.Token{token.UEM, token.UPX}
+		for _, u := range units {
+			// case kind == token.UEM:
+			if x.Kind == u || y.Kind == u {
+				return otherOp(op, x, y, combine)
+			}
+		}
+
+		// no functions matched, check registered functions
 		for _, k := range kinds {
 			if k.unit == kind {
+				log.Println("x match", kind)
+				fn = k.combine
+			}
+			if k.unit == y.Kind {
+				log.Println("y match", y.Kind)
 				fn = k.combine
 			}
 		}
+
 		if fn == nil {
-			return nil, fmt.Errorf("unsupported Op %s", x.Kind)
+			return nil, fmt.Errorf("unsupported Operands %s:%s",
+				x.Kind, y.Kind)
 		}
 	}
+
 	lit, err := fn(op, x, y, combine)
 	return lit, err
 }
 
 func otherOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
-	var kind token.Token
-	switch x.Kind {
-	case token.ILLEGAL:
-	default:
-		kind = x.Kind
+	if !combine && op == token.QUO {
+		return stringOp(op, x, y, combine)
 	}
 
-	switch y.Kind {
+	a, b := x, y
+	// Order for non-string operations is not important. Reorder for simpler logic
+	switch {
+	case x.Kind == token.INT || x.Kind == token.FLOAT:
+		a = y
+		b = x
+	case y.Kind == token.INT || y.Kind == token.FLOAT:
+	default:
+		if op == token.MUL {
+			return nil, fmt.Errorf("unsupported operation: %s %s %s", x, op, y)
+		}
+	}
+
+	var kind token.Token
+	switch a.Kind {
+	case token.ILLEGAL:
+	default:
+		kind = a.Kind
+	}
+
+	switch b.Kind {
 	case token.ILLEGAL:
 	default:
 		switch {
 		case kind == token.ILLEGAL:
-			kind = y.Kind
-		case y.Kind == token.INT || y.Kind == token.FLOAT:
-		case kind != y.Kind:
+			kind = b.Kind
+		case b.Kind == token.INT || b.Kind == token.FLOAT:
+		case kind != b.Kind:
 			return nil, fmt.Errorf("illegal unit operation %s %s",
-				x.Kind, y.Kind)
+				a.Kind, b.Kind)
 		}
 	}
 	xx := &BasicLit{
-		Value: strings.TrimSuffix(x.Value, x.Kind.String()),
+		Value: strings.TrimSuffix(a.Value, a.Kind.String()),
 	}
 	yy := &BasicLit{
-		Value: strings.TrimSuffix(y.Value, y.Kind.String()),
+		Value: strings.TrimSuffix(b.Value, b.Kind.String()),
 	}
+
 	f, err := floatOp(op, xx, yy, combine)
 	return &BasicLit{
 		Kind:  kind,
@@ -146,6 +177,11 @@ func floatOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	out := &BasicLit{
 		Kind: token.FLOAT,
 	}
+	if !combine {
+		out.Value = x.Value + op.String() + y.Value
+		return out, nil
+	}
+
 	l, err := strconv.ParseFloat(x.Value, 64)
 	if err != nil {
 		return out, err

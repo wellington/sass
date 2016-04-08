@@ -254,8 +254,7 @@ func init() {
 	ast.RegisterKind(Combine,
 		token.UIN, token.UCM, token.UPC, token.UMM,
 		token.UPT, token.UPX, token.DEG, token.GRAD,
-		token.RAD, token.TURN,
-		token.INT, token.FLOAT, token.STRING)
+		token.RAD, token.TURN)
 }
 
 // Combine lit with specified kind rules

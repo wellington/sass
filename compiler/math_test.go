@@ -5,6 +5,7 @@ import "testing"
 func TestMath_unit_convert(t *testing.T) {
 	in := `
 div {
+  v: w + 4px;
   w: 4px + w;
   o: 3px + 3px + 3px;
   p: 4 + 1px;
@@ -13,6 +14,7 @@ div {
 }
 `
 	e := `div {
+  v: w4px;
   w: 4pxw;
   o: 9px;
   p: 5px;
@@ -76,14 +78,36 @@ func TestMath_mixed_unit(t *testing.T) {
 	in := `
 div {
   r: 16em * 4;
-  s: (5em / 2);
+  s: (10em / 2);
   t: 5em/2;
 }
 `
 	e := `div {
   r: 64em;
-  s: 2.5em;
+  s: 5em;
   t: 5em/2; }
+`
+	runParse(t, in, e)
+}
+
+func TestMath_color(t *testing.T) {
+	in := `
+div {
+  a: d  /  #eee;
+  p01: #AbC;
+  p03: #AbC + hello;
+  b: #aaa/w;
+  p04: #AbC + 1;
+  p15a: 10 - #a2B;
+}
+`
+	e := `div {
+  a: d/#eee;
+  p01: #AbC;
+  p03: #AbChello;
+  b: #aaa/w;
+  p04: #abbccd;
+  p15a: 10-#a2B; }
 `
 	runParse(t, in, e)
 }

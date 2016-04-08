@@ -416,6 +416,15 @@ func TestScan_string(t *testing.T) {
 	})
 }
 
+func TestScan_math(t *testing.T) {
+	testScan(t, []elt{
+		{token.STRING, "d"},
+		{token.QUO, "/"},
+		{token.COLOR, "#eee"},
+		{token.SEMICOLON, ";"},
+	})
+}
+
 func TestScan_interp(t *testing.T) {
 	if false {
 		testScanMap(t, "f#{$x}r {",

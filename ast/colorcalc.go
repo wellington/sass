@@ -158,6 +158,10 @@ var cssColors = map[string]string{
 	"#663399": "rebeccapurple",
 }
 
+func init() {
+	RegisterKind(colorOp, token.COLOR)
+}
+
 // LookupColor finds a CSS name for a hex, if available. Otherwise,
 // it returns the hex representation.
 func LookupColor(s string) string {
@@ -169,32 +173,33 @@ func LookupColor(s string) string {
 }
 
 func colorOp(tok token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
-	if x.Kind != token.COLOR {
-		return nil, fmt.Errorf("unsupported kind %s", x.Kind)
+	if x.Kind != token.COLOR && y.Kind != token.COLOR {
+		return nil, fmt.Errorf("unsupported kind %s:%s",
+			x.Kind, y.Kind)
 	}
 
-	switch y.Kind {
+	if x.Kind == y.Kind {
+		fmt.Println("matched kinds", x, y)
+		return colorOpColor(tok, x, y)
+	}
+
+	var other *BasicLit
+	switch {
+	case x.Kind != token.COLOR:
+		other = x
+	case y.Kind != token.COLOR:
+		other = y
+	}
+
+	switch other.Kind {
 	case token.INT:
-		z, err := colorOpInt(tok, x, y)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return z, nil
-	case token.COLOR:
-		z, err := colorOpColor(tok, x, y)
-		if err != nil {
-			log.Fatal(err)
-		}
-		return z, nil
+		return colorOpInt(tok, x, y)
 	case token.STRING:
-		return &BasicLit{
-			Kind:     token.STRING,
-			ValuePos: x.Pos(),
-			Value:    x.Value + y.Value,
-		}, nil
+		return colorOpString(tok, x, y)
 	}
 
-	return nil, fmt.Errorf("unsupported type: %s", y.Kind)
+	return nil, fmt.Errorf("unsupported color type: %s:%s",
+		x.Kind, y.Kind)
 }
 
 func ColorFromHexString(s string) (color.RGBA, error) {
@@ -209,7 +214,7 @@ func colorFromRGBA(in string) color.RGBA {
 	var r, g, b uint8
 	var a float32
 	if len(in) < 4 {
-		panic("invalid input")
+		panic(fmt.Errorf("invalid input: %s", in))
 	}
 	n, err := fmt.Sscanf(in, "rgba(%d, %d, %d, %f)", &r, &g, &b, &a)
 	if err != nil {
@@ -283,6 +288,8 @@ func BasicLitFromColor(c color.Color) *BasicLit {
 	}
 }
 
+// colorOpColor combines two colors with the requested operation
+// applying appropriate overflows as Sass expects
 func colorOpColor(tok token.Token, x *BasicLit, y *BasicLit) (*BasicLit, error) {
 	colX, err := ColorFromHexString(x.Value)
 	if err != nil {
@@ -328,7 +335,40 @@ func overflowMath(tok token.Token, a, b uint8) uint8 {
 	return uint8(c)
 }
 
+// colorOpString perform combinations on the string values
+func colorOpString(tok token.Token, x, y *BasicLit) (*BasicLit, error) {
+	fmt.Println("cOpS", tok, x.Value, y.Value)
+	lit := &BasicLit{
+		Kind:     token.STRING,
+		ValuePos: x.Pos(),
+	}
+	switch tok {
+	case token.ADD:
+		lit.Value = x.Value + y.Value
+	case token.SUB:
+		lit.Value = x.Value + tok.String() + y.Value
+	case token.QUO:
+		lit.Value = x.Value + tok.String() + y.Value
+	case token.MUL:
+		return nil, fmt.Errorf(`Undefined operation: "%s %s %s".`,
+			x.Value, tok, y.Value)
+	}
+	fmt.Println("out", lit.Value)
+	return lit, nil
+}
+
+// colorOpInt combines color int with appropriate operation
+// order here is not important unless math is not possible
+// ie.
+// #aaa+1 == 1+#aaa
+// #aaa*2 == 2*#aaa
+// #aaa-1 or #aaa/1
 func colorOpInt(tok token.Token, c *BasicLit, i *BasicLit) (*BasicLit, error) {
+	switch tok {
+	case token.SUB, token.QUO:
+		return colorOpString(tok, c, i)
+	}
+
 	col, err := ColorFromHexString(c.Value)
 	if err != nil {
 		return nil, err

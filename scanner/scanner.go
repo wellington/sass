@@ -426,7 +426,7 @@ func isText(ch rune, whitespace bool) bool {
 		return true
 	case
 		isLetter(ch), isDigit(ch),
-		ch == '.', ch == '/':
+		ch == '.': //, ch == '/':
 		return true
 	case whitespace && isSpace(ch):
 		return true
