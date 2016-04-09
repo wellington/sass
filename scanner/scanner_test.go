@@ -214,7 +214,6 @@ func TestScan_quotes(t *testing.T) {
 	testScanMap(t, `'http://blah.com/blah.html'`, []elt{
 		{token.QSSTRING, "'"},
 		{token.STRING, "http://blah.com/blah.html"},
-		// {token.STRING, "http://blah.com/blah.html?query=string:stuf&in&here"},
 		{token.QSSTRING, "'"},
 	})
 

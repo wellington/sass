@@ -484,6 +484,9 @@ L:
 		}
 	} else {
 		for !strings.ContainsRune(":;(){}", s.ch) && s.ch != -1 {
+			// necessary to check for interpolation
+			// interpolation is a real performance killer
+			ch = s.ch
 			s.next()
 		}
 	}
@@ -609,6 +612,10 @@ Q:
 		// Maybe there's an interp, go ahead and try
 		pos, tok, lit = s.scanInterp(s.offset)
 		if tok != token.ILLEGAL {
+
+			// Turn off quoting mode while sub scanner runs
+			quoted := s.inQuote
+			s.inQuote = 0
 			queue = append(queue, prefetch{pos, tok, lit})
 			for tok != token.EOF && tok != token.RBRACE {
 				// body of interpolation
@@ -620,6 +627,7 @@ Q:
 			if tok != token.RBRACE {
 				s.error(s.offset, "could not find interpolation end")
 			}
+			s.inQuote = quoted
 			continue
 		}
 		if s.offset > end {
@@ -655,10 +663,11 @@ func (s *Scanner) scanQuoted(offs int) (pos token.Pos, tok token.Token, lit stri
 	pos = s.file.Pos(offs)
 	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	if len(lit) > 0 {
-		fmt.Println("quote string", lit)
 		tok = token.STRING
 	}
-	fmt.Printf("scanQuoted tok: %s lit: %s, rest: %q\n", tok, lit, string(s.src[s.offset:]))
+	if trace {
+		fmt.Printf("scanQuoted tok: %s lit: %s, rest: %q\n", tok, lit, string(s.src[s.offset:]))
+	}
 	return
 }
 
