@@ -3,14 +3,12 @@ package compiler
 import (
 	"testing"
 
-	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
 
 func TestInterp(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   hello: #{123+321};
@@ -32,7 +30,6 @@ func TestInterp(t *testing.T) {
 func TestInterp_merge_front(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   hello: before#{123+321};
@@ -54,7 +51,6 @@ func TestInterp_merge_front(t *testing.T) {
 func TestInterp_merge_back(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   hello: #{123+321}after;
@@ -76,7 +72,6 @@ func TestInterp_merge_back(t *testing.T) {
 func TestInterp_merge_both(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   hello: before#{123+321}after;
@@ -98,7 +93,6 @@ func TestInterp_merge_both(t *testing.T) {
 func TestInterp_copy(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   @each $i in 1 2 {
@@ -123,7 +117,6 @@ func TestInterp_copy(t *testing.T) {
 func TestInterp_math(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
-	ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 	input := `div {
   $i: 123;

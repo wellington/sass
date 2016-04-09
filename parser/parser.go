@@ -743,7 +743,7 @@ func (p *parser) resolveInterp(itp *ast.Interp) {
 		if err != nil {
 			p.error(x.Pos(), "failed to resolve call: "+err.Error())
 		}
-		res, err := calc.Resolve(x)
+		res, err := calc.Resolve(x, true)
 		if err != nil {
 			p.error(x.Pos(), err.Error())
 			continue
@@ -841,11 +841,10 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
-func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bool) {
+func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, checkParen bool) {
 	if p.trace {
-		// defer un(trace(p, "SassList"))
+		defer un(trace(p, "SassList"))
 	}
-	var checkParen bool
 	if p.tok == token.LPAREN {
 		checkParen = true
 		p.next()
@@ -867,10 +866,13 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bo
 				hasComma = true
 				p.next()
 			}
+		} else if p.tok == token.LPAREN {
+			// fuck, new list
+			list = append(list, p.listFromExprs(p.parseSassList(lhs, true)))
 		} else if p.tok == token.COMMA {
 			return
 		} else {
-			x := p.inferExpr(lhs)
+			x := p.inferExpr(lhs, checkParen)
 			if interp, ok := x.(*ast.Interp); ok {
 				p.resolveInterp(interp)
 			}
@@ -879,10 +881,10 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma bo
 	}
 
 	if p.tok == token.EOF {
-		p.error(p.pos, "could not find list end")
+		p.error(p.pos, "EOF reached before list end")
 	}
-	if checkParen && p.tok == token.RPAREN {
-		p.next()
+	if checkParen {
+		p.expect(token.RPAREN)
 	}
 	return
 
@@ -1051,19 +1053,38 @@ func (p *parser) inferExprList(lhs bool) ast.Expr {
 }
 
 // listFromExprs takes a slice of expr to create a ListLit
-func (p *parser) listFromExprs(in []ast.Expr, hasComma bool) ast.Expr {
+func (p *parser) listFromExprs(in []ast.Expr, hasComma, inParen bool) ast.Expr {
 	if len(in) == 0 {
 		return nil
 	}
-	if len(in) == 1 {
-		return in[0]
+	if len(in) > 1 {
+		return &ast.ListLit{
+			Paren:    inParen,
+			ValuePos: in[0].Pos(),
+			EndPos:   in[len(in)-1].End(),
+			Value:    p.mergeInterps(in),
+			Comma:    hasComma,
+		}
 	}
-	return &ast.ListLit{
-		ValuePos: in[0].Pos(),
-		EndPos:   in[len(in)-1].End(),
-		Value:    p.mergeInterps(in),
-		Comma:    hasComma,
+	l, ok := in[0].(*ast.ListLit)
+	if ok {
+		// non-paren list inside paren list
+		l.Paren = true
+		return l
 	}
+	if inParen {
+		// Doesn't matter always return a list for proper
+		// math resolution
+		return &ast.ListLit{
+			Paren:    inParen,
+			ValuePos: in[0].Pos(),
+			EndPos:   in[0].End(),
+			Value:    in,
+			Comma:    hasComma,
+		}
+	}
+	// Unwrap list of 1
+	return in[0]
 }
 
 func (p *parser) parseString() *ast.StringExpr {
@@ -1079,7 +1100,7 @@ func (p *parser) parseString() *ast.StringExpr {
 	var list []ast.Expr
 	// Only strings and interpolations allowed here
 	for p.tok != token.EOF && p.tok != tok {
-		x := p.inferExpr(false)
+		x := p.inferExpr(false, false)
 		list = append(list, x)
 	}
 	rquote := p.expectClosing(tok, "string list")
@@ -1099,7 +1120,7 @@ func (p *parser) parseString() *ast.StringExpr {
 // nulls (e.g. null)
 // lists of values, separated by spaces or commas (e.g. 1.5em 1em 0 2em, Helvetica, Arial, sans-serif)
 // maps from one value to another (e.g. (key1: value1, key2: value2))
-func (p *parser) inferExpr(lhs bool) ast.Expr {
+func (p *parser) inferExpr(lhs bool, inParens bool) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "inferExpr"))
 	}
@@ -1116,7 +1137,7 @@ func (p *parser) inferExpr(lhs bool) ast.Expr {
 		p.next()
 		return expr
 	}
-	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+	return p.parseBinaryExpr(lhs, inParens, token.LowestPrec+1)
 }
 
 func (p *parser) parseSassType() ast.Expr {
@@ -1484,14 +1505,12 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		return x
 
 	case token.LPAREN:
-		lparen := p.pos
-		p.next()
-		p.exprLev++
-		x := p.parseRhsOrType() // types may be parenthesized: (some type)
-		p.exprLev--
-		rparen := p.expect(token.RPAREN)
-		return &ast.ParenExpr{Lparen: lparen, X: x, Rparen: rparen}
+		ls, _, _ := p.parseSassList(lhs, true)
+		if len(ls) > 1 {
+			panic("multiple lists found")
+		}
 
+		return ls[0]
 	case token.VAR:
 		// VAR is only hit while parsing function params, so
 		// this should only be allowed in that case.
@@ -1563,6 +1582,11 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	if p.trace {
 		defer un(trace(p, "CallOrConversion"))
 	}
+	// See functions LPAREN have to be next to the previous expression
+	// There's other rules too, but no need to apply those just yet
+	if fun.End() != p.pos {
+		p.error(fun.End(), "Functions are followed immediately by (")
+	}
 	pos := p.pos
 	lparen := p.expect(token.LPAREN)
 	p.exprLev++
@@ -1586,7 +1610,10 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		// Ellipsis: ellipsis,
 		Rparen: rparen,
 	}
-	ident := fun.(*ast.Ident)
+	ident, ok := fun.(*ast.Ident)
+	if !ok {
+		log.Fatalf("% #v\n", fun)
+	}
 	if p.mode&FuncOnly == 0 {
 		lit, err := evaluateCall(call)
 		call.Resolved = lit
@@ -1696,6 +1723,7 @@ func (p *parser) checkExpr(x ast.Expr) ast.Expr {
 	case *ast.BadExpr:
 	case *ast.Ident:
 	case *ast.BasicLit:
+	case *ast.ListLit:
 	case *ast.FuncLit:
 	case *ast.Interp:
 	case *ast.StringExpr:
@@ -1805,6 +1833,9 @@ L:
 			if lhs {
 				p.resolve(x)
 			}
+			if x.End() != p.pos {
+				return x
+			}
 			x = p.parseCallOrConversion(p.checkExprOrType(x))
 		default:
 			break L
@@ -1822,7 +1853,8 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 	}
 
 	switch p.tok {
-	case token.ADD, token.SUB, token.NOT, token.XOR, token.AND:
+	case token.ADD, token.SUB, token.NOT, token.XOR, token.AND,
+		token.MUL, token.QUO:
 		pos, op := p.pos, p.tok
 		p.next()
 		x := p.parseUnaryExpr(false)
@@ -1830,12 +1862,6 @@ func (p *parser) parseUnaryExpr(lhs bool) ast.Expr {
 		return un
 	case token.QSTRING, token.QSSTRING:
 		return p.parseString()
-	case token.MUL:
-		// pointer type or unary "*" expression
-		pos := p.pos
-		p.next()
-		x := p.parseUnaryExpr(false)
-		return &ast.StarExpr{Star: pos, X: p.checkExprOrType(x)}
 	}
 
 	return p.parsePrimaryExpr(lhs)
@@ -1850,7 +1876,7 @@ func (p *parser) tokPrec() (token.Token, int) {
 }
 
 // If lhs is set and the result is an identifier, it is not resolved.
-func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
+func (p *parser) parseBinaryExpr(lhs bool, inParens bool, prec1 int) ast.Expr {
 	if p.trace {
 		defer un(trace(p, "BinaryExpr"))
 	}
@@ -1867,7 +1893,7 @@ func (p *parser) parseBinaryExpr(lhs bool, prec1 int) ast.Expr {
 				p.resolve(x)
 				lhs = false
 			}
-			y := p.parseBinaryExpr(false, prec+1)
+			y := p.parseBinaryExpr(false, inParens, prec+1)
 			x = &ast.BinaryExpr{
 				X:     p.checkExpr(x),
 				OpPos: pos,
@@ -1888,7 +1914,7 @@ func (p *parser) parseExpr(lhs bool) ast.Expr {
 		defer un(trace(p, "Expression"))
 	}
 
-	return p.parseBinaryExpr(lhs, token.LowestPrec+1)
+	return p.parseBinaryExpr(lhs, false, token.LowestPrec+1)
 }
 
 func (p *parser) parseRhs() ast.Expr {
@@ -2085,7 +2111,7 @@ func (p *parser) parseEachDir() ast.Stmt {
 		p.next()
 	}
 
-	list, _ := p.parseSassList(true, false)
+	list, _, _ := p.parseSassList(true, false)
 
 	// Run the first one with the first itr
 	p.openScope()
@@ -2374,11 +2400,9 @@ func (p *parser) processImport(path string) error {
 }
 
 func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
-	log.Fatal("boom!")
 	if p.trace {
 		defer un(trace(p, keyword.String()+"InferSelSpec"))
 	}
-	fmt.Println("inferSel", p.lineComment)
 	decl := p.parseRuleSelDecl()
 
 	return &ast.SelSpec{
@@ -2405,37 +2429,44 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		// Obj:     obj,
 	}
 
-	// var obj *ast.Object
-	switch p.tok {
-	case token.RULE:
-		// obj = ast.NewObj(ast.Rul, name)
-	case token.VAR:
-		// obj = ast.NewObj(ast.Var, name)
-	default:
-
-	}
-
 	// Type has to be derived from the values being set
 	// typ := p.tryType()
 	// var typ ast.Expr
 	var values []ast.Expr
-
 	lhs := true
-
 	p.next()
 	pos, tok := p.pos, p.tok
 	switch p.tok {
 	case token.LPAREN:
-		ident := ast.NewIdent(lit)
-		ident.NamePos = p.pos
-		ret := p.parseCallOrConversion(p.checkExprOrType(ident))
+		ret := p.parseCallOrConversion(p.checkExprOrType(name))
 		values = append(values, ret)
 	case token.COLON:
 		lhs = false
 		p.next()
 		fallthrough
 	default:
-		values = []ast.Expr{p.inferExprList(lhs)}
+		x := p.inferExprList(lhs)
+		if p.tok == token.SEMICOLON {
+			values = append(values, x)
+			break
+		}
+		// check for string math against a list...
+		y := p.parseUnaryExpr(false)
+		if un, ok := y.(*ast.UnaryExpr); ok {
+			bin := &ast.BinaryExpr{
+				X:     x,
+				Y:     un.X,
+				Op:    un.Op,
+				OpPos: un.OpPos,
+			}
+			values = append(values, bin)
+		} else {
+			l, _, _ := p.parseSassList(lhs, true)
+			if l == nil {
+				panic("dont know now")
+			}
+			panic(fmt.Errorf("non-unary discovered: % #v", y))
+		}
 	}
 
 	// p.expectSemi()
@@ -2449,8 +2480,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		// Assignment happening
 		spec = &ast.ValueSpec{
 			// Doc:   doc,
-			Names: []*ast.Ident{name},
-			// Type:    values[0],
+			Names:   []*ast.Ident{name},
 			Comment: p.lineComment,
 			Values:  values,
 		}
@@ -2943,7 +2973,7 @@ func basicLitFromIdent(ident *ast.Ident) (lit []*ast.BasicLit) {
 				lit = rtyp
 			case *ast.ListLit:
 				var err error
-				lit, err = calc.Resolve(rtyp)
+				lit, err = calc.Resolve(rtyp, rtyp.Paren)
 				assert(err == nil, "calc resolve failed")
 			default:
 				log.Fatalf("illegal Rhs expr % #v\n", rtyp)

@@ -6,7 +6,6 @@
 package scanner
 
 import (
-	"fmt"
 	"log"
 	"strings"
 	"testing"
@@ -24,7 +23,7 @@ type elt struct {
 	// class int
 }
 
-const whitespace = "  \t  \n\n\n" // to separate tokens
+var whitespace = "  \t  \n\n\n" // to separate tokens
 
 var elts = []elt{
 	{token.COMMENT, "/* a comment */"},
@@ -203,6 +202,34 @@ func TestScan_directive(t *testing.T) {
 		{token.STRING, "in"},
 		{token.STRING, "a"},
 		{token.LBRACE, "{"},
+	})
+}
+
+func TestScan_quotes(t *testing.T) {
+	oldWs := whitespace
+	defer func() {
+		whitespace = oldWs
+	}()
+	whitespace = ""
+	testScanMap(t, `'http://blah.com/blah.html'`, []elt{
+		{token.QSSTRING, "'"},
+		{token.STRING, "http://blah.com/blah.html"},
+		{token.QSSTRING, "'"},
+	})
+
+	testScanMap(t, `'http://blah.com/blah.html?query=string:stuf&in&here'`, []elt{
+		{token.QSSTRING, "'"},
+		{token.STRING, "http://blah.com/blah.html?query=string:stuf&in&here"},
+		{token.QSSTRING, "'"},
+	})
+
+	testScanMap(t, `'http://blah.com/blah.html?#{qs}'`, []elt{
+		{token.QSSTRING, "'"},
+		{token.STRING, "http://blah.com/blah.html?"},
+		{token.INTERP, "#{"},
+		{token.STRING, "qs"},
+		{token.RBRACE, "}"},
+		{token.QSSTRING, "'"},
 	})
 }
 
@@ -416,6 +443,15 @@ func TestScan_string(t *testing.T) {
 	})
 }
 
+func TestScan_math(t *testing.T) {
+	testScan(t, []elt{
+		{token.STRING, "d"},
+		{token.QUO, "/"},
+		{token.COLOR, "#eee"},
+		{token.SEMICOLON, ";"},
+	})
+}
+
 func TestScan_interp(t *testing.T) {
 	if false {
 		testScanMap(t, "f#{$x}r {",
@@ -469,6 +505,16 @@ func TestScan_func(t *testing.T) {
 	})
 }
 
+func TestScan_unit(t *testing.T) {
+	testScan(t, []elt{
+		{token.UPX, "5px"},
+		{token.UEM, "5.1em"},
+		{token.UCM, "5.1cm"},
+		{token.UPCT, "3%"},
+		{token.SEMICOLON, ";"},
+	})
+}
+
 func testScan(t *testing.T, tokens []elt) {
 
 	testScanMap(t, source(tokens), tokens)
@@ -507,15 +553,23 @@ func testScanMap(t *testing.T, v interface{}, tokens []elt) {
 		pos, tok, lit := s.Scan()
 
 		if tok == token.EOF {
-			epos.Line = newlineCount(string(src))
-			epos.Column = 2
+			if len(whitespace) > 0 {
+				epos.Line = newlineCount(string(src))
+				epos.Column = 2
+			}
 		}
 		// Selectors are magical and they appear when you least expect them
 		switch tok {
 		case token.SELECTOR:
 			continue
 		}
-		checkPos(t, lit, pos, epos)
+
+		// Some tokens don't respond with literals
+		plit := lit
+		if len(plit) == 0 {
+			plit = tok.String()
+		}
+		checkPos(t, plit, pos, epos)
 
 		// check token
 		e := elt{token.EOF, ""}
@@ -524,7 +578,6 @@ func testScanMap(t *testing.T, v interface{}, tokens []elt) {
 			index++
 		}
 		if tok != e.tok {
-			fmt.Println(pos)
 			t.Errorf("bad token for %q: got %s, expected %s", lit, tok, e.tok)
 		}
 		// check literal
@@ -570,5 +623,8 @@ func testScanMap(t *testing.T, v interface{}, tokens []elt) {
 		epos.Offset += len(e.lit) + len(whitespace)
 		epos.Line += newlineCount(e.lit) + whitespaceLinecount
 
+		if len(whitespace) == 0 {
+			epos.Column += len(e.lit)
+		}
 	}
 }

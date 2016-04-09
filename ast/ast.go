@@ -269,6 +269,7 @@ type (
 	ListLit struct {
 		ValuePos token.Pos // start of list
 		Value    []Expr
+		Paren    bool      // list is wrapped in parenthesis
 		Comma    bool      // record if list was comma delimited
 		EndPos   token.Pos // end of list
 	}

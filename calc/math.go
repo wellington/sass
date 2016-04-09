@@ -2,7 +2,6 @@ package calc
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/wellington/sass/ast"
@@ -10,11 +9,11 @@ import (
 )
 
 // Resolve simple math to create a basic lit
-func Resolve(in ast.Expr) (*ast.BasicLit, error) {
-	return resolve(in)
+func Resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
+	return resolve(in, doOp)
 }
 
-func resolve(in ast.Expr) (*ast.BasicLit, error) {
+func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 	x := &ast.BasicLit{
 		ValuePos: in.Pos(),
 	}
@@ -23,7 +22,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 	case *ast.StringExpr:
 		list := make([]string, 0, len(v.List))
 		for _, l := range v.List {
-			lit, err := resolve(l)
+			lit, err := resolve(l, doOp)
 			if err != nil {
 				return nil, err
 			}
@@ -37,18 +36,28 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		if v.Comma {
 			delim = ", "
 		}
+		var k token.Token
 		ss := make([]string, len(v.Value))
 		for i := range v.Value {
-			ss[i] = v.Value[i].(*ast.BasicLit).Value
+			lit, err := resolve(v.Value[i], doOp)
+			k = lit.Kind
+			if err != nil {
+				return nil, err
+			}
+			ss[i] = lit.Value
 		}
-		return &ast.BasicLit{
+		x = &ast.BasicLit{
+			Kind:     token.STRING,
 			Value:    strings.Join(ss, delim),
 			ValuePos: v.Pos(),
-		}, nil
+		}
+		if len(v.Value) == 1 {
+			x.Kind = k
+		}
 	case *ast.UnaryExpr:
 		x = v.X.(*ast.BasicLit)
 	case *ast.BinaryExpr:
-		x, err = binary(v)
+		x, err = binary(v, doOp)
 	case *ast.BasicLit:
 		x = v
 	case *ast.Ident:
@@ -59,7 +68,7 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		kind := token.INT
 		var val []string
 		for _, x := range rhs {
-			lit, err := resolve(x)
+			lit, err := resolve(x, doOp)
 			if err != nil {
 				return nil, err
 			}
@@ -73,12 +82,12 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 		x.Value = strings.Join(val, ", ")
 		x.Kind = kind
 	case *ast.CallExpr:
-		return resolve(v.Resolved)
+		x, err = resolve(v.Resolved, doOp)
 	case *ast.Interp:
 		if v.Obj == nil {
 			panic("unresolved interpolation")
 		}
-		return resolve(v.Obj.Decl.(ast.Expr))
+		x, err = resolve(v.Obj.Decl.(ast.Expr), doOp)
 	default:
 		err = fmt.Errorf("unsupported calc.resolve % #v\n", v)
 		panic(err)
@@ -87,12 +96,42 @@ func resolve(in ast.Expr) (*ast.BasicLit, error) {
 }
 
 // binary takes a BinaryExpr and simplifies it to a basiclit
-func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
-	left, err := resolve(in.X)
+func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
+	var hasList bool
+	// fuq, look for paren wrapped lists
+	if lit, ok := in.X.(*ast.ListLit); ok {
+		if lit.Paren == true && len(lit.Value) == 1 {
+			doOp = true
+		} else {
+			hasList = true
+		}
+	}
+
+	if lit, ok := in.Y.(*ast.ListLit); ok {
+		if lit.Paren == true && len(lit.Value) == 1 {
+			doOp = true
+		} else {
+			hasList = true
+		}
+	}
+
+	// Division may ignore math, but nothing else does
+	if in.Op != token.QUO && !hasList {
+		doOp = true
+	}
+
+	if _, ok := in.X.(*ast.Ident); ok {
+		doOp = true
+	}
+	if _, ok := in.Y.(*ast.Ident); ok {
+		doOp = true
+	}
+
+	left, err := resolve(in.X, doOp)
 	if err != nil {
 		return nil, err
 	}
-	right, err := resolve(in.Y)
+	right, err := resolve(in.Y, doOp)
 	if err != nil {
 		return nil, err
 	}
@@ -100,18 +139,13 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 		ValuePos: left.Pos(),
 		Kind:     token.STRING,
 	}
+	if doOp {
+		// So actually, we could be a valid type
+		out.Kind = left.Kind
+	}
 	switch in.Op {
-	case token.ARROW:
-		if left.Kind == token.INT && right.Kind == token.INT {
-			l, _ := strconv.Atoi(left.Value)
-			r, _ := strconv.Atoi(right.Value)
-			out.Kind = token.INT
-			out.Value = strconv.Itoa(l + r)
-		} else {
-			out.Value = left.Value + right.Value
-		}
 	case token.ADD, token.SUB, token.MUL, token.QUO:
-		return combineLits(in.Op, left, right)
+		return combineLits(in.Op, left, right, doOp)
 	default:
 		fmt.Printf("l: % #v\nr: % #v\n", left, right)
 		err = fmt.Errorf("unsupported %s", in.Op)
@@ -119,8 +153,8 @@ func binary(in *ast.BinaryExpr) (*ast.BasicLit, error) {
 	return out, err
 }
 
-func combineLits(op token.Token, left, right *ast.BasicLit) (*ast.BasicLit, error) {
-	return ast.Op(op, left, right)
+func combineLits(op token.Token, left, right *ast.BasicLit, force bool) (*ast.BasicLit, error) {
+	return ast.Op(op, left, right, force)
 
 }
 

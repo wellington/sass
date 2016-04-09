@@ -13,7 +13,7 @@ func TestBinary_simple_int(t *testing.T) {
 		Op: token.ADD,
 		Y:  &ast.BasicLit{Kind: token.INT, Value: "2"},
 	}
-	lit, err := binary(bin)
+	lit, err := binary(bin, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,7 +34,7 @@ func TestBinary_simple_str(t *testing.T) {
 		Op: token.ADD,
 		Y:  &ast.BasicLit{Kind: token.STRING, Value: "b"},
 	}
-	lit, err := binary(bin)
+	lit, err := binary(bin, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestBinary_simple_str(t *testing.T) {
 		Op: token.ADD,
 		Y:  &ast.BasicLit{Kind: token.INT, Value: "1"},
 	}
-	lit, err = binary(bin)
+	lit, err = binary(bin, true)
 	if err != nil {
 		t.Fatal(err)
 	}
