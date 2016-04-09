@@ -93,21 +93,55 @@ div {
 func TestMath_color(t *testing.T) {
 	in := `
 div {
-  a: d  /  #eee;
-  p01: #AbC;
+   p01: #AbC;
+  p02: #AAbbCC;
   p03: #AbC + hello;
-  b: #aaa/w;
-  p04: #AbC + 1;
+  p04: #AbC + 1; // add 1 to each triplet
+  p05: #AbC + #001; // triplet-wise addition
+  p06: #0000ff + 1; // add 1 to each triplet; ignore overflow because it doesn't correspond to a color name
+  p07: #0000ff + #000001; // convert overflow to name of color (blue)
+  p08: #00ffff + #000101; // aqua
+  p09: #000000;
+  p10: #000000 - 1; // black
+  p11: #000000 - #000001; // black
+  p12: #ffff00 + #010100; // yellow
+  p13: (#101010 / 7);
+  p14: #000 + 0;
   p15a: 10 - #a2B;
+  p15b: 10 - #aa22BB;
+  p16: #000 - #001;
+  p17: #f0F + #101;
+  p18: 10 #a2B + 1;
+  p19a: (10 / #a2B);
+  p19b: (10 / #aa22BB);
+  p20: rgb(10,10,10) + #010001;
+  p21: #010000 + rgb(255, 255, 255);
 }
 `
 	e := `div {
-  a: d/#eee;
   p01: #AbC;
+  p02: #AAbbCC;
   p03: #AbChello;
-  b: #aaa/w;
   p04: #abbccd;
-  p15a: 10-#a2B; }
+  p05: #aabbdd;
+  p06: #0101ff;
+  p07: blue;
+  p08: cyan;
+  p09: #000000;
+  p10: black;
+  p11: black;
+  p12: yellow;
+  p13: #020202;
+  p14: black;
+  p15a: 10-#a2B;
+  p15b: 10-#aa22BB;
+  p16: black;
+  p17: magenta;
+  p18: 10 #ab23bc;
+  p19a: 10/#a2B;
+  p19b: 10/#aa22BB;
+  p20: #0b0a0b;
+  p21: white; }
 `
 	runParse(t, in, e)
 }
