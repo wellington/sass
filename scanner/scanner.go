@@ -90,6 +90,10 @@ type Scanner struct {
 	// as whitespace delimited
 	inParams bool
 
+	// inQuote is a hack to apply different text rules whilst
+	// inside quotes
+	inQuote rune
+
 	file       *token.File
 	dir        string
 	err        ErrorHandler
@@ -224,7 +228,7 @@ func (s *Scanner) skipWhitespace() {
 // New strategy, scan until something important is encountered
 func (s *Scanner) Scan() (pos token.Pos, tok token.Token, lit string) {
 	defer func() {
-		// fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
+		fmt.Printf("scan tok: %s lit: %q pos: %d\n", tok, lit, pos)
 	}()
 
 	// Check the queue, which may contain tokens that were fetched
@@ -323,9 +327,23 @@ bypassSelector:
 			tok = token.SUB
 		}
 	case '\'':
+		// toggle inQuote mode, ignore all other runes
 		tok = token.QSSTRING
+		switch s.inQuote {
+		case '\'':
+			s.inQuote = 0
+		case 0:
+			s.inQuote = '\''
+		}
 	case '"':
+		// toggle inQuote mode, ignore all other runes
 		tok = token.QSTRING
+		switch s.inQuote {
+		case '"':
+			s.inQuote = 0
+		case 0:
+			s.inQuote = '"'
+		}
 	case '.':
 		if '0' <= s.ch && s.ch <= '9' {
 			tok, lit = s.scanNumber(true)
@@ -420,7 +438,6 @@ func isValue(ch rune, whitespace bool) bool {
 }
 
 func isText(ch rune, whitespace bool) bool {
-
 	switch {
 	case ch == '\\': // no f'ing idea
 		return true
@@ -460,10 +477,15 @@ func (s *Scanner) scanDelim(offs int) (pos token.Pos, tok token.Token, lit strin
 	pos = s.file.Pos(offs)
 	var ch rune
 L:
-	for !strings.ContainsRune(":;(){}", s.ch) && s.ch != -1 {
-		ch = s.ch
-		s.next()
-
+	// Set prescan up to next quote
+	if s.inQuote > 0 {
+		for s.ch != s.inQuote && s.ch != -1 {
+			s.next()
+		}
+	} else {
+		for !strings.ContainsRune(":;(){}", s.ch) && s.ch != -1 {
+			s.next()
+		}
 	}
 
 	// Return to scanning if '{' was interp not rule start
@@ -501,6 +523,10 @@ L:
 	// fn should always return ILLEGAL when it fails to
 	// locate a token
 	var fn typedScanner
+	if s.inQuote > 0 {
+		fn = s.scanQuoted
+		goto Q
+	}
 	switch s.ch {
 	case '(':
 		printf("ident\n")
@@ -556,9 +582,18 @@ L:
 		printf("selector\n")
 		fn = s.selLoop
 		queue = []prefetch{{pos, token.SELECTOR, string(sel)}}
+	case '\'', '"':
+		// TODO: libSass and Sass preserve some whitespace in quotes
+		panic("should never be selected")
+		// this behavior is not being supported
+		// lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+		// tok = token.STRING
+		// return
 	default:
 		log.Fatalf("unsupported delim %s", string(s.ch))
 	}
+
+Q:
 	// Rewind and parse by correct typeScanner
 	s.rewind(offs)
 	// call typedScanner until end is hit
@@ -606,6 +641,27 @@ L:
 	return
 }
 
+func (s *Scanner) scanQuoted(offs int) (pos token.Pos, tok token.Token, lit string) {
+	inQ := s.inQuote
+	ch := s.ch
+	for s.ch != -1 && s.ch != inQ {
+		ch = s.ch
+		s.next()
+		if ch == '#' && s.ch == '{' {
+			s.backup()
+			break
+		}
+	}
+	pos = s.file.Pos(offs)
+	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
+	if len(lit) > 0 {
+		fmt.Println("quote string", lit)
+		tok = token.STRING
+	}
+	fmt.Printf("scanQuoted tok: %s lit: %s, rest: %q\n", tok, lit, string(s.src[s.offset:]))
+	return
+}
+
 func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string) {
 	var ch rune
 	for isText(s.ch, false) || strings.ContainsRune("-_+=.:/|?,", s.ch) {
@@ -623,10 +679,10 @@ func (s *Scanner) scanHTTP(offs int) (pos token.Pos, tok token.Token, lit string
 	pos = s.file.Pos(offs)
 	lit = string(bytes.TrimSpace(s.src[offs:s.offset]))
 	if len(lit) > 0 {
-		fmt.Println("string", lit)
+		fmt.Println("HTTP string", lit)
 		tok = token.STRING
 	}
-	fmt.Printf("tok: %s lit: %s, rest: %q\n", tok, lit, string(s.src[s.offset:]))
+	fmt.Printf("scanHTTP tok: %s lit: %s, rest: %q\n", tok, lit, string(s.src[s.offset:]))
 	return
 }
 
