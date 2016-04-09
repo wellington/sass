@@ -86,8 +86,15 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 		}
 	}
 
-	if fn == nil && (y.Kind == token.STRING || x.Kind == token.STRING) {
-		fn = stringOp
+	if fn == nil {
+		switch {
+		case x.Kind == token.QSSTRING || y.Kind == token.QSSTRING:
+			fallthrough
+		case x.Kind == token.QSTRING || y.Kind == token.QSTRING:
+			fallthrough
+		case x.Kind == token.STRING || y.Kind == token.STRING:
+			fn = stringOp
+		}
 	}
 
 	if fn == nil {
