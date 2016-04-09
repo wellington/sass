@@ -180,7 +180,7 @@ func colorOp(tok token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 
 	if x.Kind == y.Kind {
 		fmt.Println("matched kinds", x, y)
-		return colorOpColor(tok, x, y)
+		return colorOpColor(tok, x, y, combine)
 	}
 
 	var other *BasicLit
@@ -193,9 +193,9 @@ func colorOp(tok token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 
 	switch other.Kind {
 	case token.INT:
-		return colorOpInt(tok, x, y)
+		return colorOpInt(tok, x, y, combine)
 	case token.STRING:
-		return colorOpString(tok, x, y)
+		return colorOpString(tok, x, y, combine)
 	}
 
 	return nil, fmt.Errorf("unsupported color type: %s:%s",
@@ -290,7 +290,7 @@ func BasicLitFromColor(c color.Color) *BasicLit {
 
 // colorOpColor combines two colors with the requested operation
 // applying appropriate overflows as Sass expects
-func colorOpColor(tok token.Token, x *BasicLit, y *BasicLit) (*BasicLit, error) {
+func colorOpColor(tok token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	colX, err := ColorFromHexString(x.Value)
 	if err != nil {
 		return nil, err
@@ -336,7 +336,7 @@ func overflowMath(tok token.Token, a, b uint8) uint8 {
 }
 
 // colorOpString perform combinations on the string values
-func colorOpString(tok token.Token, x, y *BasicLit) (*BasicLit, error) {
+func colorOpString(tok token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	fmt.Println("cOpS", tok, x.Value, y.Value)
 	lit := &BasicLit{
 		Kind:     token.STRING,
@@ -363,10 +363,19 @@ func colorOpString(tok token.Token, x, y *BasicLit) (*BasicLit, error) {
 // #aaa+1 == 1+#aaa
 // #aaa*2 == 2*#aaa
 // #aaa-1 or #aaa/1
-func colorOpInt(tok token.Token, c *BasicLit, i *BasicLit) (*BasicLit, error) {
+func colorOpInt(tok token.Token, c, i *BasicLit, combine bool) (*BasicLit, error) {
 	switch tok {
-	case token.SUB, token.QUO:
-		return colorOpString(tok, c, i)
+	case token.QUO:
+		// only perform math if forced to and first param is
+		// a color
+		if !combine || c.Kind != token.COLOR {
+			return colorOpString(tok, c, i, combine)
+		}
+	case token.SUB:
+		// number minus color
+		if c.Kind == token.INT {
+			return colorOpString(tok, c, i, combine)
+		}
 	}
 
 	col, err := ColorFromHexString(c.Value)
