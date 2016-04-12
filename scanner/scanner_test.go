@@ -628,3 +628,21 @@ func testScanMap(t *testing.T, v interface{}, tokens []elt) {
 		}
 	}
 }
+
+func TestScan_decl(t *testing.T) {
+	testScan(t, []elt{
+		{token.IF, "@if"},
+		{token.IDENT, "type-of"},
+		{token.LPAREN, "("},
+		{token.IDENT, "nth"},
+		{token.LPAREN, "("},
+		{token.VAR, "$x"},
+		{token.COMMA, ","},
+		{token.INT, "3"},
+		{token.RPAREN, ")"},
+		{token.RPAREN, ")"},
+		{token.EQL, "=="},
+		{token.STRING, "number"},
+		{token.LBRACE, "{"},
+	})
+}
