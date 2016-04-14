@@ -1101,6 +1101,14 @@ type (
 		Body *BlockStmt // function body; or nil (forward declaration)
 	}
 
+	// A IfDecl represents a if [else] statement
+	IfDecl struct {
+		*IfStmt
+		Lbrace token.Pos // postion of '{'
+		Rbrace token.Pos // position of '}'
+		Value  bool      // resolution of the expr
+	}
+
 	// A SelDecl node represents a standard CSS declaration
 	//
 	// As a shortcut, RULE are identified as token.IDENT
@@ -1152,6 +1160,7 @@ func (*BadDecl) declNode()  {}
 func (*GenDecl) declNode()  {}
 func (*FuncDecl) declNode() {}
 func (*SelDecl) declNode()  {}
+func (*IfDecl) declNode()   {}
 
 // ----------------------------------------------------------------------------
 // Files and packages

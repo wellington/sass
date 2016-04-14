@@ -245,15 +245,17 @@ func Walk(v Visitor, node Node) {
 	case *BlockStmt:
 		walkStmtList(v, n.List)
 
+	case *IfDecl:
+		Walk(v, n.IfStmt)
 	case *IfStmt:
 		if n.Init != nil {
 			Walk(v, n.Init)
 		}
-		Walk(v, n.Cond)
-		Walk(v, n.Body)
-		if n.Else != nil {
-			Walk(v, n.Else)
-		}
+		// Walk(v, n.Cond)
+		// Walk(v, n.Body)
+		// if n.Else != nil {
+		// 	Walk(v, n.Else)
+		// }
 
 	case *CaseClause:
 		walkExprList(v, n.List)

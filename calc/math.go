@@ -146,9 +146,14 @@ func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
 	switch in.Op {
 	case token.ADD, token.SUB, token.MUL, token.QUO:
 		return combineLits(in.Op, left, right, doOp)
+	case token.EQL:
+		out.Value = "false"
+		if left.Value == right.Value {
+			out.Value = "true"
+		}
 	default:
 		fmt.Printf("l: % #v\nr: % #v\n", left, right)
-		err = fmt.Errorf("unsupported %s", in.Op)
+		err = fmt.Errorf("unsupported Operation %s", in.Op)
 	}
 	return out, err
 }
