@@ -10,8 +10,8 @@ func TestDecl_if(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
-	input := `
-@if 1 == 1 {
+	input := `$x: 1 2;
+@if 1 + 1 == length($x) {
   div { hi: there; }
 }
 `
