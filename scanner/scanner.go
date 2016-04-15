@@ -17,7 +17,7 @@ import (
 	"github.com/wellington/sass/token"
 )
 
-var trace bool //= true
+var trace bool = true
 
 func printf(format string, v ...interface{}) {
 	if trace {
@@ -89,6 +89,10 @@ type Scanner struct {
 	// Track whether we are inside function params. If so, treat everything
 	// as whitespace delimited
 	inParams bool
+
+	// inDirective controls special scanning whilst in declaration
+	// it resets at '{'
+	inDirective bool
 
 	// inQuote is a hack to apply different text rules whilst
 	// inside quotes
@@ -411,6 +415,7 @@ bypassSelector:
 	case '{':
 		// reset inParams set by @each
 		s.inParams = false
+		s.inDirective = false
 		tok = token.LBRACE
 	case '}':
 		tok = token.RBRACE
@@ -579,7 +584,7 @@ L:
 		s.error(s.offset, "encountered EOF prematurely")
 		fallthrough
 	case '{':
-		if s.inParams {
+		if s.inParams || s.inDirective {
 			printf("value override\n")
 			fn = s.scanValue
 			break
@@ -980,6 +985,7 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 	switch lit {
 	case "@if":
 		tok = token.IF
+		s.inDirective = true
 	case "@else":
 		s.skipWhitespace()
 		if s.ch != 'i' {
