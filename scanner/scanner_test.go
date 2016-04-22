@@ -660,6 +660,9 @@ func TestScan_decl(t *testing.T) {
 
 	testScan(t, []elt{
 		{token.ELSEIF, "@else if"},
+		{token.STRING, "asdf"},
+		{token.EQL, "=="},
+		{token.STRING, "string"},
 		{token.LBRACE, "{"},
 		{token.RBRACE, "}"},
 		{token.ELSE, "@else"},

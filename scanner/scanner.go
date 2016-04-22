@@ -996,6 +996,7 @@ func (s *Scanner) scanDirective() (tok token.Token, lit string) {
 			s.next()
 			lit = string(s.src[offs:s.offset])
 			tok = token.ELSEIF
+			s.inDirective = true
 			break
 		}
 		// else if check failed
