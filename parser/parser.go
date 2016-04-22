@@ -2031,7 +2031,17 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 		defer un(trace(p, "IfStmt"))
 	}
 
-	pos := p.expect(token.IF)
+	// Look for @if and @else if
+	var pos token.Pos
+	switch p.tok {
+	case token.IF:
+		fallthrough
+	case token.ELSEIF:
+		pos = p.pos
+	default:
+		p.expect(token.IF)
+	}
+
 	p.openScope()
 	defer p.closeScope()
 
@@ -2040,27 +2050,15 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 	{
 		prevLev := p.exprLev
 		p.exprLev = -1
-		// p.next()
+		p.next()
 		x = p.parseRhs()
 		p.exprLev = prevLev
 	}
-
 	body := p.parseBlockStmt()
 	var else_ ast.Stmt
-	if p.tok == token.ELSE {
-		p.next()
-		switch p.tok {
-		case token.IF:
-			else_ = p.parseIfStmt()
-		case token.LBRACE:
-			else_ = p.parseBlockStmt()
-			p.expectSemi()
-		default:
-			p.errorExpected(p.pos, "if statement or block")
-			else_ = &ast.BadStmt{From: p.pos, To: p.pos}
-		}
+	if p.tok == token.ELSE || p.tok == token.ELSEIF {
+		else_ = p.parseIfStmt()
 	}
-	fmt.Println("done...", p.tok, p.lit)
 	return &ast.IfStmt{If: pos, Init: s, Cond: x, Body: body, Else: else_}
 }
 
@@ -2899,12 +2897,13 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 		}
 		out = basicLitFromIdent(v)
 	case *ast.ListLit:
-		ast.Print(token.NewFileSet(), v)
 		for _, x := range v.Value {
 			out = append(out, p.resolveExpr(scope, x)...)
 		}
 	// case *ast.BinaryExpr:
 	// 	// if statments
+	// 	log.Println("if binary")
+	// 	astPrint(v)
 	// 	log.Println(v.Op)
 	// 	left := p.resolveExpr(p.topScope, v.X)
 	// 	right := p.resolveExpr(p.topScope, v.Y)
@@ -2927,6 +2926,7 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 	// 	b.Value = "true"
 	// 	panic("true")
 	default:
+		ast.Print(token.NewFileSet(), v)
 		panic(fmt.Errorf("unsupported expr % #v", v))
 	}
 	return
@@ -3116,19 +3116,6 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 
 	return decl
 }
-
-// func (p *parser) parseIF() *ast.IfDecl {
-// 	if p.trace {
-// 		defer un(trace(p, "If"))
-// 	}
-
-// 	pos := p.expect(token.IF)
-// 	stmt := &ast.IfStmt{}
-// 	stmt.If = pos
-// 	stmt.Cond = p.parseExpr(false)
-// 	stmt.Body = p.parseBlockStmt()
-// 	return &ast.IfDecl{IfStmt: stmt}
-// }
 
 func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	if p.trace {

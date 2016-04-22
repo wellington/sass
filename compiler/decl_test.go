@@ -12,7 +12,9 @@ func TestDecl_if(t *testing.T) {
 	ctx.fset = token.NewFileSet()
 	input := `$x: 1 2;
 @if 1 + 1 == length($x) {
-  div { hi: there; }
+  div { hi: there;
+  a: type-of(nth($x, 1));
+  }
 }
 `
 	// ctx.SetMode(parser.Trace)
@@ -22,7 +24,8 @@ func TestDecl_if(t *testing.T) {
 	}
 
 	e := `div {
-  hi: there; }
+  hi: there;
+  a: number; }
 `
 	if e != out {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
