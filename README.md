@@ -79,7 +79,7 @@ See [functions](functions.md)
 - [ ] @error
 - Control Directives & Expressions
   - [ ] if()
-  - [ ] @if
+  - [x] @if, @else if, @else
   - [ ] @for
   - [x] @each
   - [ ] Multiple Assignment
