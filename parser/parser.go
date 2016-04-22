@@ -3142,10 +3142,8 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	if p.tok == token.LBRACE {
 		body = p.parseBody(scope)
 	}
-	p.expectSemi()
 
 	decl := &ast.FuncDecl{
-		// Doc:  doc,
 		Recv: recv,
 		Tok:  token.FUNC,
 		Name: ident,

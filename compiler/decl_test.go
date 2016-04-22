@@ -42,3 +42,35 @@ func TestDecl_if(t *testing.T) {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
 }
+
+func TestDecl_func_if(t *testing.T) {
+	ctx := &Context{}
+	ctx.Init()
+	ctx.fset = token.NewFileSet()
+
+	input := `$x: true;
+
+@function foobar() {
+  @if $x {
+    $x: false !global;
+    @return foo;
+  }
+}
+
+div {
+  content: foobar();
+}
+`
+	ctx.SetMode(parser.Trace)
+	out, err := ctx.run("", input)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	e := `div {
+  content: foo; }
+`
+	if e != out {
+		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
+	}
+}
