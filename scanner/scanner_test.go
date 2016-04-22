@@ -452,6 +452,18 @@ func TestScan_math(t *testing.T) {
 	})
 }
 
+func TestScan_if(t *testing.T) {
+	testScan(t, []elt{
+		{token.IF, "@if"},
+		{token.IDENT, "type-of"},
+		{token.LPAREN, "("},
+		{token.RPAREN, ")"},
+		{token.EQL, "=="},
+		{token.STRING, "number"},
+		{token.LBRACE, "{"},
+	})
+}
+
 func TestScan_interp(t *testing.T) {
 	if false {
 		testScanMap(t, "f#{$x}r {",
@@ -643,6 +655,17 @@ func TestScan_decl(t *testing.T) {
 		{token.RPAREN, ")"},
 		{token.EQL, "=="},
 		{token.STRING, "number"},
+		{token.LBRACE, "{"},
+	})
+
+	testScan(t, []elt{
+		{token.ELSEIF, "@else if"},
+		{token.STRING, "asdf"},
+		{token.EQL, "=="},
+		{token.STRING, "string"},
+		{token.LBRACE, "{"},
+		{token.RBRACE, "}"},
+		{token.ELSE, "@else"},
 		{token.LBRACE, "{"},
 	})
 }

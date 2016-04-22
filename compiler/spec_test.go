@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/wellington/sass/parser"
 )
 
 type file struct {
@@ -24,9 +26,7 @@ func findPaths() []file {
 	var files []file
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
-		if !strings.Contains(input, "14_") {
-			// continue
-		}
+
 		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
@@ -51,6 +51,11 @@ func findPaths() []file {
 			input:  input,
 			expect: exp,
 		})
+
+		if strings.Contains(input, "29_") && testing.Short() {
+			break
+		}
+
 	}
 	return files
 }
@@ -68,6 +73,7 @@ func TestCompile_spec(t *testing.T) {
 		fmt.Println("exited on: ", f.input)
 	}()
 	for _, f = range files {
+
 		fmt.Printf(`
 =================================
 compiling: %s\n
@@ -76,6 +82,7 @@ compiling: %s\n
 		ctx := Context{}
 		// ctx.mode = parser.Trace
 		ctx.Init()
+		ctx.SetMode(parser.Trace)
 		out, err := ctx.Run(f.input)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {

@@ -242,6 +242,9 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = eachStmt
 	case *ast.ListLit:
 	case *ast.ImportSpec:
+	case *ast.IfDecl:
+	case *ast.IfStmt:
+		key = ifStmt
 	default:
 		fmt.Printf("add printer for: %T\n", v)
 		fmt.Printf("% #v\n", v)
@@ -266,6 +269,7 @@ var (
 	includeSpec *ast.IncludeSpec
 	mediaStmt   *ast.MediaStmt
 	eachStmt    *ast.EachStmt
+	ifStmt      *ast.IfStmt
 )
 
 func (ctx *Context) Init() {
@@ -274,7 +278,7 @@ func (ctx *Context) Init() {
 	ctx.printers[valueSpec] = visitValueSpec
 	ctx.printers[funcDecl] = visitFunc
 	ctx.printers[assignStmt] = visitAssignStmt
-
+	ctx.printers[ifStmt] = printIfStmt
 	ctx.printers[ident] = printIdent
 	ctx.printers[includeSpec] = printInclude
 	ctx.printers[declStmt] = printDecl
@@ -350,6 +354,19 @@ func printMedia(ctx *Context, n ast.Node) {
 func printPropValueSpec(ctx *Context, n ast.Node) {
 	spec := n.(*ast.PropValueSpec)
 	fmt.Fprintf(ctx.buf, spec.Name.String()+";")
+}
+
+func printIfStmt(ctx *Context, n ast.Node) {
+	ifStmt := n.(*ast.IfStmt)
+	s, err := resolveExpr(ctx, ifStmt.Cond, true)
+	if err != nil {
+		log.Fatal("failed to resolve @if", err)
+	}
+	if s == "true" {
+		ctx.Visit(ifStmt.Body)
+	} else {
+		ctx.Visit(ifStmt.Else)
+	}
 }
 
 // Variable assignments inside blocks ie. mixins

@@ -17,15 +17,15 @@ func TestSpec_files(t *testing.T) {
 	}
 
 	mode := DeclarationErrors
-	mode = 0 //Trace | ParseComments
+	mode = Trace | ParseComments
 	var name string
 	for _, name = range inputs {
 		if strings.Contains(name, "25_") && testing.Short() {
 			// This is the last test we currently parse properly
 			return
 		}
-		if !strings.Contains(name, "23_") {
-			// continue
+		if !strings.Contains(name, "29_") {
+			continue
 		}
 		if strings.Contains(name, "06_") {
 			continue

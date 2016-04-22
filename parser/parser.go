@@ -1969,6 +1969,8 @@ func (p *parser) parseSimpleStmt(mode int) (ast.Stmt, bool) {
 		y := []ast.Expr{p.inferRhsList()}
 		stmt = &ast.AssignStmt{Lhs: x, TokPos: pos, Rhs: y}
 	default:
+		fmt.Println("wut", p.tok, p.lit)
+		panic("?")
 		p.error(p.pos, "SimpleStmt failed")
 		stmt = &ast.BadStmt{From: x[0].Pos(), To: p.pos + 1}
 	}
@@ -2029,7 +2031,17 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 		defer un(trace(p, "IfStmt"))
 	}
 
-	pos := p.expect(token.IF)
+	// Look for @if and @else if
+	var pos token.Pos
+	switch p.tok {
+	case token.IF:
+		fallthrough
+	case token.ELSEIF:
+		pos = p.pos
+	default:
+		p.errorExpected(p.pos, "expected @if or @else if")
+	}
+
 	p.openScope()
 	defer p.closeScope()
 
@@ -2038,40 +2050,18 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 	{
 		prevLev := p.exprLev
 		p.exprLev = -1
-		if p.tok == token.SEMICOLON {
-			p.next()
-			x = p.parseRhs()
-		} else {
-			s, _ = p.parseSimpleStmt(basic)
-			if p.tok == token.SEMICOLON {
-				p.next()
-				x = p.parseRhs()
-			} else {
-				x = p.makeExpr(s, "boolean expression")
-				s = nil
-			}
-		}
+		p.next()
+		x = p.parseRhs()
 		p.exprLev = prevLev
 	}
-
 	body := p.parseBlockStmt()
 	var else_ ast.Stmt
 	if p.tok == token.ELSE {
 		p.next()
-		switch p.tok {
-		case token.IF:
-			else_ = p.parseIfStmt()
-		case token.LBRACE:
-			else_ = p.parseBlockStmt()
-			p.expectSemi()
-		default:
-			p.errorExpected(p.pos, "if statement or block")
-			else_ = &ast.BadStmt{From: p.pos, To: p.pos}
-		}
-	} else {
-		p.expectSemi()
+		else_ = p.parseBlockStmt()
+	} else if p.tok == token.ELSEIF {
+		else_ = p.parseIfStmt()
 	}
-
 	return &ast.IfStmt{If: pos, Init: s, Cond: x, Body: body, Else: else_}
 }
 
@@ -2913,7 +2903,33 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 		for _, x := range v.Value {
 			out = append(out, p.resolveExpr(scope, x)...)
 		}
+	// case *ast.BinaryExpr:
+	// 	// if statments
+	// 	log.Println("if binary")
+	// 	astPrint(v)
+	// 	log.Println(v.Op)
+	// 	left := p.resolveExpr(p.topScope, v.X)
+	// 	right := p.resolveExpr(p.topScope, v.Y)
+	// 	if len(left) == 0 || len(right) == 0 {
+	// 		log.Println("failed to resolve operands", v.X, v.Y)
+	// 		return
+	// 	}
+	// 	b := &ast.BasicLit{
+	// 		Kind:     token.STRING, // should be a bool
+	// 		ValuePos: v.Pos(),
+	// 		Value:    "false",
+	// 	}
+	// 	out = []*ast.BasicLit{b}
+	// 	if len(left) != len(right) {
+	// 		return
+	// 	}
+	// 	if left[0].Value != right[0].Value {
+	// 		return
+	// 	}
+	// 	b.Value = "true"
+	// 	panic("true")
 	default:
+		ast.Print(token.NewFileSet(), v)
 		panic(fmt.Errorf("unsupported expr % #v", v))
 	}
 	return
@@ -3178,6 +3194,9 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 		return p.parseGenDecl("", token.IMPORT, p.parseImportSpec)
 	case token.MIXIN:
 		return p.parseMixinDecl()
+	case token.IF:
+		stmt := p.parseIfStmt()
+		return &ast.IfDecl{IfStmt: stmt}
 	default:
 		pos := p.pos
 		p.errorExpected(pos, "declaration")
