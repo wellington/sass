@@ -17,7 +17,7 @@ import (
 	"github.com/wellington/sass/token"
 )
 
-var trace bool = true
+var trace bool // = true
 
 func printf(format string, v ...interface{}) {
 	if trace {
