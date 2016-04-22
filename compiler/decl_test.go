@@ -3,6 +3,7 @@ package compiler
 import (
 	"testing"
 
+	"github.com/wellington/sass/parser"
 	"github.com/wellington/sass/token"
 )
 
@@ -10,22 +11,32 @@ func TestDecl_if(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
+
 	input := `$x: 1 2;
-@if 1 + 1 == length($x) {
-  div { hi: there;
-  a: type-of(nth($x, 1));
+@if type-of(nth($x, 2)) == number {
+  div {
+    background: gray;
+  }
+}
+@else if type-of(nth($x, 2)) == string {
+  div {
+    background: blue;
+  }
+}
+@else {
+  div {
+    background: green;
   }
 }
 `
-	// ctx.SetMode(parser.Trace)
+	ctx.SetMode(parser.Trace)
 	out, err := ctx.run("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	e := `div {
-  hi: there;
-  a: number; }
+  background: gray; }
 `
 	if e != out {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)

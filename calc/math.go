@@ -2,6 +2,7 @@ package calc
 
 import (
 	"fmt"
+	"log"
 	"strings"
 
 	"github.com/wellington/sass/ast"
@@ -150,6 +151,8 @@ func binary(in *ast.BinaryExpr, doOp bool) (*ast.BasicLit, error) {
 		out.Value = "false"
 		if left.Value == right.Value {
 			out.Value = "true"
+		} else {
+			log.Printf("not equal % #v: % #v\n", left, right)
 		}
 	default:
 		fmt.Printf("l: % #v\nr: % #v\n", left, right)

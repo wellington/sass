@@ -2039,7 +2039,7 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 	case token.ELSEIF:
 		pos = p.pos
 	default:
-		p.expect(token.IF)
+		p.errorExpected(p.pos, "expected @if or @else if")
 	}
 
 	p.openScope()
@@ -2056,7 +2056,10 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 	}
 	body := p.parseBlockStmt()
 	var else_ ast.Stmt
-	if p.tok == token.ELSE || p.tok == token.ELSEIF {
+	if p.tok == token.ELSE {
+		p.next()
+		else_ = p.parseBlockStmt()
+	} else if p.tok == token.ELSEIF {
 		else_ = p.parseIfStmt()
 	}
 	return &ast.IfStmt{If: pos, Init: s, Cond: x, Body: body, Else: else_}
