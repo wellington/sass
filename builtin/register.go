@@ -2,13 +2,16 @@ package builtin
 
 import "github.com/wellington/sass/ast"
 
-type CallHandler func(expr *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error)
+// CallFunc describes a Sass function
+type CallFunc func(expr *ast.CallExpr, args ...*ast.BasicLit) (*ast.BasicLit, error)
 
-var reg func(s string, ch CallHandler, c CallHandle)
+var reg func(s string, ch CallFunc, c CallHandle)
 
-var chs = map[string]CallHandler{}
+var chs = map[string]CallFunc{}
 
-func BindRegister(old func(s string, ch CallHandler, c CallHandle)) {
+// BindRegister allows the binding of CallFunc and deprecated
+// callhandle
+func BindRegister(old func(s string, ch CallFunc, c CallHandle)) {
 	reg = old
 	for k, v := range chs {
 		reg(k, v, nil)
@@ -20,7 +23,7 @@ func BindRegister(old func(s string, ch CallHandler, c CallHandle)) {
 	}
 }
 
-func Register(s string, ch CallHandler) {
+func Register(s string, ch CallFunc) {
 	if reg != nil {
 		reg(s, ch, nil)
 		return

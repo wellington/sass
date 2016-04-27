@@ -47,7 +47,6 @@ func TestDecl_func_if(t *testing.T) {
 	ctx := &Context{}
 	ctx.Init()
 	ctx.fset = token.NewFileSet()
-
 	input := `$x: true;
 
 @function foobar() {

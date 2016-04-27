@@ -701,7 +701,7 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, error) {
 		for i := range v.Args {
 			p.resolveExpr(p.topScope, v.Args[i])
 		}
-		return evaluateCall(v)
+		return evaluateCall(p, v)
 	case *ast.BinaryExpr:
 		l, err := p.resolveCall(v.X)
 		if err != nil {
@@ -1058,6 +1058,7 @@ func (p *parser) listFromExprs(in []ast.Expr, hasComma, inParen bool) ast.Expr {
 		return nil
 	}
 	if len(in) > 1 {
+
 		return &ast.ListLit{
 			Paren:    inParen,
 			ValuePos: in[0].Pos(),
@@ -1383,12 +1384,17 @@ func (p *parser) parseStmtList() []ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "StatementList"))
 	}
-	sels := make([]ast.Stmt, 0)
-	list := make([]ast.Stmt, 0)
+	var sels []ast.Stmt
+	var list []ast.Stmt
 	for p.tok != token.RBRACE && p.tok != token.EOF {
 		stmt, sel := p.parseStmt()
 		if sel {
 			sels = append(sels, stmt)
+			continue
+		}
+		// TODO: for some damned reason, semicolons appear here
+		// just skip
+		if _, ok := stmt.(*ast.EmptyStmt); ok {
 			continue
 		}
 		expand := p.unwrapInclude(stmt)
@@ -1595,7 +1601,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	lit, ok := expr.(*ast.ListLit)
 	if ok {
 		list = lit.Value
-	} else {
+	} else if expr != nil {
 		list = []ast.Expr{expr}
 	}
 
@@ -1615,7 +1621,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		log.Fatalf("% #v\n", fun)
 	}
 	if p.mode&FuncOnly == 0 {
-		lit, err := evaluateCall(call)
+		lit, err := evaluateCall(p, call)
 		call.Resolved = lit
 		// Manually set object, because Ident name isn't unique
 		obj := ast.NewObj(ast.Var, ident.Name)
@@ -2479,6 +2485,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		decl.Rhs = values
 		decl.Tok = tok
 		decl.TokPos = pos
+
 		p.shortVarDecl(decl, decl.Lhs)
 	default:
 		spec = &ast.RuleSpec{
@@ -2486,11 +2493,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			Comment: p.lineComment,
 			Values:  values,
 		}
-		// kind := ast.Con
-		// if keyword == token.VAR {
-		// 	kind = ast.Var
-		// }
-		// p.declare(spec, iota, p.topScope, kind, name)
 	}
 	return spec
 
@@ -2873,6 +2875,18 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 		case *ast.EmptyStmt, nil:
 			// Trim from result
 			continue
+		case *ast.IfStmt:
+			lit, err := calc.Resolve(decl.Cond, true)
+			if err != nil {
+				log.Fatal("failed to understand condition: ", err)
+			}
+
+			if lit.Value == "true" {
+				ret = append(ret, decl.Body)
+			} else {
+				log.Fatalf("implement else if/else % #v\n", decl)
+			}
+			continue
 		default:
 			log.Fatalf("unsupported stmt: % #v\n", stmts[i])
 		}
@@ -3022,6 +3036,57 @@ func joinLits(a []*ast.BasicLit, sep string) string {
 	return strings.Join(s, sep)
 }
 
+func (p *parser) resolveFuncDecl(call *ast.CallExpr) (ast.Expr, error) {
+	ident := call.Fun.(*ast.Ident)
+
+	p.tryResolve(ident, false)
+	assert(ident.Obj != nil, "failed to locate function: "+ident.Name)
+	args := call.Args
+	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
+
+	// setup parameters within a new scope
+	// Walk through all statements performing a copy of each
+	list := fnDecl.Body.List
+	stmts := make([]ast.Stmt, 0, len(list))
+	for i := range list {
+		if list[i] != nil {
+			stmt := ast.StmtCopy(list[i])
+			stmts = append(stmts, stmt)
+		}
+	}
+	copyparams := ast.FieldListCopy(fnDecl.Type.Params)
+	fields := make([]*ast.Field, 0, len(args))
+	for _, arg := range args {
+		fields = append(fields, &ast.Field{
+			Type: arg,
+		})
+	}
+	copyargs := ast.FieldListCopy(&ast.FieldList{List: fields})
+
+	// All the identifiers within this list need to be re-resolved
+	// with the args passed in the include
+	p.openScope()
+	p.processFuncArgs(p.topScope, copyparams, copyargs)
+	list = p.resolveStmts(p.topScope, list)
+	p.closeScope()
+
+	// flatten blockstatements
+	for {
+		blk, nested := list[0].(*ast.BlockStmt)
+		if !nested {
+			break
+		}
+		list = blk.List
+	}
+	// The last statement should be @return
+	ret, ok := list[len(list)-1].(*ast.ReturnStmt)
+	if !ok {
+		return nil, errors.New("failed to locate return statement")
+	}
+
+	return p.listFromExprs(ret.Results, false, false), nil
+}
+
 func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	if p.trace {
 		defer un(trace(p, "ResolveIncludeSpec"))
@@ -3029,7 +3094,11 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	ident := spec.Name
 	p.resolve(ident)
 	assert(ident.Obj != nil,
-		fmt.Sprintf("failed to retrieve mixin: %s(%p)", ident.Name, p.topScope))
+		fmt.Sprintf(
+			"failed to retrieve mixin: %s(%p)",
+			ident.Name,
+			p.topScope,
+		))
 	args := spec.Params
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 
@@ -3142,7 +3211,8 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 	if p.tok == token.LBRACE {
 		body = p.parseBody(scope)
 	}
-
+	// astPrint(body)
+	// log.Fatal("done")
 	decl := &ast.FuncDecl{
 		Recv: recv,
 		Tok:  token.FUNC,

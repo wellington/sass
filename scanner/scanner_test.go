@@ -668,4 +668,26 @@ func TestScan_decl(t *testing.T) {
 		{token.ELSE, "@else"},
 		{token.LBRACE, "{"},
 	})
+
+	testScan(t, []elt{
+		{token.IF, "@if"},
+		{token.VAR, "$x"},
+		{token.LBRACE, "{"},
+		{token.VAR, "$x"},
+		{token.COLON, ":"},
+		{token.STRING, "false"},
+		{token.STRING, "!global"},
+		{token.SEMICOLON, ";"},
+		{token.RETURN, "@return"},
+		{token.STRING, "foo"},
+		{token.SEMICOLON, ";"},
+	})
+
+	// @function foobar() {
+	// 	@if $x {
+	// 		$x: false !global;
+	// 		@return foo;
+	// 	}
+	// }
+
 }

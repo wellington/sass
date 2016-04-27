@@ -7,12 +7,29 @@ import (
 
 // StmtCopy performs a deep copy of passed stmt
 func StmtCopy(in Stmt) (out Stmt) {
-
 	switch v := in.(type) {
 	case *AssignStmt:
+		left := ExprsCopy(v.Lhs)
+		right := ExprsCopy(v.Rhs)
 		stmt := &AssignStmt{
-			Lhs: ExprsCopy(v.Lhs),
-			Rhs: ExprsCopy(v.Rhs),
+			Lhs: left,
+			Rhs: right,
+		}
+		out = stmt
+	case *IfStmt:
+
+		stmt := &IfStmt{}
+		stmt.Body = StmtCopy(v.Body).(*BlockStmt)
+		stmt.If = v.If
+		if v.Else != nil {
+			stmt.Else = StmtCopy(v.Else)
+		}
+		stmt.Cond = ExprCopy(v.Cond)
+		out = stmt
+	case *ReturnStmt:
+		stmt := &ReturnStmt{
+			Return:  v.Return,
+			Results: ExprsCopy(v.Results),
 		}
 		out = stmt
 	case *DeclStmt:
@@ -127,7 +144,7 @@ func ExprCopy(in Expr) (out Expr) {
 		lit.Value = ExprsCopy(expr.Value)
 		out = lit
 	default:
-		log.Fatalf("unsupported expr copy: % #v\n", expr)
+		panic(fmt.Errorf("unsupported expr copy: % #v\n", expr))
 	}
 	return
 }

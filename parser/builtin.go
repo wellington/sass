@@ -24,7 +24,7 @@ var ErrNotFound = errors.New("function does not exist")
 type call struct {
 	name   string
 	params []*ast.KeyValueExpr
-	ch     builtin.CallHandler
+	ch     builtin.CallFunc
 	handle builtin.CallHandle
 }
 
@@ -89,7 +89,7 @@ func init() {
 	builtin.BindRegister(register)
 }
 
-func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
+func register(s string, ch builtin.CallFunc, h builtin.CallHandle) {
 	fset := token.NewFileSet()
 	pf, err := ParseFile(fset, "", s, FuncOnly)
 	if err != nil {
@@ -112,13 +112,27 @@ func register(s string, ch builtin.CallHandler, h builtin.CallHandle) {
 }
 
 // This might not be enough
-func evaluateCall(expr *ast.CallExpr) (ast.Expr, error) {
+func evaluateCall(p *parser, expr *ast.CallExpr) (ast.Expr, error) {
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
-	fn, ok := builtins[name]
-	if !ok {
-		return nil, fmt.Errorf("func %s was not found", name)
+
+	// First check builtins
+	if fn, ok := builtins[name]; ok {
+		return callBuiltin(name, fn, expr)
 	}
+
+	return p.callInline(expr)
+
+	// return nil, fmt.Errorf("func %s was not found", name)
+}
+
+// callInline looks for the function within Sass itself
+func (p *parser) callInline(call *ast.CallExpr) (ast.Expr, error) {
+
+	return p.resolveFuncDecl(call)
+}
+
+func callBuiltin(name string, fn call, expr *ast.CallExpr) (ast.Expr, error) {
 
 	// Walk through the function
 	// These should be processed at registration time
