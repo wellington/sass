@@ -191,10 +191,18 @@ func (p *parser) closeLabelScope() {
 }
 
 func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjKind, idents ...*ast.Ident) {
+	if p.inMixin {
+		return
+	}
 	for _, ident := range idents {
+
 		if ident.Obj != nil {
 			fmt.Printf("====== OVERRIDE ==== %s\nold: % #v\nnew: % #v\n",
 				ident, ident.Obj.Decl, decl)
+		}
+		if ident.Obj != nil {
+			fmt.Println("not nil!")
+			log.Fatal("fail")
 		}
 		assert(ident.Obj == nil, "identifier already declared or resolved")
 		obj := ast.NewObj(kind, ident.Name)
@@ -213,7 +221,7 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 			return
 		}
 
-		if alt := scope.Insert(obj); alt != nil && p.mode&DeclarationErrors != 0 {
+		if alt := scope.Insert(obj, ident.Global); alt != nil && p.mode&DeclarationErrors != 0 {
 
 			prevDecl := ""
 			if pos := alt.Pos(); pos.IsValid() {
@@ -234,13 +242,21 @@ func (p *parser) shortVarDecl(decl *ast.AssignStmt, list []ast.Expr) {
 	n := 0 // number of new variables
 	for _, x := range list {
 		if ident, isIdent := x.(*ast.Ident); isIdent {
-			assert(ident.Obj == nil, "identifier already declared or resolved")
+			if ident.Obj != nil {
+				fmt.Printf("re-resolved %s\n", ident)
+			} else {
+				fmt.Printf("new resolve %s\n", ident)
+			}
+			// assert(ident.Obj == nil, "identifier already declared or resolved")
 			obj := ast.NewObj(ast.Var, ident.Name)
 			// remember corresponding assignment for other tools
 			obj.Decl = decl
 			ident.Obj = obj
 			if ident.Name != "_" {
-				if alt := p.topScope.Insert(obj); alt != nil {
+				if ident.Global {
+					fmt.Println("Storing Global...", obj.Name)
+				}
+				if alt := p.topScope.Insert(obj, ident.Global); alt != nil {
 					if p.trace {
 						fmt.Printf("forcefully updated %s (%p): % #v\n", ident,
 
@@ -289,7 +305,7 @@ func (p *parser) tryResolve(x ast.Expr, collectUnresolved bool) {
 	// try to resolve the identifier
 	for s := p.topScope; s != nil; s = s.Outer {
 		if p.trace {
-			fmt.Printf("trying %p\n", s)
+			fmt.Printf("trying %s\n", s)
 		}
 		if obj := s.Lookup(ident.Name); obj != nil {
 			ident.Obj = obj
@@ -701,7 +717,9 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, error) {
 		for i := range v.Args {
 			p.resolveExpr(p.topScope, v.Args[i])
 		}
-		return evaluateCall(v)
+		fmt.Println(p.topScope)
+		fmt.Println("going in^^^^")
+		return evaluateCall(p, p.topScope, v)
 	case *ast.BinaryExpr:
 		l, err := p.resolveCall(v.X)
 		if err != nil {
@@ -1058,6 +1076,7 @@ func (p *parser) listFromExprs(in []ast.Expr, hasComma, inParen bool) ast.Expr {
 		return nil
 	}
 	if len(in) > 1 {
+
 		return &ast.ListLit{
 			Paren:    inParen,
 			ValuePos: in[0].Pos(),
@@ -1383,12 +1402,17 @@ func (p *parser) parseStmtList() []ast.Stmt {
 	if p.trace {
 		defer un(trace(p, "StatementList"))
 	}
-	sels := make([]ast.Stmt, 0)
-	list := make([]ast.Stmt, 0)
+	var sels []ast.Stmt
+	var list []ast.Stmt
 	for p.tok != token.RBRACE && p.tok != token.EOF {
 		stmt, sel := p.parseStmt()
 		if sel {
 			sels = append(sels, stmt)
+			continue
+		}
+		// TODO: for some damned reason, semicolons appear here
+		// just skip
+		if _, ok := stmt.(*ast.EmptyStmt); ok {
 			continue
 		}
 		expand := p.unwrapInclude(stmt)
@@ -1595,7 +1619,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 	lit, ok := expr.(*ast.ListLit)
 	if ok {
 		list = lit.Value
-	} else {
+	} else if expr != nil {
 		list = []ast.Expr{expr}
 	}
 
@@ -1615,7 +1639,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		log.Fatalf("% #v\n", fun)
 	}
 	if p.mode&FuncOnly == 0 {
-		lit, err := evaluateCall(call)
+		lit, err := evaluateCall(p, p.topScope, call)
 		call.Resolved = lit
 		// Manually set object, because Ident name isn't unique
 		obj := ast.NewObj(ast.Var, ident.Name)
@@ -2251,7 +2275,6 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 	if p.trace {
 		defer un(trace(p, "Statement"))
 	}
-
 	if cmt := p.checkComment(); cmt != nil {
 		fmt.Printf("checkComment % #v\n", cmt.Group.List[0])
 		s = cmt
@@ -2400,6 +2423,31 @@ func (p *parser) inferSelSpec(doc *ast.CommentGroup, keyword token.Token, iota i
 	}
 }
 
+// checkForGlobal inspects variable declarations looking for the
+// !global keyword
+func checkForGlobal(vals []ast.Expr) bool {
+	if len(vals) == 0 {
+		return false
+	}
+
+	if len(vals) < 2 {
+		if list, ok := vals[0].(*ast.ListLit); ok {
+			vals = list.Value
+		} else {
+			return false
+		}
+	}
+	lit, ok := vals[len(vals)-1].(*ast.BasicLit)
+	if !ok {
+		return false
+	}
+	if lit.Kind == token.STRING && lit.Value == "!global" {
+		return true
+	}
+
+	return false
+}
+
 func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota int) ast.Spec {
 	if p.trace {
 		defer un(trace(p, "inferValue"+keyword.String()+"Spec"))
@@ -2416,7 +2464,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	name := &ast.Ident{
 		Name:    lit,
 		NamePos: p.pos,
-		// Obj:     obj,
 	}
 
 	// Type has to be derived from the values being set
@@ -2465,8 +2512,10 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 	// the end of the innermost containing block.
 	// (Global identifiers are resolved in a separate phase after parsing.)
 	var spec ast.Spec
+
 	switch keyword {
 	case token.VAR:
+		name.Global = checkForGlobal(values)
 		// Assignment happening
 		spec = &ast.ValueSpec{
 			// Doc:   doc,
@@ -2479,6 +2528,7 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 		decl.Rhs = values
 		decl.Tok = tok
 		decl.TokPos = pos
+
 		p.shortVarDecl(decl, decl.Lhs)
 	default:
 		spec = &ast.RuleSpec{
@@ -2486,11 +2536,6 @@ func (p *parser) inferValueSpec(doc *ast.CommentGroup, keyword token.Token, iota
 			Comment: p.lineComment,
 			Values:  values,
 		}
-		// kind := ast.Con
-		// if keyword == token.VAR {
-		// 	kind = ast.Var
-		// }
-		// p.declare(spec, iota, p.topScope, kind, name)
 	}
 	return spec
 
@@ -2772,7 +2817,7 @@ func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, 
 // processFuncArgs walks through the arguments declaring each signature
 // in the provided scope
 func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList) {
-	assert(p.topScope == scope, "Invalid function argument scope")
+	// assert(p.topScope == scope, "Invalid function argument scope")
 	var sigs []*ast.Ident
 
 	toDeclare := make(map[*ast.Ident]interface{})
@@ -2845,9 +2890,8 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 	}
 }
 
-// Resolves a block within a new scope parsing the called arguments
-// against the provided signature
-// Currently only used for mixin and include
+// walks through statements resolving them with the provided
+// scope
 func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 
 	ret := make([]ast.Stmt, 0, len(stmts))
@@ -2873,6 +2917,29 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 		case *ast.EmptyStmt, nil:
 			// Trim from result
 			continue
+		case *ast.IfStmt:
+			// TODO: This is weird, but it resolves idents
+			p.resolveExpr(scope, decl.Cond)
+			lit, err := calc.Resolve(decl.Cond, true)
+			if err != nil {
+				panic(fmt.Sprint("failed to understand condition: ", err))
+			}
+			if lit.Value == "true" {
+				resList := p.resolveStmts(scope, decl.Body.List)
+				ret = append(ret, resList...)
+			} else {
+				el := decl.Else
+				if blk, ok := el.(*ast.BlockStmt); ok {
+					res := p.resolveStmts(scope, blk.List)
+					ret = append(ret, res...)
+				} else {
+					ret = append(ret, p.resolveStmts(scope,
+						[]ast.Stmt{el})...)
+				}
+			}
+			continue
+		case *ast.ReturnStmt:
+			// TODO: something to do here?
 		default:
 			log.Fatalf("unsupported stmt: % #v\n", stmts[i])
 		}
@@ -2896,40 +2963,18 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 	case *ast.Ident:
 		if v.Obj == nil {
 			assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
+			// fucking A, this sucked
+			oldScope := p.topScope
+			p.topScope = scope
 			p.resolve(v)
+			p.topScope = oldScope
 		}
 		out = basicLitFromIdent(v)
 	case *ast.ListLit:
 		for _, x := range v.Value {
 			out = append(out, p.resolveExpr(scope, x)...)
 		}
-	// case *ast.BinaryExpr:
-	// 	// if statments
-	// 	log.Println("if binary")
-	// 	astPrint(v)
-	// 	log.Println(v.Op)
-	// 	left := p.resolveExpr(p.topScope, v.X)
-	// 	right := p.resolveExpr(p.topScope, v.Y)
-	// 	if len(left) == 0 || len(right) == 0 {
-	// 		log.Println("failed to resolve operands", v.X, v.Y)
-	// 		return
-	// 	}
-	// 	b := &ast.BasicLit{
-	// 		Kind:     token.STRING, // should be a bool
-	// 		ValuePos: v.Pos(),
-	// 		Value:    "false",
-	// 	}
-	// 	out = []*ast.BasicLit{b}
-	// 	if len(left) != len(right) {
-	// 		return
-	// 	}
-	// 	if left[0].Value != right[0].Value {
-	// 		return
-	// 	}
-	// 	b.Value = "true"
-	// 	panic("true")
 	default:
-		ast.Print(token.NewFileSet(), v)
 		panic(fmt.Errorf("unsupported expr % #v", v))
 	}
 	return
@@ -3022,6 +3067,50 @@ func joinLits(a []*ast.BasicLit, sep string) string {
 	return strings.Join(s, sep)
 }
 
+func (p *parser) resolveFuncDecl(scope *ast.Scope, call *ast.CallExpr) (ast.Expr, error) {
+	ident := call.Fun.(*ast.Ident)
+
+	p.tryResolve(ident, false)
+	assert(ident.Obj != nil, "failed to locate function: "+ident.Name)
+	args := call.Args
+	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
+
+	// setup parameters within a new scope
+	// Walk through all statements performing a copy of each
+	list := fnDecl.Body.List
+	stmts := make([]ast.Stmt, 0, len(list))
+
+	for i := range list {
+		if list[i] != nil {
+			stmt := ast.StmtCopy(list[i])
+			stmts = append(stmts, stmt)
+		} else {
+			fmt.Println("it is nil", i)
+		}
+	}
+	copyparams := ast.FieldListCopy(fnDecl.Type.Params)
+	fields := make([]*ast.Field, 0, len(args))
+	for _, arg := range args {
+		fields = append(fields, &ast.Field{
+			Type: arg,
+		})
+	}
+	copyargs := ast.FieldListCopy(&ast.FieldList{List: fields})
+	// All the identifiers within this list need to be re-resolved
+	// with the args passed in the include
+	p.openScope()
+	p.processFuncArgs(scope, copyparams, copyargs)
+	stmts = p.resolveStmts(scope, stmts)
+	p.closeScope()
+	// The last statement should be @return
+	ret, ok := stmts[len(stmts)-1].(*ast.ReturnStmt)
+	if !ok {
+		return nil, errors.New("failed to locate return statement")
+	}
+
+	return p.listFromExprs(ret.Results, false, false), nil
+}
+
 func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	if p.trace {
 		defer un(trace(p, "ResolveIncludeSpec"))
@@ -3029,7 +3118,11 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 	ident := spec.Name
 	p.resolve(ident)
 	assert(ident.Obj != nil,
-		fmt.Sprintf("failed to retrieve mixin: %s(%p)", ident.Name, p.topScope))
+		fmt.Sprintf(
+			"failed to retrieve mixin: %s(%p)",
+			ident.Name,
+			p.topScope,
+		))
 	args := spec.Params
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 
@@ -3120,14 +3213,20 @@ func (p *parser) parseMixinDecl() *ast.FuncDecl {
 	return decl
 }
 
+var sentinel bool
+
 func (p *parser) parseFuncDecl() *ast.FuncDecl {
+	sentinel = true
+	defer func() { sentinel = false }()
 	if p.trace {
 		defer un(trace(p, "FunctionDecl"))
 	}
 
 	// doc := p.leadComment
 	pos := p.expect(token.FUNC)
-	scope := ast.NewScope(p.topScope) // function scope
+	// function scope is not shared until execution
+	var scope *ast.Scope
+	// scope := ast.NewScope(p.topScope) // function scope
 
 	var recv *ast.FieldList
 	if p.tok == token.LPAREN {
@@ -3140,12 +3239,12 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 
 	var body *ast.BlockStmt
 	if p.tok == token.LBRACE {
+		// prevent resolution of variables in this scope
+		p.inMixin = true
 		body = p.parseBody(scope)
+		p.inMixin = false
 	}
-	p.expectSemi()
-
 	decl := &ast.FuncDecl{
-		// Doc:  doc,
 		Recv: recv,
 		Tok:  token.FUNC,
 		Name: ident,
@@ -3156,18 +3255,7 @@ func (p *parser) parseFuncDecl() *ast.FuncDecl {
 		},
 		Body: body,
 	}
-	if recv == nil {
-		// Go spec: The scope of an identifier denoting a constant, type,
-		// variable, or function (but not method) declared at top level
-		// (outside any function) is the package block.
-		//
-		// init() functions cannot be referred to and there may
-		// be more than one - don't put them in the pkgScope
-		if ident.Name != "init" {
-			p.declare(decl, nil, p.pkgScope, ast.Fun, ident)
-		}
-	}
-
+	p.declare(decl, nil, p.topScope, ast.Var, ident)
 	return decl
 }
 
@@ -3178,6 +3266,9 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 
 	var f parseSpecFunction
 	switch p.tok {
+	case token.SEMICOLON:
+		p.next()
+		return nil
 	case token.VAR:
 		f = p.inferValueSpec
 	case token.FUNC:

@@ -27,6 +27,9 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 
+		if !strings.Contains(input, "30_") {
+			// continue
+		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
@@ -51,8 +54,8 @@ func findPaths() []file {
 			input:  input,
 			expect: exp,
 		})
-
-		if strings.Contains(input, "29_") && testing.Short() {
+		// Indicates the first test that will not pass tests
+		if strings.Contains(input, "32_") && testing.Short() {
 			break
 		}
 
@@ -80,7 +83,6 @@ compiling: %s\n
 =================================
 `, f.input)
 		ctx := Context{}
-		// ctx.mode = parser.Trace
 		ctx.Init()
 		ctx.SetMode(parser.Trace)
 		out, err := ctx.Run(f.input)
@@ -88,7 +90,6 @@ compiling: %s\n
 		if err != nil {
 			log.Println("failed to compile", f.input, err)
 		}
-
 		if e := string(f.expect); e != sout {
 			// t.Fatalf("got:\n%s", out)
 			// t.Fatalf("got:\n%q\nwanted:\n%q", out, e)

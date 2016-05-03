@@ -28,7 +28,7 @@ func (p *pkgBuilder) errorf(pos token.Pos, format string, args ...interface{}) {
 }
 
 func (p *pkgBuilder) declare(scope, altScope *Scope, obj *Object) {
-	alt := scope.Insert(obj)
+	alt := scope.Insert(obj, false)
 	if alt == nil && altScope != nil {
 		// see if there is a conflicting declaration in altScope
 		alt = altScope.Lookup(obj.Name)

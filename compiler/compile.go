@@ -75,7 +75,6 @@ func (ctx *Context) run(path string, src interface{}) (string, error) {
 		return "", err
 	}
 
-	// ast.Print(ctx.fset, pf)
 	ast.Walk(ctx, pf)
 	lr, _ := utf8.DecodeLastRune(ctx.buf.Bytes())
 	_ = lr
@@ -209,7 +208,6 @@ func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 		key = declStmt
 	case *ast.IncludeSpec:
 		// panic("not supported")
-		// ast.Print(ctx.fset, node)
 	case *ast.ValueSpec:
 		key = valueSpec
 	case *ast.RuleSpec:

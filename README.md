@@ -79,7 +79,9 @@ See [functions](functions.md)
 - [ ] @error
 - Control Directives & Expressions
   - [ ] if()
-  - [x] @if, @else if, @else
+  - [x] @if
+    - @else if :question:
+    - [x] @else
   - [ ] @for
   - [x] @each
   - [ ] Multiple Assignment

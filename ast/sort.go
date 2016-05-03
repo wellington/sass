@@ -15,6 +15,7 @@ func (s Stmts) lookup(pos int) int {
 	switch s[pos].(type) {
 	case *DeclStmt, *IncludeStmt, *EmptyStmt,
 		*AssignStmt, *BadStmt, *EachStmt, *IfStmt:
+	case *ReturnStmt:
 	case *CommStmt:
 	case *BlockStmt:
 		// This is an error situation, but better errors are
