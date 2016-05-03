@@ -16,7 +16,7 @@ var valids = []string{
 	"a#{id}d {}",
 	"$a: 4; $b: #{$a+\"1\"};",
 	// functions
-	"@function grid-width($x);",
+	"@function grid-width($x){};;;",
 	"b: type-of(12#{3});",
 	"$a: 1; type-of($a);",
 	// selectors

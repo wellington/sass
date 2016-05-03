@@ -3266,6 +3266,9 @@ func (p *parser) parseDecl(sync func(*parser)) ast.Decl {
 
 	var f parseSpecFunction
 	switch p.tok {
+	case token.SEMICOLON:
+		p.next()
+		return nil
 	case token.VAR:
 		f = p.inferValueSpec
 	case token.FUNC:
