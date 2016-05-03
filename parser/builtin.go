@@ -69,7 +69,6 @@ func (d *desc) Visit(node ast.Node) ast.Visitor {
 					Key: v,
 				})
 			default:
-				ast.Print(token.NewFileSet(), v)
 				panic(fmt.Errorf("%s failed to parse arg % #v\n",
 					d.c.name, v))
 			}
@@ -112,7 +111,7 @@ func register(s string, ch builtin.CallFunc, h builtin.CallHandle) {
 }
 
 // This might not be enough
-func evaluateCall(p *parser, expr *ast.CallExpr) (ast.Expr, error) {
+func evaluateCall(p *parser, scope *ast.Scope, expr *ast.CallExpr) (ast.Expr, error) {
 	ident := expr.Fun.(*ast.Ident)
 	name := ident.Name
 
@@ -120,16 +119,13 @@ func evaluateCall(p *parser, expr *ast.CallExpr) (ast.Expr, error) {
 	if fn, ok := builtins[name]; ok {
 		return callBuiltin(name, fn, expr)
 	}
-
-	return p.callInline(expr)
-
-	// return nil, fmt.Errorf("func %s was not found", name)
+	return p.callInline(scope, expr)
 }
 
 // callInline looks for the function within Sass itself
-func (p *parser) callInline(call *ast.CallExpr) (ast.Expr, error) {
+func (p *parser) callInline(scope *ast.Scope, call *ast.CallExpr) (ast.Expr, error) {
 
-	return p.resolveFuncDecl(call)
+	return p.resolveFuncDecl(scope, call)
 }
 
 func callBuiltin(name string, fn call, expr *ast.CallExpr) (ast.Expr, error) {

@@ -71,7 +71,6 @@ div {
 		"$color": ast.Var,
 		"$list":  ast.Var,
 	}
-	ast.Print(token.NewFileSet(), f)
 	ast.Inspect(f, func(n ast.Node) bool {
 		if spec, ok := n.(*ast.RuleSpec); ok {
 			ast.Print(token.NewFileSet(), spec)

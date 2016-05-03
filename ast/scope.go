@@ -41,12 +41,12 @@ func (s *Scope) Lookup(name string) *Object {
 // Insert leaves the scope unchanged and returns alt. Otherwise
 // it inserts obj and returns nil.
 //
-func (s *Scope) Insert(obj *Object) (alt *Object) {
+func (s *Scope) Insert(obj *Object, global bool) (alt *Object) {
 	// Hack to prevent mixins inserting variables
 	if s == nil {
 		return
 	}
-
+	isGlobal := global
 	if alt = s.Objects[obj.Name]; alt == nil {
 	} else {
 	}
@@ -60,14 +60,12 @@ func (s *Scope) Insert(obj *Object) (alt *Object) {
 
 	// Global insanity
 	if assign, ok := obj.Decl.(*AssignStmt); ok {
-		var isGlobal bool
 
 		if list, isList := assign.Rhs[0].(*ListLit); isList {
 			l := len(list.Value)
 			if lit, ok := list.Value[l-1].(*BasicLit); ok {
 				if lit.Value == "!global" {
 					list.Value = list.Value[:l-1]
-					assign.Rhs[0] = list // probably unnecessary
 					isGlobal = true
 				}
 			}

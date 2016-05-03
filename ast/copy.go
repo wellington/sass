@@ -154,6 +154,7 @@ func ExprCopy(in Expr) (out Expr) {
 func IdentCopy(in *Ident) (out *Ident) {
 	out = NewIdent(in.Name)
 	out.NamePos = in.Pos()
+	out.Global = in.Global
 	return
 }
 
