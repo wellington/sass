@@ -27,7 +27,7 @@ Glossary
 - [ ] No Support
 
 ### Compiler Status
-Passing 28 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
+Passing 34 of the basic Sass tests in [sass-spec](https://github.com/sass/sass-spec)
 
 ### Function Status
 See [functions](functions.md)

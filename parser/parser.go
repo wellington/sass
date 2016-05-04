@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -117,6 +118,35 @@ func (p *parser) init(fset *token.FileSet, filename string, src []byte, mode Mod
 func (p *parser) add(filename string, src interface{}) error {
 	// imports are relative to the parent
 	path := filepath.Join(filepath.Dir(p.file.Name()), filename)
+	exts := []string{".scss", ".sass"}
+	for i := range exts {
+		if !strings.HasSuffix(path, exts[i]) {
+			// attempt adding extension
+			_, err := os.Stat(path + exts[i])
+			if err == nil {
+				path += exts[i]
+				break
+			}
+
+			// Attempt partial
+			base := filepath.Base(path)
+			p := strings.Replace(path, base, "_"+base+exts[i], 1)
+			_, err = os.Stat(p)
+			if err == nil {
+				path = p
+				break
+			}
+		} else {
+			base := filepath.Base(path)
+			p := strings.Replace(path, base, "_"+base, 1)
+			_, err := os.Stat("_" + p)
+			if err == nil {
+				path = p
+				break
+			}
+		}
+
+	}
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return err
@@ -148,7 +178,7 @@ func (p *parser) pop() error {
 		if ferr != nil {
 			log.Println("abs fail", err)
 		}
-		err = fmt.Errorf("failed to read %s: %s", err, abs)
+		err = fmt.Errorf("failed to read: %s", err, abs)
 		return err
 	}
 	if p.queue != nil {
