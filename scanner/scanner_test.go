@@ -525,6 +525,14 @@ func TestScan_unit(t *testing.T) {
 		{token.UPCT, "3%"},
 		{token.SEMICOLON, ";"},
 	})
+
+	testScan(t, []elt{
+		{token.LPAREN, "("},
+		{token.UPCT, "35%"},
+		{token.QUO, "/"},
+		{token.INT, "7"},
+		{token.RPAREN, ")"},
+	})
 }
 
 func testScan(t *testing.T, tokens []elt) {

@@ -39,10 +39,8 @@ func RegisterKind(fn func(op token.Token, x, y *BasicLit, combine bool) (*BasicL
 // combine forces operations on unitless numbers. By default,
 // unitless numbers are not combined.
 func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
-	defer func() {
-		fmt.Printf("kind: %s op: %s y: %s combine: %t x: % #v y: % #v\n",
-			x.Kind, op, y.Kind, combine, x, y)
-	}()
+	fmt.Printf("kind: %s op: %s y: %s combine: %t x: % #v y: % #v\n",
+		x.Kind, op, y.Kind, combine, x, y)
 	if x.Kind == token.ILLEGAL || y.Kind == token.ILLEGAL {
 		return nil, ErrIllegalOp
 	}
@@ -64,6 +62,8 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 			fn = stringOp
 		case token.FLOAT:
 			fn = floatOp
+		case token.UPCT:
+			fn = pctOp
 		}
 		// Other Kinds that could act as Float
 	case kind == token.FLOAT:
@@ -76,6 +76,8 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	case kind == token.STRING:
 		fmt.Println("string op?", x.Value, y.Value)
 		fn = stringOp
+	case kind == token.UPCT:
+		fn = pctOp
 	}
 
 	// math operations do not happen unless explicity enforced
@@ -126,6 +128,28 @@ func Op(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	}
 
 	lit, err := fn(op, x, y, combine)
+	return lit, err
+}
+
+func pctOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
+	xx := x
+	xx.Value = strings.TrimSuffix(x.Value, "%")
+	yy := y
+	yy.Value = strings.TrimSuffix(y.Value, "%")
+	// catch case where dividing % by % results in unitless
+	if x.Kind == y.Kind {
+		if op == token.QUO {
+			xx.Kind = token.FLOAT
+			yy.Kind = token.FLOAT
+			return floatOp(op, xx, yy, combine)
+		}
+	}
+	xx.Kind = token.FLOAT
+	yy.Kind = token.FLOAT
+
+	lit, err := floatOp(op, xx, yy, combine)
+	lit.Kind = token.UPCT
+	lit.Value += "%"
 	return lit, err
 }
 
