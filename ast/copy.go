@@ -74,6 +74,13 @@ func StmtCopy(in Stmt) (out Stmt) {
 			Spec: SpecCopy(v.Spec).(*IncludeSpec),
 		}
 		out = stmt
+	case *EachStmt:
+		stmt := &EachStmt{}
+		stmt.X = v.X
+		stmt.Body = StmtCopy(v.Body).(*BlockStmt)
+		stmt.List = ExprsCopy(v.List)
+		stmt.Each = v.Each
+
 	case *EmptyStmt:
 	default:
 		log.Fatalf("unsupported stmt copy %T: % #v\n", v, v)
