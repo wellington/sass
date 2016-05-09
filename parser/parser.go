@@ -2844,6 +2844,23 @@ func (p *parser) parseIncludeSpecFn(doc *ast.CommentGroup, keyword token.Token, 
 	return p.parseIncludeSpec(!p.inMixin)
 }
 
+func sigPosition(pos int, list []*ast.Field, isVdc bool) (*ast.Field, error) {
+	l := len(list)
+	switch {
+	case pos < l-1:
+		fallthrough
+	case pos == l-1 && !isVdc:
+		return list[pos], nil
+	}
+
+	if !isVdc {
+		return nil, errors.New("variable outside bounds of field signature")
+	}
+
+	// nil indicates multiple Fields apply
+	return nil, nil
+}
+
 // processFuncArgs walks through the arguments declaring each signature
 // in the provided scope
 func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arguments *ast.FieldList) {
@@ -2852,15 +2869,31 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 
 	toDeclare := make(map[*ast.Ident]interface{})
 
+	var isVariadic bool
 	// Process the signature and defaults, toDeclaring the defaults
-	for _, sig := range signature.List {
+	for i, sig := range signature.List {
 		var key *ast.Ident
+		fmt.Printf("typ... %T % #v %t\n", sig.Type, sig.Type, isVariadic)
 
 		// Convert ident or basiclit to ident
 		switch v := sig.Type.(type) {
 		default:
 			log.Fatalf("unsupported sig type % #v\n", v)
 		case *ast.Ident:
+			if isVariadic {
+				log.Fatal("only last argument can be variadic")
+			}
+			if strings.HasSuffix(v.Name, "...") {
+				isVariadic = true
+			}
+			field, err := sigPosition(i, signature.List, isVariadic)
+			if err != nil {
+				log.Fatalf("failed to process arguments: %s", err)
+			}
+
+			if field == nil {
+				continue
+			}
 			key = v
 		case *ast.KeyValueExpr:
 			var val interface{}
@@ -2885,13 +2918,17 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 		sigs = append(sigs, key)
 	}
 
+	// Hold variadic arguments, saving to a list
+	var lastArg []ast.Expr
 	// Now walk through passed arguments and toDeclare finding the
 	// appropriate matching arg
 	if arguments != nil {
 		for i, arg := range arguments.List {
-			ident := sigs[i]
-			// fmt.Printf("inspecting sigs[%d](%p) %s: % #v\n",
-			// 	i, ident, ident, arg.Type)
+			var ident *ast.Ident
+			if i < len(sigs) {
+				ident = sigs[i]
+			}
+
 			var val interface{}
 			switch v := arg.Type.(type) {
 			case *ast.BasicLit:
@@ -2911,8 +2948,19 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 				fmt.Printf("skipped argument %s\n", sigs[i])
 				continue
 			}
+
+			if isVariadic && i >= len(sigs)-1 {
+				lastArg = append(lastArg, val.(ast.Expr))
+				continue
+			}
 			toDeclare[ident] = val
 		}
+	}
+
+	if len(lastArg) > 0 {
+		ident := signature.List[len(signature.List)-1].Type.(*ast.Ident)
+		ident.Name = strings.TrimSuffix(ident.Name, "...")
+		p.declare(lastArg, nil, scope, ast.Var, ident)
 	}
 
 	for k, v := range toDeclare {
