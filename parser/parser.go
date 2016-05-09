@@ -222,10 +222,12 @@ func (p *parser) closeLabelScope() {
 
 func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjKind, idents ...*ast.Ident) {
 	if p.inMixin {
+		log.Fatal("mixin!", idents[0])
 		return
 	}
+	astPrint(idents[0])
 	for _, ident := range idents {
-
+		assert(ident != nil, "invalid ident found")
 		if ident.Obj != nil {
 			fmt.Printf("====== OVERRIDE ==== %s\nold: % #v\nnew: % #v\n",
 				ident, ident.Obj.Decl, decl)
@@ -233,6 +235,15 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		if ident.Obj != nil {
 			fmt.Println("not nil!")
 			log.Fatal("fail")
+		}
+
+		switch d := decl.(type) {
+		case *ast.AssignStmt:
+		case *ast.FuncDecl:
+		default:
+			fmt.Printf("% #v\n", decl)
+			astPrint(d)
+			panic("invalid decl")
 		}
 		assert(ident.Obj == nil, "identifier already declared or resolved")
 		obj := ast.NewObj(kind, ident.Name)
@@ -890,6 +901,7 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
 func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, checkParen bool) {
+	fmt.Println(p.topScope)
 	if p.trace {
 		defer un(trace(p, "SassList"))
 	}
@@ -936,6 +948,31 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, c
 	}
 	return
 
+}
+
+func (p *parser) expandList(in []ast.Expr) []ast.Expr {
+
+	if len(in) != 1 {
+		return in
+	}
+
+	ident, ok := in[0].(*ast.Ident)
+	if !ok {
+		return in
+	}
+
+	p.tryResolve(ident, false)
+	if ident.Obj == nil {
+		// uninitialized variable
+		return in
+	}
+	decl := ident.Obj.Decl
+	list, ok := decl.(*ast.ListLit)
+	if !ok {
+		return in
+	}
+
+	return list.Value
 }
 
 func (p *parser) inferLhsList() ast.Expr {
@@ -1195,8 +1232,10 @@ func (p *parser) parseSassType() ast.Expr {
 	}
 	var expr ast.Expr
 	if p.lit[0] == '$' {
+		// This is too open, need more checks
+		lit := strings.TrimSuffix(p.lit, "...")
 		expr = &ast.Ident{
-			Name:    p.lit,
+			Name:    lit,
 			NamePos: p.pos,
 		}
 		p.resolve(expr)
@@ -2135,95 +2174,87 @@ func (p *parser) parseTypeList() (list []ast.Expr) {
 
 // @each $i in (1 2 3)
 // @each $i in a b c
-func (p *parser) parseEachDir() ast.Stmt {
+func (p *parser) parseEachStmt() *ast.EachStmt {
 	if p.trace {
-		defer un(trace(p, "EachDir"))
+		defer un(trace(p, "EachStmt"))
 	}
 
 	pos := p.expect(token.EACH)
-	_ = pos
-	p.openScope()
-	defer p.closeScope()
-
 	// each variable iterator
 	itr := p.parseVarType(true).(*ast.Ident)
 
 	// in
 	if p.lit != "in" {
-		p.errorExpected(p.pos, "in after iterator ie @each in")
+		p.errorExpected(p.pos, "in after iterator ie @each $n in")
 	} else {
 		p.next()
 	}
 
 	list, _, _ := p.parseSassList(true, false)
 
-	// Run the first one with the first itr
-	p.openScope()
-	r := ast.NewIdent(itr.Name)
-	// at some point, all decl are enforced as AssignStmt
-	ass := &ast.AssignStmt{
-		Lhs:    []ast.Expr{r},
-		TokPos: list[0].Pos(),
-		Rhs:    []ast.Expr{list[0]},
-	}
-	p.declare(ass, nil, p.topScope, ast.Var, r)
 	body := p.parseBody(p.topScope)
-	p.closeScope()
 
-	stmts := body.List
-	for _, l := range list[1:] {
-		p.openScope()
-		r := ast.NewIdent(itr.Name)
-		// at some point, all decl are enforced as AssignStmt
-		ass := &ast.AssignStmt{
-			Lhs:    []ast.Expr{r},
-			TokPos: list[0].Pos(),
-			Rhs:    []ast.Expr{l},
-		}
-		p.declare(ass, nil, p.topScope, ast.Var, r)
-		// Copy the body from list 1
-		copy := make([]ast.Stmt, len(stmts))
-		for i := range stmts {
-			copy[i] = ast.StmtCopy(stmts[i])
-		}
-		fmt.Println("resolve copied stuff!")
-		copy = p.resolveStmts(p.topScope, copy)
-		// body := p.parseBody(p.topScope)
-		body.List = append(body.List, copy...)
-		p.closeScope()
-	}
-
-	// Now walk through the rest of the list copying body
-	// statements then reresolving with the new iterator value
-
-	// // Walk through values, setting itr to each
-	// for _, l := range list {
-	// 	p.openScope()
-	// 	r := ast.NewIdent(itr.Name)
-	// 	p.declare(l, nil, p.topScope, ast.Var, r)
-	// 	var b *ast.BlockStmt
-	// 	if p.tok == token.LBRACE {
-	// 		b = p.parseBody(p.topScope)
-	// 	}
-	// 	p.closeScope()
-	// 	if body == nil {
-	// 		body = b
-	// 	} else if {
-	// 		fmt.Printf("% #v\n", body)
-	// 		fmt.Println(body.List)
-	// 		if le
-	// 		fmt.Println(b.List)
-	// 		body.List = append(body.List, b.List...)
-	// 	}
-	// }
-
-	return &ast.EachStmt{
+	each := &ast.EachStmt{
 		Each: pos,
 		X:    itr,
 		List: list,
 		Body: body,
 	}
 
+	// FIXME: decide when to resolve the each stmt
+	if !p.inMixin {
+		p.resolveEachStmt(p.topScope, each)
+	}
+
+	return each
+}
+
+func (p *parser) resolveEachStmt(outscope *ast.Scope, each *ast.EachStmt) {
+
+	// attempt exampsion of $var in $vars
+	list := p.expandList(each.List)
+
+	itrName := each.X.Name
+	fmt.Println("iterator name...", itrName)
+	r := ast.NewIdent(itrName)
+	// at some point, all decl are enforced as AssignStmt
+	ass := &ast.AssignStmt{
+		Lhs:    []ast.Expr{r},
+		TokPos: list[0].Pos(),
+		Rhs:    list,
+	}
+
+	stmts := make([]ast.Stmt, 0, len(each.Body.List))
+	// walk through first iterator
+	scope := ast.NewScope(outscope)
+	p.declare(ass, nil, scope, ast.Var, r)
+	fmt.Println("iterator scope", scope)
+	astPrint(each.Body.List)
+	stmts = p.resolveStmts(scope, each.Body.List)
+	p.closeScope()
+
+	for _, l := range list[1:] {
+		scope := ast.NewScope(outscope)
+		r := ast.NewIdent(itrName)
+		// at some point, all decl are enforced as AssignStmt
+		ass := &ast.AssignStmt{
+			Lhs:    []ast.Expr{r},
+			TokPos: list[0].Pos(),
+			Rhs:    []ast.Expr{l},
+		}
+		p.declare(ass, nil, scope, ast.Var, r)
+		// Copy the body from list 1
+		copy := make([]ast.Stmt, len(stmts))
+		for i := range stmts {
+			copy[i] = ast.StmtCopy(stmts[i])
+		}
+		copy = p.resolveStmts(scope, copy)
+		stmts = append(stmts, copy...)
+		p.closeScope()
+	}
+
+	// Modify body with new stmts
+	each.Body.List = stmts
 }
 
 func (p *parser) parseForStmt() ast.Stmt {
@@ -2346,7 +2377,7 @@ func (p *parser) parseStmt() (s ast.Stmt, isSelector bool) {
 			p.expectSemi()
 		}
 	case token.EACH:
-		s = p.parseEachDir()
+		s = p.parseEachStmt()
 	case token.RETURN:
 		s = p.parseReturnStmt()
 	case token.MEDIA:
@@ -2884,6 +2915,7 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 				log.Fatal("only last argument can be variadic")
 			}
 			if strings.HasSuffix(v.Name, "...") {
+				v.Name = strings.TrimSuffix(v.Name, "...")
 				isVariadic = true
 			}
 			field, err := sigPosition(i, signature.List, isVariadic)
@@ -2933,6 +2965,11 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 			switch v := arg.Type.(type) {
 			case *ast.BasicLit:
 				val = v
+				val = &ast.AssignStmt{
+					Lhs:    []ast.Expr{ident},
+					TokPos: arg.Pos(),
+					Rhs:    []ast.Expr{v},
+				}
 			case *ast.Ident:
 				p.resolve(v)
 				val = v.Obj.Decl
@@ -2964,6 +3001,11 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 	}
 
 	for k, v := range toDeclare {
+		if k == nil {
+			fmt.Printf("FIXME: nil declaration...", k)
+			astPrint(v)
+			continue
+		}
 		p.declare(v, nil, scope, ast.Var, k)
 	}
 }
@@ -2973,7 +3015,7 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 
 	ret := make([]ast.Stmt, 0, len(stmts))
-	// fmt.Println("visit Resolve Stmt")
+
 	for i := range stmts {
 		switch decl := stmts[i].(type) {
 		case *ast.DeclStmt:
@@ -2982,6 +3024,8 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 		case *ast.AssignStmt:
 			p.shortVarDecl(decl, decl.Lhs)
 		case *ast.CommStmt:
+		case *ast.EachStmt:
+			p.resolveEachStmt(scope, decl)
 		case *ast.IncludeStmt:
 			p.resolveIncludeSpec(decl.Spec)
 		case *ast.SelStmt:
@@ -2993,6 +3037,7 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 			decl.Body.List = p.resolveStmts(scope, decl.Body.List)
 			p.closeSelector()
 		case *ast.EmptyStmt, nil:
+			fmt.Println("empty shit!", stmts[i])
 			// Trim from result
 			continue
 		case *ast.IfStmt:
@@ -3047,6 +3092,7 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 			p.resolve(v)
 			p.topScope = oldScope
 		}
+		astPrint(v)
 		out = basicLitFromIdent(v)
 	case *ast.ListLit:
 		for _, x := range v.Value {
@@ -3210,6 +3256,7 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 		stmt := ast.StmtCopy(list[i])
 		spec.List = append(spec.List, stmt)
 	}
+
 	copyparams := ast.FieldListCopy(fnDecl.Type.Params)
 	copyargs := ast.FieldListCopy(args)
 

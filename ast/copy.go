@@ -80,7 +80,7 @@ func StmtCopy(in Stmt) (out Stmt) {
 		stmt.Body = StmtCopy(v.Body).(*BlockStmt)
 		stmt.List = ExprsCopy(v.List)
 		stmt.Each = v.Each
-
+		out = stmt
 	case *EmptyStmt:
 	default:
 		log.Fatalf("unsupported stmt copy %T: % #v\n", v, v)

@@ -790,10 +790,11 @@ type (
 
 	// A EachStmt represents @each
 	EachStmt struct {
-		Each token.Pos // position of @each
-		X    *Ident    // iterator
-		Body *BlockStmt
-		List []Expr // List of values can be nil
+		Each  token.Pos // position of @each
+		X     *Ident    // iterator
+		Range []Expr
+		Body  *BlockStmt
+		List  []Expr // List of values for the iterator
 		// Map Expr // TODO: maps are valid
 	}
 

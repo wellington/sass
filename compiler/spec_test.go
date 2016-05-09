@@ -27,8 +27,8 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 
-		if !strings.Contains(input, "30_") {
-			// continue
+		if !strings.Contains(input, "35_") {
+			continue
 		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
