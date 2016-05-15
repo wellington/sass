@@ -197,6 +197,9 @@ func (p *parser) openScope() {
 }
 
 func (p *parser) closeScope() {
+	if p.topScope == nil {
+		panic("scope imbalance")
+	}
 	p.topScope = p.topScope.Outer
 }
 
@@ -967,7 +970,12 @@ func (p *parser) expandList(in []ast.Expr) []ast.Expr {
 		return in
 	}
 	decl := ident.Obj.Decl
-	list, ok := decl.(*ast.ListLit)
+	ass, ok := decl.(*ast.AssignStmt)
+	if !ok {
+		return in
+	}
+
+	list, ok := ass.Rhs[0].(*ast.ListLit)
 	if !ok {
 		return in
 	}
@@ -1233,12 +1241,21 @@ func (p *parser) parseSassType() ast.Expr {
 	var expr ast.Expr
 	if p.lit[0] == '$' {
 		// This is too open, need more checks
-		lit := strings.TrimSuffix(p.lit, "...")
-		expr = &ast.Ident{
+		lit := p.lit
+		ident := &ast.Ident{
 			Name:    lit,
 			NamePos: p.pos,
 		}
-		p.resolve(expr)
+		// variadics need special changes to do resolution
+		// temporarily remove ... suffix during resolution
+		if strings.HasSuffix(lit, "...") {
+			ident.Name = strings.TrimSuffix(p.lit, "...")
+			p.resolve(ident)
+			ident.Name = p.lit
+		} else {
+			p.resolve(ident)
+		}
+		expr = ident
 	} else {
 		expr = &ast.BasicLit{
 			ValuePos: p.pos,
@@ -2158,6 +2175,56 @@ func (p *parser) parseIfStmt() *ast.IfStmt {
 	return &ast.IfStmt{If: pos, Init: s, Cond: x, Body: body, Else: else_}
 }
 
+func (p *parser) resolveIfStmt(scope *ast.Scope, in *ast.IfStmt) ast.Stmt {
+	fmt.Println("resolve ifstmt!")
+	var ret []ast.Stmt
+	decl := in
+	cond := in.Cond
+	// TODO: This is weird, but it resolves idents
+	p.resolveExpr(scope, cond)
+
+	// Check if this points to a binary expr, otherwise
+	// compare with false (and maybe nil?)
+	var compFalse bool
+	if ident, ok := cond.(*ast.Ident); ok {
+		if _, ok := ident.Obj.Decl.(*ast.BinaryExpr); !ok {
+			compFalse = true
+		}
+	}
+
+	fmt.Printf("cond % #v\n", decl.Cond)
+	lit, err := calc.Resolve(decl.Cond, true)
+	if err != nil {
+		panic(fmt.Sprint("failed to understand condition: ", err))
+	}
+	switch {
+	// This checks just for presence of a variable
+	case compFalse && lit.Value != "false":
+		fmt.Println("compfalse", lit.Value)
+		fallthrough
+	case lit.Value == "true":
+		fmt.Println("true...")
+		resList := p.resolveStmts(scope, decl.Body.List)
+		ret = append(ret, resList...)
+	default:
+		el := decl.Else
+		if blk, ok := el.(*ast.BlockStmt); ok {
+			res := p.resolveStmts(scope, blk.List)
+			ret = append(ret, res...)
+		} else {
+			ret = append(ret, p.resolveStmts(scope,
+				[]ast.Stmt{el})...)
+		}
+	}
+
+	blk := &ast.BlockStmt{
+		List:   ret,
+		Lbrace: in.Body.Pos(),
+		Rbrace: in.Body.End(),
+	}
+	return blk
+}
+
 func (p *parser) parseTypeList() (list []ast.Expr) {
 	if p.trace {
 		defer un(trace(p, "TypeList"))
@@ -2205,33 +2272,37 @@ func (p *parser) parseEachStmt() *ast.EachStmt {
 	if !p.inMixin {
 		p.resolveEachStmt(p.topScope, each)
 	}
-
+	fmt.Println("each parsed...")
 	return each
 }
 
 func (p *parser) resolveEachStmt(outscope *ast.Scope, each *ast.EachStmt) {
-
+	fmt.Println("resolveEachStmt")
+	litsToExprs := func(in []*ast.BasicLit) []ast.Expr {
+		out := make([]ast.Expr, len(in))
+		for i := range in {
+			out[i] = in[i]
+		}
+		return out
+	}
 	// attempt exampsion of $var in $vars
 	list := p.expandList(each.List)
-
 	itrName := each.X.Name
-	fmt.Println("iterator name...", itrName)
 	r := ast.NewIdent(itrName)
+
 	// at some point, all decl are enforced as AssignStmt
 	ass := &ast.AssignStmt{
 		Lhs:    []ast.Expr{r},
 		TokPos: list[0].Pos(),
-		Rhs:    list,
+		Rhs:    litsToExprs(p.resolveExpr(outscope, list[0])),
 	}
 
 	stmts := make([]ast.Stmt, 0, len(each.Body.List))
 	// walk through first iterator
 	scope := ast.NewScope(outscope)
 	p.declare(ass, nil, scope, ast.Var, r)
-	fmt.Println("iterator scope", scope)
-	astPrint(each.Body.List)
-	stmts = p.resolveStmts(scope, each.Body.List)
-	p.closeScope()
+	ress := p.resolveStmts(scope, each.Body.List)
+	stmts = append(stmts, ress...)
 
 	for _, l := range list[1:] {
 		scope := ast.NewScope(outscope)
@@ -2240,7 +2311,7 @@ func (p *parser) resolveEachStmt(outscope *ast.Scope, each *ast.EachStmt) {
 		ass := &ast.AssignStmt{
 			Lhs:    []ast.Expr{r},
 			TokPos: list[0].Pos(),
-			Rhs:    []ast.Expr{l},
+			Rhs:    litsToExprs(p.resolveExpr(scope, l)),
 		}
 		p.declare(ass, nil, scope, ast.Var, r)
 		// Copy the body from list 1
@@ -2250,9 +2321,10 @@ func (p *parser) resolveEachStmt(outscope *ast.Scope, each *ast.EachStmt) {
 		}
 		copy = p.resolveStmts(scope, copy)
 		stmts = append(stmts, copy...)
-		p.closeScope()
-	}
 
+	}
+	astPrint(stmts)
+	log.Fatal("each walked through", len(list), "and got", len(stmts))
 	// Modify body with new stmts
 	each.Body.List = stmts
 }
@@ -2952,6 +3024,7 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 
 	// Hold variadic arguments, saving to a list
 	var lastArg []ast.Expr
+
 	// Now walk through passed arguments and toDeclare finding the
 	// appropriate matching arg
 	if arguments != nil {
@@ -2964,7 +3037,6 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 			var val interface{}
 			switch v := arg.Type.(type) {
 			case *ast.BasicLit:
-				val = v
 				val = &ast.AssignStmt{
 					Lhs:    []ast.Expr{ident},
 					TokPos: arg.Pos(),
@@ -2987,7 +3059,12 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 			}
 
 			if isVariadic && i >= len(sigs)-1 {
-				lastArg = append(lastArg, val.(ast.Expr))
+				// these fucking assignstmt need to go away
+				v := val
+				if ass, ok := v.(*ast.AssignStmt); ok {
+					v = ass.Rhs[0]
+				}
+				lastArg = append(lastArg, v.(ast.Expr))
 				continue
 			}
 			toDeclare[ident] = val
@@ -2997,7 +3074,16 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 	if len(lastArg) > 0 {
 		ident := signature.List[len(signature.List)-1].Type.(*ast.Ident)
 		ident.Name = strings.TrimSuffix(ident.Name, "...")
-		p.declare(lastArg, nil, scope, ast.Var, ident)
+
+		list := p.listFromExprs(lastArg, true, true)
+		ass := &ast.AssignStmt{
+			Lhs:    []ast.Expr{ident},
+			TokPos: ident.Pos(),
+			Rhs:    []ast.Expr{list},
+		}
+		fmt.Println("declaring...", ident, ass)
+		p.declare(ass, nil, scope, ast.Var, ident)
+		fmt.Println("done decl")
 	}
 
 	for k, v := range toDeclare {
@@ -3041,28 +3127,13 @@ func (p *parser) resolveStmts(scope *ast.Scope, stmts []ast.Stmt) []ast.Stmt {
 			// Trim from result
 			continue
 		case *ast.IfStmt:
-			// TODO: This is weird, but it resolves idents
-			p.resolveExpr(scope, decl.Cond)
-			lit, err := calc.Resolve(decl.Cond, true)
-			if err != nil {
-				panic(fmt.Sprint("failed to understand condition: ", err))
-			}
-			if lit.Value == "true" {
-				resList := p.resolveStmts(scope, decl.Body.List)
-				ret = append(ret, resList...)
-			} else {
-				el := decl.Else
-				if blk, ok := el.(*ast.BlockStmt); ok {
-					res := p.resolveStmts(scope, blk.List)
-					ret = append(ret, res...)
-				} else {
-					ret = append(ret, p.resolveStmts(scope,
-						[]ast.Stmt{el})...)
-				}
-			}
+			ret = append(ret, p.resolveIfStmt(scope, decl))
 			continue
 		case *ast.ReturnStmt:
 			// TODO: something to do here?
+		case *ast.BlockStmt:
+			list := p.resolveStmts(scope, decl.List)
+			ret = append(ret, list...)
 		default:
 			log.Fatalf("unsupported stmt: % #v\n", stmts[i])
 		}
@@ -3110,7 +3181,7 @@ func (p *parser) resolveDecl(scope *ast.Scope, decl *ast.DeclStmt) {
 	if p.trace {
 		defer un(trace(p, "ResolveDecl"))
 	}
-	assert(p.topScope == scope, "resolveDecl scope mismatch")
+	// assert(p.topScope == scope, "resolveDecl scope mismatch")
 	switch v := decl.Decl.(type) {
 	case *ast.GenDecl:
 		for _, spec := range v.Specs {
@@ -3252,6 +3323,7 @@ func (p *parser) resolveIncludeSpec(spec *ast.IncludeSpec) {
 
 	// Walk through all statements performing a copy of each
 	list := fnDecl.Body.List
+
 	for i := range list {
 		stmt := ast.StmtCopy(list[i])
 		spec.List = append(spec.List, stmt)
