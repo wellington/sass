@@ -357,7 +357,6 @@ func printPropValueSpec(ctx *Context, n ast.Node) {
 }
 
 func printIfStmt(ctx *Context, n ast.Node) {
-	panic("noooo")
 	ifStmt := n.(*ast.IfStmt)
 	s, err := resolveExpr(ctx, ifStmt.Cond, true)
 	if err != nil {
