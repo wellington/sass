@@ -65,6 +65,12 @@ func resolve(in ast.Expr, doOp bool) (*ast.BasicLit, error) {
 		if v.Obj == nil {
 			return nil, fmt.Errorf("calc: undefined variable %s", v.Name)
 		}
+		// FIXME: we shouldn't attempt to resolve invalid values ie.
+		// interp inside @each
+		if v.Obj.Decl == nil {
+			log.Println("warning, resolution was attempted on an invalid value")
+			return x, nil
+		}
 		rhs := v.Obj.Decl.(*ast.AssignStmt).Rhs
 		kind := token.INT
 		var val []string

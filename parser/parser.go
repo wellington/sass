@@ -761,8 +761,6 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, error) {
 		for i := range v.Args {
 			p.resolveExpr(p.topScope, v.Args[i])
 		}
-		fmt.Println(p.topScope)
-		fmt.Println("going in^^^^")
 		return evaluateCall(p, p.topScope, v)
 	case *ast.BinaryExpr:
 		l, err := p.resolveCall(v.X)
@@ -790,7 +788,8 @@ func (p *parser) resolveCall(x ast.Expr) (ast.Expr, error) {
 
 // simplify and resolve expressions inside interpolation.
 // strings are always unquoted
-func (p *parser) resolveInterp(itp *ast.Interp) {
+func (p *parser) resolveInterp(scope *ast.Scope, itp *ast.Interp) {
+	assert(scope == p.topScope, "resolveInterp mismatch scope")
 	if len(itp.X) == 0 {
 		return
 	}
@@ -904,7 +903,6 @@ func (p *parser) parseExprList(lhs bool) (list []ast.Expr) {
 // sass list uses no delimiters, and may optionally be surrounded
 // by parens
 func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, checkParen bool) {
-	fmt.Println(p.topScope)
 	if p.trace {
 		defer un(trace(p, "SassList"))
 	}
@@ -937,7 +935,7 @@ func (p *parser) parseSassList(lhs, canComma bool) (list []ast.Expr, hasComma, c
 		} else {
 			x := p.inferExpr(lhs, checkParen)
 			if interp, ok := x.(*ast.Interp); ok {
-				p.resolveInterp(interp)
+				p.resolveInterp(p.topScope, interp)
 			}
 			list = append(list, p.checkExpr(x))
 		}
@@ -1079,7 +1077,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 					}
 					prev.X = append(prev.X, lit)
 					// changes to interp require resolution
-					p.resolveInterp(prev)
+					p.resolveInterp(p.topScope, prev)
 					continue
 				}
 			}
@@ -1112,7 +1110,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 				// merge
 				// target.Kind = token.STRING
 				itp.X = append([]ast.Expr{target}, itp.X...)
-				p.resolveInterp(itp)
+				p.resolveInterp(p.topScope, itp)
 				out[len(out)-1] = itp
 				continue
 			}
@@ -1120,7 +1118,7 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 			pitp := out[len(out)-1].(*ast.Interp)
 			pitp.X = append(pitp.X, itp.X...)
 			// changes to interp require resolution
-			p.resolveInterp(pitp)
+			p.resolveInterp(p.topScope, pitp)
 			continue
 		}
 		itp.Obj.Decl = lit
@@ -1592,7 +1590,7 @@ func (p *parser) parseOperand(lhs bool) ast.Expr {
 		return x
 	case token.INTERP:
 		x := p.parseInterp()
-		p.resolveInterp(x)
+		p.resolveInterp(p.topScope, x)
 		return x
 	case token.QSTRING, token.QSSTRING:
 		// TODO: most definitely short sighed
@@ -2255,7 +2253,6 @@ func (p *parser) parseEachStmt() *ast.EachStmt {
 	list, _, _ := p.parseSassList(true, false)
 
 	body := p.parseBody(p.topScope)
-
 	each := &ast.EachStmt{
 		Each: pos,
 		X:    itr,
@@ -2267,12 +2264,10 @@ func (p *parser) parseEachStmt() *ast.EachStmt {
 	if !p.inMixin {
 		p.resolveEachStmt(p.topScope, each)
 	}
-	fmt.Println("each parsed...")
 	return each
 }
 
 func (p *parser) resolveEachStmt(outscope *ast.Scope, each *ast.EachStmt) {
-	fmt.Println("resolveEachStmt")
 	litsToExprs := func(in []*ast.BasicLit) []ast.Expr {
 		out := make([]ast.Expr, len(in))
 		for i := range in {
@@ -2321,8 +2316,6 @@ func (p *parser) resolveEachStmt(outscope *ast.Scope, each *ast.EachStmt) {
 		p.declare(ass, nil, scope, ast.Var, r)
 		stmts = append(stmts, p.resolveStmts(scope, copy)...)
 	}
-	astPrint(stmts)
-	log.Print("each walked through", len(list), "and got", len(stmts))
 	// Modify body with new stmts
 	each.Body.List = stmts
 }
@@ -2833,7 +2826,7 @@ func (p *parser) parseSel() ast.Expr {
 		}
 	case token.INTERP:
 		x := p.parseInterp()
-		p.resolveInterp(x)
+		p.resolveInterp(p.topScope, x)
 		return x
 	default:
 		log.Fatalf("unsupported sel type %s:%q\n", p.tok, p.lit)
@@ -3158,16 +3151,16 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 		x, _ := p.resolveCall(v)
 		out = append(out, x.(*ast.BasicLit))
 	case *ast.Interp:
-		p.resolveInterp(v)
+		p.resolveInterp(scope, v)
 		fmt.Println("resolved...", v.Obj.Decl.(*ast.BasicLit))
 		out = append(out, v.Obj.Decl.(*ast.BasicLit))
 	case *ast.Ident:
-
-		// assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
+		if v.Obj != nil {
+			log.Println("ident had previous value, this is an error")
+			return basicLitFromIdent(v)
+		}
+		assert(v.Obj == nil, "statement had previous value, was it copied correctly?")
 		p.resolve(v)
-		astPrint(v)
-		log.Println("resolved Ident /\\")
-
 		out = basicLitFromIdent(v)
 	case *ast.ListLit:
 		for _, x := range v.Value {
