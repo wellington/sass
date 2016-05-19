@@ -27,9 +27,6 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 
-		if !strings.Contains(input, "35_") {
-			continue
-		}
 		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
@@ -55,7 +52,7 @@ func findPaths() []file {
 			expect: exp,
 		})
 		// Indicates the first test that will not pass tests
-		if strings.Contains(input, "32_") && testing.Short() {
+		if strings.Contains(input, "35_") && testing.Short() {
 			break
 		}
 
@@ -66,9 +63,6 @@ func findPaths() []file {
 func TestCompile_spec(t *testing.T) {
 	// It will be a long time before these are all supported, so let's just
 	// short these for now.
-	if testing.Short() {
-		t.Skip("Skip robust testing so true errors can better be diagnosed")
-	}
 
 	files := findPaths()
 	var f file

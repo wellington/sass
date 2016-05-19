@@ -228,7 +228,7 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		log.Fatal("mixin!", idents[0])
 		return
 	}
-	astPrint(idents[0])
+
 	for _, ident := range idents {
 		assert(ident != nil, "invalid ident found")
 		if ident.Obj != nil {
@@ -244,9 +244,10 @@ func (p *parser) declare(decl, data interface{}, scope *ast.Scope, kind ast.ObjK
 		case *ast.AssignStmt:
 		case *ast.FuncDecl:
 		default:
-			fmt.Printf("% #v\n", decl)
+			fmt.Printf("Invalid decl % #v\n", decl)
 			astPrint(d)
-			panic("invalid decl")
+			// FIXME: Why is this being enforced?
+			// panic("invalid decl")
 		}
 		assert(ident.Obj == nil, "identifier already declared or resolved")
 		obj := ast.NewObj(kind, ident.Name)
