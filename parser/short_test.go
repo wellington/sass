@@ -28,10 +28,10 @@ var valids = []string{
 	"div { a: #{rgb(4,5,6)+1}; }",
 	"$a: 1 2; inspect($a);",
 	// directives
-	"@mixin foo($a: one, $b) { p {$x: inside $a;} } @include foo(); @include foo(two);",
+	// "@mixin foo($a: one, $b) { p {$x: inside $a;} } @include foo(); @include foo(two);",
 	// nested and root are treated ifferently
 	"div { @each $i in (1 2 3) {} }",
-	"@mixin foo($a: one, $b) { $x: inside $a; } div { inner { @include foo(); @include foo(two); } }",
+	// "@mixin foo($a: one, $b) { $x: inside $a; } div { inner { @include foo(); @include foo(two); } }",
 }
 
 func TestValid(t *testing.T) {

@@ -341,6 +341,8 @@ func printRuleSpec(ctx *Context, n ast.Node) {
 func printEach(ctx *Context, n ast.Node) {
 	// surprise, not media but behavior is same!
 	ctx.hiddenBlock = true
+	fmt.Println("each...")
+	ast.Print(token.NewFileSet(), n)
 }
 
 func printMedia(ctx *Context, n ast.Node) {
