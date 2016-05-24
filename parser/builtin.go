@@ -124,7 +124,6 @@ func evaluateCall(p *parser, scope *ast.Scope, expr *ast.CallExpr) (ast.Expr, er
 
 // callInline looks for the function within Sass itself
 func (p *parser) callInline(scope *ast.Scope, call *ast.CallExpr) (ast.Expr, error) {
-
 	return p.resolveFuncDecl(scope, call)
 }
 
@@ -135,9 +134,6 @@ func callBuiltin(name string, fn call, expr *ast.CallExpr) (ast.Expr, error) {
 	callargs := make([]ast.Expr, len(fn.params))
 	for i := range fn.params {
 		expr := fn.params[i].Value
-		// if expr != nil {
-		// 	callargs[i] = expr.(*ast.BasicLit)
-		// }
 		callargs[i] = expr
 	}
 	var argpos int

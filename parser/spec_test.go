@@ -20,7 +20,7 @@ func TestSpec_files(t *testing.T) {
 	mode = Trace | ParseComments
 	var name string
 	for _, name = range inputs {
-		if strings.Contains(name, "25_") && testing.Short() {
+		if strings.Contains(name, "36_") && testing.Short() {
 			// This is the last test we currently parse properly
 			return
 		}

@@ -1073,13 +1073,14 @@ func (p *parser) mergeInterps(in []ast.Expr) []ast.Expr {
 				if l.End() == lit.Pos() {
 					prev, ok := out[len(out)-1].(*ast.Interp)
 					if !ok {
-						panic(fmt.Errorf("\nl:% #v\nr:% #v\n",
-							l, lit))
+						// panic(fmt.Errorf("\nl:% #v\nr:% #v\n",
+						//	l, lit))
+					} else {
+						prev.X = append(prev.X, lit)
+						// changes to interp require resolution
+						p.resolveInterp(p.topScope, prev)
+						continue
 					}
-					prev.X = append(prev.X, lit)
-					// changes to interp require resolution
-					p.resolveInterp(p.topScope, prev)
-					continue
 				}
 			}
 			out = append(out, in[i])
@@ -1730,7 +1731,7 @@ func (p *parser) parseCallOrConversion(fun ast.Expr) *ast.CallExpr {
 		obj := ast.NewObj(ast.Var, ident.Name)
 		obj.Decl = lit
 		ident.Obj = obj
-		if err != nil {
+		if err != nil && err != ErrFuncNotFound {
 			p.error(pos, err.Error())
 		}
 	}
@@ -3146,6 +3147,21 @@ func (p *parser) resolveExpr(scope *ast.Scope, expr ast.Expr) (out []*ast.BasicL
 
 	assert(p.topScope == scope, "resolveExpr scope mismatch")
 	switch v := expr.(type) {
+	case *ast.StringExpr:
+
+		// This is pretty shitty
+		var list []*ast.BasicLit
+		for i := range v.List {
+			list = append(list, p.resolveExpr(scope, v.List[i])...)
+		}
+
+		s := ast.JoinLits(list, "")
+
+		out = append(out, &ast.BasicLit{
+			Kind:     token.STRING,
+			ValuePos: v.Pos(),
+			Value:    `"` + s + `"`,
+		})
 	case *ast.BasicLit:
 		out = append(out, v)
 	case *ast.CallExpr:
@@ -3261,11 +3277,45 @@ func joinLits(a []*ast.BasicLit, sep string) string {
 	return strings.Join(s, sep)
 }
 
+// ErrFuncNotFound in most cases, this is a user or fatal parsing
+// error. However, URL expressions are dicks and allow this.
+var ErrFuncNotFound = errors.New("named function was not found")
+
+var tries = 0
+
+// resolveNoFuncDecl accepts callexpr to undefined functions and
+// does the requisitie string shit to correctly output things
+func (p *parser) resolveNoFuncDecl(scope *ast.Scope, call *ast.CallExpr) (ast.Expr, error) {
+	ident := call.Fun.(*ast.Ident)
+	// When resolution fails, we just poop out raw call
+	// as text
+	ss := make([]string, 0, 4)
+	ss = append(ss, ident.Name, "(")
+
+	var args []string
+	for i := range call.Args {
+		lits := p.resolveExpr(scope, call.Args[i])
+		args = append(args, ast.JoinLits(lits, ""))
+	}
+	ss = append(ss, strings.Join(args, ", "))
+
+	ss = append(ss, ")")
+	lit := &ast.BasicLit{
+		Kind:     token.STRING,
+		Value:    strings.Join(ss, ""),
+		ValuePos: ident.NamePos,
+	}
+	return lit, ErrFuncNotFound
+}
+
 func (p *parser) resolveFuncDecl(scope *ast.Scope, call *ast.CallExpr) (ast.Expr, error) {
 	ident := call.Fun.(*ast.Ident)
 
 	p.tryResolve(ident, false)
-	assert(ident.Obj != nil, "failed to locate function: "+ident.Name)
+	if ident.Obj == nil {
+		return p.resolveNoFuncDecl(scope, call)
+	}
+
 	args := call.Args
 	fnDecl := ident.Obj.Decl.(*ast.FuncDecl)
 

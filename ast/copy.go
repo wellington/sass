@@ -150,6 +150,9 @@ func ExprCopy(in Expr) (out Expr) {
 		}
 		lit.Value = ExprsCopy(expr.Value)
 		out = lit
+		// Be sure you know what you are doing before copying
+		// new types. More than likely, the type needs to be
+		// resolved to a simpler type before copying is necessary.
 	default:
 		panic(fmt.Errorf("unsupported expr copy: % #v\n", expr))
 	}
