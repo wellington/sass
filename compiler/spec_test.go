@@ -81,10 +81,10 @@ func TestCompile_spec(t *testing.T) {
 compiling: %s\n
 =================================
 `, f.input)
-		ctx := Context{}
-		ctx.Init()
+		ctx := NewContext()
+
 		ctx.SetMode(parser.Trace)
-		out, err := ctx.Run(f.input)
+		out, err := ctx.runString(f.input, nil)
 		sout := strings.Replace(out, "`", "", -1)
 		if err != nil {
 			log.Println("failed to compile", f.input, err)

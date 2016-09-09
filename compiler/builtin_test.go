@@ -7,15 +7,15 @@ import (
 )
 
 func runParse(t *testing.T, in string, e string) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
 	// ctx.SetMode(parser.Trace)
 	ctx.fset = token.NewFileSet()
 
-	out, err := ctx.run("", in)
+	bout, err := ctx.run("", in)
 	if err != nil {
 		t.Fatal(err)
 	}
+	out := string(bout)
 	if e != out {
 		t.Errorf("got:\n%q\nwanted:\n%q", out, e)
 	}

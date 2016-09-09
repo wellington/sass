@@ -8,8 +8,8 @@ import (
 )
 
 func TestDecl_if(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 
 	input := `$x: 1 2;
@@ -30,7 +30,7 @@ func TestDecl_if(t *testing.T) {
 }
 `
 	ctx.SetMode(parser.Trace)
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,8 +44,8 @@ func TestDecl_if(t *testing.T) {
 }
 
 func TestDecl_func_if(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `$x: true;
 
@@ -61,7 +61,7 @@ div {
 }
 `
 	ctx.SetMode(parser.Trace)
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}

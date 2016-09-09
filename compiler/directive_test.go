@@ -7,8 +7,8 @@ import (
 )
 
 func TestDirective_each_paran(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `div {
   @each $i in (1 2 3 4 5) {
@@ -16,7 +16,7 @@ func TestDirective_each_paran(t *testing.T) {
   }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,8 +34,8 @@ func TestDirective_each_paran(t *testing.T) {
 }
 
 func TestDirective_each(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `div {
   @each $i in a b c {
@@ -43,7 +43,7 @@ func TestDirective_each(t *testing.T) {
   }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}

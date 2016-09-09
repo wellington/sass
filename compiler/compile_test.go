@@ -7,14 +7,14 @@ import (
 )
 
 func TestSelector_nesting(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a {
 d { color: red; }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,8 +28,8 @@ d { color: red; }
 }
 
 func TestSelector_inplace_nesting(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `hey, ho {
   foo &.goo {
@@ -37,7 +37,7 @@ func TestSelector_inplace_nesting(t *testing.T) {
   }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,8 +51,8 @@ func TestSelector_inplace_nesting(t *testing.T) {
 }
 
 func TestSelector_deep_nesting(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a {
 	c, d, e {
@@ -63,7 +63,7 @@ func TestSelector_deep_nesting(t *testing.T) {
     }
 	}
 }`
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,8 +77,8 @@ func TestSelector_deep_nesting(t *testing.T) {
 }
 
 func TestSelector_selector_interp(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `$x: oo, ba;
 $y: az, hu;
@@ -93,7 +93,7 @@ f#{$x}r {
   }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -105,6 +105,7 @@ f#{$x}r {
     foo baz mumble4, foo hux mumble4, bar baz mumble4, bar hux mumble4 {
       r: 3; }
 `
+
 	if e != out {
 		t.Fatalf("got:\n%s\nwanted:\n%s", out, e)
 	}
@@ -113,8 +114,7 @@ f#{$x}r {
 
 func TestSelector_nesting_implicit_unary(t *testing.T) {
 
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
 	ctx.fset = token.NewFileSet()
 	input := `a {
   > e {
@@ -122,7 +122,7 @@ func TestSelector_nesting_implicit_unary(t *testing.T) {
   }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,8 +138,8 @@ func TestSelector_nesting_implicit_unary(t *testing.T) {
 func TestSelector_nesting_unary(t *testing.T) {
 
 	// This is bizarre, may never support this odd syntax
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a {
   & > e {
@@ -147,7 +147,7 @@ func TestSelector_nesting_unary(t *testing.T) {
   }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -162,14 +162,14 @@ func TestSelector_nesting_unary(t *testing.T) {
 
 func TestSelector_nesting_parent_group(t *testing.T) {
 
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a, b {
 d { color: red; }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -184,14 +184,14 @@ d { color: red; }
 
 func TestSelector_nesting_child_group(t *testing.T) {
 
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a {
 b, c { color: red; }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -205,14 +205,14 @@ b, c { color: red; }
 }
 
 func TestSelector_many_nests(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a, b {
 c, d { color: red; }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -226,12 +226,12 @@ c, d { color: red; }
 }
 
 func TestSelector_combinators(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `a + b ~ c { color: red; }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -246,14 +246,14 @@ func TestSelector_combinators(t *testing.T) {
 }
 
 func TestSelector_singleampersand(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `div {
 & { color: red; }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,14 +268,14 @@ func TestSelector_singleampersand(t *testing.T) {
 }
 
 func TestSelector_comboampersand(t *testing.T) {
-	ctx := &Context{}
-	ctx.Init()
+	ctx := NewContext()
+
 	ctx.fset = token.NewFileSet()
 	input := `div ~ b {
 & + & { color: red; }
 }
 `
-	out, err := ctx.run("", input)
+	out, err := ctx.runString("", input)
 	if err != nil {
 		t.Fatal("compilation fail", err)
 	}

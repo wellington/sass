@@ -3,7 +3,6 @@ package compiler
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"strings"
 	"unicode/utf8"
@@ -14,6 +13,8 @@ import (
 	"github.com/wellington/sass/token"
 )
 
+// Context maintains the state of the compiler and handles the output of the
+// parser.
 type Context struct {
 	buf      *bytes.Buffer
 	fileName *ast.Ident
@@ -43,36 +44,49 @@ type Context struct {
 	scope       Scope
 }
 
-func File(path string, out string) error {
-	s, err := Run(path)
-	if err != nil {
-		return err
-	}
-	return ioutil.WriteFile(out, []byte(s), 0666)
+// NewContext returns a new, initialized context
+func NewContext() *Context {
+	ctx := &Context{}
+	ctx.init()
+	return ctx
 }
 
+// Compile accepts a byte slice and returns a byte slice
+func Compile(input []byte) ([]byte, error) {
+	ctx := NewContext()
+	return ctx.run("", string(input))
+
+}
+
+// Run accepts a path to a Sass file and outputs a string
 func Run(path string) (string, error) {
-	ctx := &Context{}
-	ctx.Init()
-	out, err := ctx.Run(path)
+	ctx := NewContext()
+	out, err := ctx.run(path, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return out, err
+	return string(out), err
 }
 
+// SetMode modifies the mode that the parser runs in. See parser.Mode for
+// available options
 func (ctx *Context) SetMode(mode parser.Mode) error {
 	ctx.mode = mode
 	return nil
 }
 
-func (ctx *Context) run(path string, src interface{}) (string, error) {
+func (ctx *Context) runString(path string, src interface{}) (string, error) {
+	b, err := ctx.run(path, src)
+	return string(b), err
+}
+
+func (ctx *Context) run(path string, src interface{}) ([]byte, error) {
 
 	ctx.fset = token.NewFileSet()
 	// ctx.mode = parser.Trace
 	pf, err := parser.ParseFile(ctx.fset, path, src, ctx.mode)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	ast.Walk(ctx, pf)
@@ -82,12 +96,7 @@ func (ctx *Context) run(path string, src interface{}) (string, error) {
 		ctx.out("\n")
 	}
 	// ctx.printSels(pf.Decls)
-	return ctx.buf.String(), nil
-}
-
-// Run takes a single Sass file and compiles it outputing a string
-func (ctx *Context) Run(path string) (string, error) {
-	return ctx.run(path, nil)
+	return ctx.buf.Bytes(), nil
 }
 
 // out prints with the appropriate indention, selectors always have indent
@@ -161,6 +170,8 @@ func (ctx *Context) blockOutro() {
 	// }
 }
 
+// Visit is an internal compiler method. It is exported to allow ast.Walk
+// to walk through the parser AST tree.
 func (ctx *Context) Visit(node ast.Node) ast.Visitor {
 	if ctx.err != nil {
 		fmt.Println(ctx.err)
@@ -270,7 +281,7 @@ var (
 	ifStmt      *ast.IfStmt
 )
 
-func (ctx *Context) Init() {
+func (ctx *Context) init() {
 	ctx.buf = bytes.NewBuffer(nil)
 	ctx.printers = make(map[ast.Node]func(*Context, ast.Node))
 	ctx.printers[valueSpec] = visitValueSpec
