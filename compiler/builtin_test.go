@@ -88,3 +88,14 @@ func TestBuiltin_nth(t *testing.T) {
 `
 	runParse(t, in, e)
 }
+
+func TestBuiltin_url_expression(t *testing.T) {
+	in := `$x: a b;
+	div {
+		c: url(fn($x));
+	}`
+	e := `div {
+  c: url(fn(a b)); }
+`
+	runParse(t, in, e)
+}

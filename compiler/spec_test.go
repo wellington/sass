@@ -27,6 +27,11 @@ func findPaths() []file {
 	// files := make([]file, len(inputs))
 	for _, input = range inputs {
 
+		// Force a single test to run
+		if !strings.Contains(input, "37_") {
+			continue
+		}
+
 		// detailed commenting
 		if strings.Contains(input, "06_") {
 			continue
@@ -56,8 +61,9 @@ func findPaths() []file {
 			input:  input,
 			expect: exp,
 		})
+
 		// Indicates the first test that will not pass tests
-		if strings.Contains(input, "35_") && testing.Short() {
+		if strings.Contains(input, "37_") && testing.Short() {
 			break
 		}
 
