@@ -167,7 +167,7 @@ func otherOp(op token.Token, x, y *BasicLit, combine bool) (*BasicLit, error) {
 	case y.Kind == token.INT || y.Kind == token.FLOAT:
 	default:
 		if op == token.MUL {
-			return nil, fmt.Errorf("unsupported operation: %s %s %s", x, op, y)
+			return nil, fmt.Errorf("unsupported operation: %v %v %v", x, op, y)
 		}
 	}
 

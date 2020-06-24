@@ -9,7 +9,7 @@ Cross platform compiler for Sass
 # Usage
 
 ``` shell
-go get -u github.com/wellington/sass/sass
+GO111MODULE=on go get github.com/wellington/sass/sass
 ```
 
 ``` shell

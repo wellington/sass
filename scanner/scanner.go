@@ -526,7 +526,7 @@ L:
 	var queue []prefetch
 	defer func() {
 		if e := recover(); e != nil {
-			fmt.Printf("stack %q\n", queue)
+			fmt.Printf("stack %v\n", queue)
 			panic(e)
 		}
 	}()

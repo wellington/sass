@@ -55,7 +55,7 @@ func TestSub(t *testing.T) {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
 		if e := decimal.NewFromFloat(0.0); e.Cmp(x.dec) != 0 {
-			t.Errorf("got: %f wanted: %f", x.dec, e)
+			t.Errorf("got: %v wanted: %v", x.dec, e)
 		}
 	}
 }
@@ -68,7 +68,7 @@ func TestMul(t *testing.T) {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
 		if e := decimal.NewFromFloat(1.0); e.Cmp(x.dec) != 0 {
-			t.Errorf("got: %f wanted: %f", x.dec, e)
+			t.Errorf("got: %v wanted: %v", x.dec, e)
 		}
 	}
 }
@@ -81,7 +81,7 @@ func TestDiv(t *testing.T) {
 			t.Errorf("got: %s wanted: %s", samp[0].Unit, x.Unit)
 		}
 		if e := decimal.NewFromFloat(1.0); e.Cmp(x.dec) != 0 {
-			t.Errorf("got: %f wanted: %f", x.dec, e)
+			t.Errorf("got: %v wanted: %v", x.dec, e)
 		}
 	}
 }
