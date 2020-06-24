@@ -178,7 +178,7 @@ func (p *parser) pop() error {
 		if ferr != nil {
 			log.Println("abs fail", err)
 		}
-		err = fmt.Errorf("failed to read: %s", err, abs)
+		err = fmt.Errorf("failed to read %s: %v", abs, err)
 		return err
 	}
 	if p.queue != nil {
@@ -1332,7 +1332,7 @@ func (p *parser) tryVarType(isParam bool) ast.Expr {
 		}
 		return typ
 	} else if p.tok == token.INTERP {
-		log.Fatalf("interp!", p.lit)
+		log.Fatalf("interp! %v", p.lit)
 	}
 
 	return p.tryIdentOrType()
@@ -3080,7 +3080,7 @@ func (p *parser) processFuncArgs(scope *ast.Scope, signature *ast.FieldList, arg
 
 	for k, v := range toDeclare {
 		if k == nil {
-			fmt.Printf("FIXME: nil declaration...", k)
+			fmt.Printf("FIXME: nil declaration... %v", k)
 			astPrint(v)
 			continue
 		}

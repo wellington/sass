@@ -28,8 +28,6 @@ Usage: sass compile file.scss
 				err error
 			)
 			if len(outFile) > 0 {
-				err = compiler.File(file, outFile)
-			} else {
 				s, err = compiler.Run(file)
 			}
 

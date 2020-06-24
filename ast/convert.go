@@ -34,7 +34,7 @@ func ToValue(expr Expr, keys ...string) Expr {
 			return val
 		}
 	default:
-		log.Printf("failed to cast % #v\n")
+		log.Printf("failed to cast %#v\n", v)
 	}
 	return nil
 }
